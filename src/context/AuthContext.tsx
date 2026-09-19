@@ -4,7 +4,27 @@ import { auth, googleProvider, signInWithPopup, signOut, db } from '../firebase/
 import { doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { UserProfile, AuthorizedMatricula } from '../types/auth';
 
-export const ADMIN_EMAIL = 'gcm.dantas.pm@gmail.com';
+export const ADMIN_EMAIL = 'gcmdantas.pm@gmail.com';
+
+/**
+ * Valida com rigor se o email pertence ao administrador exclusivo.
+ * Suporta o formato exato gcmdantas.pm@gmail.com e normalização de pontos do Gmail (gcm.dantas.pm@gmail.com).
+ * Todos os demais usuários são categorizados exclusivamente como alunos/usuários comuns.
+ */
+export function isUserAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const clean = email.trim().toLowerCase();
+  if (clean === 'gcmdantas.pm@gmail.com' || clean === 'gcm.dantas.pm@gmail.com') {
+    return true;
+  }
+  if (clean.endsWith('@gmail.com')) {
+    const userPart = clean.replace('@gmail.com', '').replace(/\./g, '');
+    if (userPart === 'gcmdantaspm') {
+      return true;
+    }
+  }
+  return false;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -71,9 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribeProfile();
   }, [user]);
 
-  const isAdmin = Boolean(
-    user?.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()
-  );
+  const isAdmin = Boolean(user?.email && isUserAdminEmail(user.email));
 
   // O administrador mestre tem acesso imediato garantido para poder gerenciar o sistema.
   // Usuários comuns precisam ter matrícula vinculada.

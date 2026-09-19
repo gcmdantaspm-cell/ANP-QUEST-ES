@@ -284,8 +284,8 @@ Assinale a palavra corretamente grafada...`}
                 key={idx}
                 className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2.5"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-extrabold text-slate-900 bg-white border border-slate-300 px-2 py-0.5 rounded">
                       #{idx + 1}
                     </span>
@@ -296,6 +296,17 @@ Assinale a palavra corretamente grafada...`}
                       <Scale className="w-3 h-3" />
                       Peso {q.peso}
                     </span>
+                    {q.alternativas.some((a) => a.letra === 'A') ? (
+                      <span className="font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded text-[10px] flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        Letra A OK
+                      </span>
+                    ) : (
+                      <span className="font-bold text-rose-800 bg-rose-100 border border-rose-300 px-2 py-0.5 rounded text-[10px] flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 text-rose-600" />
+                        Sem Letra A
+                      </span>
+                    )}
                   </div>
 
                   <span className="font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">

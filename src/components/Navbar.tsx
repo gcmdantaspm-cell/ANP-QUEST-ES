@@ -61,7 +61,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             </div>
 
-            {/* Abas Principais de Navegação */}
+            {/* Abas Principais de Navegação: Questões e Simulados */}
             <nav className="hidden md:flex items-center gap-1.5 border-l border-slate-200 pl-6">
               <button
                 type="button"
@@ -73,13 +73,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`}
               >
                 <BookOpen className="w-4 h-4" />
-                <span>Caderno de Questões</span>
+                <span>Questões</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => onSelectNavSection('simulados')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-2 relative ${
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-2 ${
                   activeNavSection === 'simulados'
                     ? 'bg-slate-900 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -87,9 +87,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <FileCheck2 className="w-4 h-4 text-emerald-600" />
                 <span>Simulados</span>
-                <span className="text-[9px] uppercase font-mono px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-extrabold border border-emerald-300">
-                  Novo
-                </span>
               </button>
             </nav>
           </div>
@@ -192,7 +189,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Navegação Mobile em abas */}
+        {/* Navegação Mobile em abas: Questões e Simulados */}
         <div className="flex md:hidden border-t border-slate-100 py-2 gap-2">
           <button
             type="button"
@@ -203,7 +200,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : 'bg-slate-100 text-slate-700'
             }`}
           >
-            Caderno de Questões
+            Questões
           </button>
           <button
             type="button"
@@ -214,10 +211,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : 'bg-slate-100 text-slate-700'
             }`}
           >
-            <span>Simulados</span>
-            <span className="text-[9px] px-1 bg-emerald-500 text-white rounded font-mono">
-              Novo
-            </span>
+            Simulados
           </button>
         </div>
       </div>

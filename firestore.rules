@@ -12,7 +12,8 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() &&
-             request.auth.token.email.lower() == 'gcm.dantas.pm@gmail.com';
+             (request.auth.token.email.lower() == 'gcmdantas.pm@gmail.com' ||
+              request.auth.token.email.lower() == 'gcm.dantas.pm@gmail.com');
     }
 
     function isValidId(id) {
@@ -52,10 +53,10 @@ service cloud.firestore {
       }
     }
 
-    // Coleção de Simulados Ponderados (Apenas matéria e peso)
+    // Coleção de Simulados Ponderados (Apenas matéria e peso - Exclusivo para o Administrador)
     match /simulados/{simuladoId} {
       allow get, list: if true;
-      allow create, update, delete: if isValidId(simuladoId) && (isAdmin() || isSignedIn());
+      allow create, update, delete: if isValidId(simuladoId) && isAdmin();
     }
 
     // Coleção de Tentativas e Estatísticas de Simulados

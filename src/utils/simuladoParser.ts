@@ -69,8 +69,9 @@ export function parseSimuladoRawQuestions(rawText: string): SimuladoParseResult 
         }
       }
 
-      // 3. Extração de Gabarito
-      const gabMatch = block.match(/(?:gabarito|resposta(?:\s*correta)?)\s*[:=-]\s*([A-Ea-e]|certo|errado|c|e)\b/i);
+      // 3. Extração de Gabarito Estrita (Nunca confundir com 'assinale a alternativa correta')
+      const gabRegex = /(?:^|\n)[^\S\r\n]*(?:gabarito(?:\s+oficial|\s+definitivo)?|resposta(?:\s+oficial)?|resp\.?)[^\S\r\n]*[:=-][^\S\r\n]*(?:letra\s*|alternativa\s*)?([A-Ea-e]|certo|errado|c|e)\b/i;
+      const gabMatch = block.match(gabRegex);
       if (gabMatch) {
         const rawG = gabMatch[1].toUpperCase();
         if (rawG === 'CERTO' || rawG === 'C') gabarito = 'A';
@@ -91,36 +92,64 @@ export function parseSimuladoRawQuestions(rawText: string): SimuladoParseResult 
       }
 
       // 6. Extração das Alternativas e do Enunciado
-      // Removemos linhas de metadados da análise do corpo principal
-      const cleanedBody = block
-        .replace(/(?:mat[ée]ria|disciplina|conte[úu]do)\s*[:=-]\s*[^\n\r]+/gi, '')
-        .replace(/(?:peso|pontos?|valor|pontua[çc][ãa]o)\s*[:=-]\s*\d+(?:[.,]\d+)?/gi, '')
-        .replace(/(?:gabarito|resposta(?:\s*correta)?)\s*[:=-]\s*[A-Ea-e\s\w]+/gi, '')
+      // Removemos linhas de metadados da análise do corpo principal sem engolir quebras de linha das alternativas
+      let cleanedBody = block
+        .replace(/(?:^|\n)[^\S\r\n]*(?:mat[ée]ria|disciplina|conte[úu]do)\s*[:=-][^\n\r]*/gi, '')
+        .replace(/(?:^|\n)[^\S\r\n]*(?:peso|pontos?|valor|pontua[çc][ãa]o)\s*[:=-][^\n\r]*/gi, '');
+
+      if (gabMatch) {
+        cleanedBody = cleanedBody.replace(gabRegex, '\n');
+      }
+
+      cleanedBody = cleanedBody
         .replace(/(?:coment[áa]rio(?:s)?|resolu[çc][ãa]o|fundamenta[çc][ãa]o|explica[çc][ãa]o)\s*[:=-]\s*[\s\S]+?$/gi, '')
         .replace(/(?:dica|macete|mnem[ôo]nico)\s*[:=-]\s*[\s\S]+?$/gi, '')
+        .replace(/\r\n/g, '\n')
         .trim();
+
+      // Quebrar alternativas coladas após pontuação (ex: "...correta: A) Primeira...")
+      cleanedBody = cleanedBody.replace(
+        /(?:^|\n|[:.;?!]|\b)[ \t]+(?=(?:\(?\s*[a-eA-E]\s*[\)\].\-–—:]|\([a-eA-E]\)|\[[a-eA-E]\])[ \t]*)/g,
+        '\n'
+      );
 
       const alternativas: AlternativeItem[] = [];
       let enunciado = '';
 
       // Testar se tem alternativas com formato A) B) C) D) E) ou (A) (B)...
       const altMatches = Array.from(
-        cleanedBody.matchAll(/(?:^|\n)\s*(?:\(?\s*([A-Ea-e])\s*[\)\].-]\s*)([\s\S]*?)(?=(?:\n\s*(?:\(?[A-Ea-e]\s*[\)\].-]))|$)/gi)
+        cleanedBody.matchAll(/(?:^|\n)[ \t]*(?:\(?\s*([a-eA-E])\s*[\)\].\-–—:]|\(([a-eA-E])\)|\[([a-eA-E])\])[ \t]*([\s\S]*?)(?=(?:\n[ \t]*(?:\(?\s*[a-eA-E]\s*[\)\].\-–—:]|\([a-eA-E]\)|\[[a-eA-E]\])[ \t]*)|$)/gi)
       );
 
       if (altMatches.length >= 2) {
         // Enunciado é tudo antes da primeira alternativa
-        const firstIndex = altMatches[0].index || 0;
+        const firstIndex = altMatches[0].index !== undefined ? altMatches[0].index : 0;
         enunciado = cleanedBody.substring(0, firstIndex).trim();
 
         altMatches.forEach((m) => {
-          const letter = m[1].toUpperCase();
-          const altText = m[2].trim();
+          const letter = (m[1] || m[2] || m[3]).toUpperCase();
+          const altText = m[4].trim();
           alternativas.push({
             letra: letter,
             texto: altText,
           });
         });
+
+        // RESGATE DE SEGURANÇA DA ALTERNATIVA A
+        if (alternativas.length > 0 && !alternativas.some((a) => a.letra === 'A')) {
+          const rescueMatch = enunciado.match(
+            /(?:^|\n|[:.;?!])[ \t]*(?:\(?\s*A\s*[\)\].\-–—:]|\(A\)|\[A\])[ \t]*([\s\S]+)$/i
+          );
+          if (rescueMatch) {
+            const rescuedText = rescueMatch[1].trim();
+            const cutIndex = rescueMatch.index !== undefined ? rescueMatch.index : enunciado.length;
+            enunciado = enunciado.substring(0, cutIndex).trim();
+            alternativas.unshift({
+              letra: 'A',
+              texto: rescuedText,
+            });
+          }
+        }
       } else {
         // Testar se é estilo Certo/Errado
         const ceMatches = Array.from(

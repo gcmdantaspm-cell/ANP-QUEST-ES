@@ -268,15 +268,6 @@ function MainApp() {
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveNavSection('simulados')}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
-                >
-                  <FileCheck2 className="w-4 h-4" />
-                  <span>Ir para Simulados Ponderados</span>
-                </button>
-
                 <OfflineExporter
                   questions={filteredQuestions}
                   currentFilterLabel={currentFilterLabel}
@@ -317,24 +308,18 @@ function MainApp() {
                 <p className="text-xs text-slate-600 mb-6 leading-relaxed">
                   Utilize o Painel Admin para colar questões no caderno com Módulo/Capítulo, ou acesse a nova aba de <strong>Simulados</strong> para importar questões exigindo apenas a Matéria e o Peso!
                 </p>
-                <div className="flex flex-wrap items-center justify-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsAdminOpen(true)}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-xs"
-                  >
-                    <Layers className="w-4 h-4" />
-                    Abrir Painel Admin
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveNavSection('simulados')}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-xs"
-                  >
-                    <FileCheck2 className="w-4 h-4" />
-                    Acessar Simulados
-                  </button>
-                </div>
+                {isAdmin && (
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsAdminOpen(true)}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-xs"
+                    >
+                      <Layers className="w-4 h-4" />
+                      Abrir Painel Admin
+                    </button>
+                  </div>
+                )}
               </div>
             ) : filteredQuestions.length === 0 ? (
               <div className="py-16 text-center bg-white rounded-2xl border border-slate-200 p-8 max-w-md mx-auto">

@@ -31,6 +31,7 @@ import {
   ArrowRight,
   HelpCircle,
   AlertTriangle,
+  AlertCircle,
   X,
   IdCard,
 } from 'lucide-react';
@@ -177,6 +178,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setExtractedQuestions((prev) => {
       const copy = [...prev];
       copy[idx] = { ...copy[idx], [field]: value };
+      return copy;
+    });
+  };
+
+  // Atualizar texto de uma alternativa específica de uma questão extraída
+  const handleUpdateExtractedAlternative = (
+    qIdx: number,
+    altIdx: number,
+    newTexto: string
+  ) => {
+    setExtractedQuestions((prev) => {
+      const copy = [...prev];
+      const target = copy[qIdx];
+      const alts = [...target.alternativas];
+      alts[altIdx] = { ...alts[altIdx], texto: newTexto };
+      copy[qIdx] = { ...target, alternativas: alts };
+      return copy;
+    });
+  };
+
+  // Inserir a alternativa A caso falte ou precise ser preenchida
+  const handleAddMissingAlternativeA = (qIdx: number) => {
+    setExtractedQuestions((prev) => {
+      const copy = [...prev];
+      const target = copy[qIdx];
+      if (target.alternativas.some((a) => a.letra === 'A')) return prev;
+      const alts = [{ letra: 'A', texto: 'Digite aqui o texto da alternativa A...' }, ...target.alternativas];
+      copy[qIdx] = { ...target, alternativas: alts, alternativa_correta: target.alternativa_correta || 'A' };
       return copy;
     });
   };
@@ -766,6 +795,23 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                 </button>
               </div>
 
+              {/* Banner de Validação de Integridade das Alternativas */}
+              {extractedQuestions.some((q) => !q.alternativas.some((a) => a.letra === 'A')) ? (
+                <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 flex items-center gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    <strong>Atenção ao Lote:</strong> Foram identificadas questões onde a <strong>Alternativa A</strong> não veio delimitada. Você pode clicar em <em>"+ Inserir Letra A"</em> diretamente no card para adicioná-la.
+                  </span>
+                </div>
+              ) : (
+                <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-900 flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    <strong>Validação Concluída:</strong> Todas as <strong>{extractedQuestions.length} questões</strong> do lote possuem a <strong>Alternativa A</strong> devidamente capturada e estruturada.
+                  </span>
+                </div>
+              )}
+
               {/* Barra de Ações Rápidas de Exclusão do Lote */}
               <div className="flex flex-wrap items-center justify-between gap-3 px-2 py-1 text-xs">
                 <label className="flex items-center gap-2 cursor-pointer select-none font-semibold text-slate-700">
@@ -872,6 +918,22 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                             <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
                               Gabarito: {q.alternativa_correta}
                             </span>
+                            {q.alternativas.some((a) => a.letra === 'A') ? (
+                              <span className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded text-[11px]">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                Letra A OK
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleAddMissingAlternativeA(idx)}
+                                className="inline-flex items-center gap-1 font-bold text-rose-800 bg-rose-100 border border-rose-300 hover:bg-rose-200 px-2 py-0.5 rounded text-[11px] cursor-pointer shadow-2xs"
+                                title="Clique para adicionar a alternativa A faltante nesta questão"
+                              >
+                                <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                                + Inserir Letra A
+                              </button>
+                            )}
                           </div>
                         </div>
 
@@ -900,37 +962,68 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                       </div>
                     </div>
 
-                    {/* Alternativas */}
-                    <div>
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
-                        Alternativas Detectadas ({q.alternativas.length}) - Selecione a correta se desejar alterar:
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                        {q.alternativas.map((alt) => {
+                    {/* Alternativas com Visualização Clara e Editável */}
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                          Alternativas Detectadas ({q.alternativas.length}):
+                          <span className="text-[10px] font-normal text-slate-500">
+                            (Clique na letra para definir como gabarito)
+                          </span>
+                        </span>
+                        {!q.alternativas.some((a) => a.letra === 'A') && (
+                          <button
+                            type="button"
+                            onClick={() => handleAddMissingAlternativeA(idx)}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                          >
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            Inserir Letra A
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        {q.alternativas.map((alt, altIdx) => {
                           const isCorrect = alt.letra === q.alternativa_correta;
                           return (
-                            <button
-                              type="button"
-                              key={alt.letra}
-                              onClick={() => handleUpdateExtractedField(idx, 'alternativa_correta', alt.letra)}
-                              className={`p-2 rounded-lg border text-xs flex items-center gap-2 text-left cursor-pointer transition-all ${
+                            <div
+                              key={alt.letra + altIdx}
+                              className={`p-2.5 rounded-xl border text-xs flex items-start gap-3 transition-all ${
                                 isCorrect
-                                  ? 'bg-emerald-50 border-emerald-400 font-bold text-emerald-950 ring-1 ring-emerald-400'
-                                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                  ? 'bg-emerald-50/80 border-emerald-400 ring-1 ring-emerald-400 text-emerald-950 shadow-2xs'
+                                  : 'bg-white border-slate-200 text-slate-800 hover:border-slate-300'
                               }`}
-                              title={`Clique para definir alternativa ${alt.letra} como correta`}
                             >
-                              <span
-                                className={`w-5 h-5 rounded flex items-center justify-center font-bold text-[11px] shrink-0 ${
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateExtractedField(idx, 'alternativa_correta', alt.letra)}
+                                className={`w-6 h-6 rounded-lg font-black text-xs shrink-0 flex items-center justify-center transition-transform hover:scale-105 cursor-pointer mt-0.5 ${
                                   isCorrect
-                                    ? 'bg-emerald-600 text-white'
-                                    : 'bg-slate-200 text-slate-600'
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
                                 }`}
+                                title={`Clique para marcar a alternativa ${alt.letra} como gabarito correto`}
                               >
                                 {alt.letra}
-                              </span>
-                              <span className="truncate">{alt.texto}</span>
-                            </button>
+                              </button>
+
+                              <div className="flex-1 min-w-0">
+                                <textarea
+                                  rows={Math.max(1, Math.min(4, Math.ceil(alt.texto.length / 80)))}
+                                  value={alt.texto}
+                                  onChange={(e) => handleUpdateExtractedAlternative(idx, altIdx, e.target.value)}
+                                  className="w-full bg-transparent border-0 p-0 text-xs text-slate-800 font-medium focus:ring-0 focus:outline-hidden resize-y leading-relaxed"
+                                  placeholder={`Texto da alternativa ${alt.letra}...`}
+                                />
+                              </div>
+
+                              {isCorrect && (
+                                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-600 text-white shrink-0 mt-0.5 shadow-2xs">
+                                  Correta
+                                </span>
+                              )}
+                            </div>
                           );
                         })}
                       </div>

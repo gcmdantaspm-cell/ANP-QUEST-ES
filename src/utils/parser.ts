@@ -325,15 +325,14 @@ export function parseRawQuestionText(
   }
 
   let textBeforeGabarito = textBeforeComentario;
-  const gabMatch = textBeforeComentario.match(
-    /(?:gabarito|resposta(?:\s+correta)?|alternativa\s+correta):\s*(?:letra\s*|alternativa\s*)?([A-Ea-e])\b/i
-  );
+  // Extração estrita de Gabarito: APENAS quando a linha for explicitamente destinada ao gabarito/resposta,
+  // NUNCA confundindo com comandos do enunciado como "Assinale a alternativa correta:"
+  const gabRegex = /(?:^|\n)[^\S\r\n]*(?:gabarito(?:\s+oficial|\s+definitivo)?|resposta(?:\s+oficial)?|resp\.?)[^\S\r\n]*[:=-][^\S\r\n]*(?:letra\s*|alternativa\s*)?([A-Ea-e])\b/i;
+  const gabMatch = textBeforeComentario.match(gabRegex);
   if (gabMatch) {
     gabarito = gabMatch[1].toUpperCase().trim();
-    // Remove a linha do gabarito para não poluir o enunciado/alternativas
-    textBeforeGabarito = textBeforeComentario
-      .replace(/(?:gabarito|resposta(?:\s+correta)?|alternativa\s+correta):\s*(?:letra\s*|alternativa\s*)?[A-Ea-e]\b[^\n]*/i, '')
-      .trim();
+    // Remove apenas a linha de gabarito para não poluir o enunciado/alternativas
+    textBeforeGabarito = textBeforeComentario.replace(gabRegex, '\n').trim();
   }
 
   // Se o comentário começou com a letra do gabarito: "Gabarito Comentado: B - Explicação..."
@@ -346,11 +345,14 @@ export function parseRawQuestionText(
 
   // Extrair Enunciado e Alternativas de textBeforeGabarito
   // Normalizar quebras de linha e quebrar alternativas inline após pontuação (ex: "...correta: a) Primeira")
-  let altTargetText = textBeforeGabarito.replace(/\r\n/g, '\n');
-  altTargetText = altTargetText.replace(/(?<=[:.;]|\b)\s+(?=(?:\([a-eA-E]\)|\[[a-eA-E]\]|[a-eA-E][-.:–—)]\s*))/g, '\n');
+  let altTargetText = textBeforeGabarito.replace(/\r\n/g, '\n').trim();
+  altTargetText = altTargetText.replace(
+    /(?:^|\n|[:.;?!]|\b)[ \t]+(?=(?:\(?\s*[a-eA-E]\s*[\)\].\-–—:]|\([a-eA-E]\)|\[[a-eA-E]\])[ \t]*)/g,
+    '\n'
+  );
 
   // Suporta A), B), C), D), E) ou (A), [A], A - ou A. ou a), b), c)...
-  const altRegex = /(?:^|\n)\s*(?:\(([a-eA-E])\)|\[([a-eA-E])\]|([a-eA-E])\s*[-.:–—)])\s*([\s\S]*?)(?=(?:\n\s*(?:\([a-eA-E]\)|\[[a-eA-E]\]|[a-eA-E]\s*[-.:–—)]))|$)/g;
+  const altRegex = /(?:^|\n)[ \t]*(?:\(?\s*([a-eA-E])\s*[\)\].\-–—:]|\(([a-eA-E])\)|\[([a-eA-E])\])[ \t]*([\s\S]*?)(?=(?:\n[ \t]*(?:\(?\s*[a-eA-E]\s*[\)\].\-–—:]|\([a-eA-E]\)|\[[a-eA-E]\])[ \t]*)|$)/g;
 
   const alternativas: AlternativeItem[] = [];
   let firstAltIndex = -1;
@@ -373,6 +375,44 @@ export function parseRawQuestionText(
     enunciado = altTargetText.substring(0, firstAltIndex).trim();
   } else {
     enunciado = altTargetText.trim();
+  }
+
+  // RESGATE DE SEGURANÇA DA ALTERNATIVA A:
+  // Se as alternativas encontradas não contiverem a Letra A (por exemplo, começaram em B),
+  // significa que o enunciado absorveu a Alternativa A no seu término.
+  // Resgatamos a Alternativa A do final do enunciado com precisão cirúrgica.
+  if (alternativas.length > 0 && !alternativas.some((a) => a.letra === 'A')) {
+    const rescueMatch = enunciado.match(
+      /(?:^|\n|[:.;?!])[ \t]*(?:\(?\s*A\s*[\)\].\-–—:]|\(A\)|\[A\])[ \t]*([\s\S]+)$/i
+    );
+    if (rescueMatch) {
+      const rescuedText = rescueMatch[1].trim();
+      const cutIndex = rescueMatch.index !== undefined ? rescueMatch.index : enunciado.length;
+      enunciado = enunciado.substring(0, cutIndex).trim();
+      alternativas.unshift({
+        letra: 'A',
+        texto: rescuedText,
+      });
+    }
+  }
+
+  // Se não encontrou alternativas no formato A-E, verificar estilo Certo / Errado
+  if (alternativas.length === 0) {
+    const ceRegex = /(?:^|\n)[ \t]*(?:\(?\s*(Certo|Errado)\s*[\)\].\-–—:]?|\((C|E)\))[ \t]*([\s\S]*?)(?=(?:\n[ \t]*(?:\(?\s*(?:Certo|Errado)\s*[\)\].\-–—:]?|\((?:C|E)\))[ \t]*)|$)/gi;
+    let ceMatch: RegExpExecArray | null;
+    let firstCeIndex = -1;
+    while ((ceMatch = ceRegex.exec(altTargetText)) !== null) {
+      if (firstCeIndex === -1) firstCeIndex = ceMatch.index;
+      const rawType = (ceMatch[1] || ceMatch[2]).toUpperCase();
+      const isC = rawType.startsWith('C');
+      alternativas.push({
+        letra: isC ? 'A' : 'B',
+        texto: isC ? 'Certo' : 'Errado',
+      });
+    }
+    if (firstCeIndex !== -1) {
+      enunciado = altTargetText.substring(0, firstCeIndex).trim();
+    }
   }
 
   // Limpar prefixos comuns no enunciado como "Questão 1:" ou "Enunciado:"

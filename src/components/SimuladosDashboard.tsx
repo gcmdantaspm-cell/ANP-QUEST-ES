@@ -254,18 +254,20 @@ export const SimuladosDashboard: React.FC = () => {
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('novo')}
-          className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 shadow-xs ${
-            activeTab === 'novo'
-              ? 'bg-blue-700 text-white'
-              : 'bg-blue-600 hover:bg-blue-700 text-white'
-          }`}
-        >
-          <PlusCircle className="w-4 h-4" />
-          Importar / Criar Simulado
-        </button>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('novo')}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 shadow-xs ${
+              activeTab === 'novo'
+                ? 'bg-blue-700 text-white'
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            }`}
+          >
+            <PlusCircle className="w-4 h-4" />
+            Importar / Criar Simulado
+          </button>
+        )}
       </div>
 
       {/* Conteúdo das Abas */}
@@ -278,15 +280,19 @@ export const SimuladosDashboard: React.FC = () => {
                 Nenhum simulado cadastrado
               </h3>
               <p className="text-xs text-slate-500 mb-4">
-                Clique no botão "Importar / Criar Simulado" para colar suas questões com matéria e peso.
+                {isAdmin
+                  ? 'Clique no botão "Importar / Criar Simulado" para colar suas questões com matéria e peso.'
+                  : 'Nenhum simulado foi disponibilizado até o momento. Aguarde o cadastro pelo administrador.'}
               </p>
-              <button
-                type="button"
-                onClick={() => setActiveTab('novo')}
-                className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg cursor-pointer"
-              >
-                Cadastrar Primeiro Simulado
-              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('novo')}
+                  className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg cursor-pointer"
+                >
+                  Cadastrar Primeiro Simulado
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -394,10 +400,28 @@ export const SimuladosDashboard: React.FC = () => {
       )}
 
       {activeTab === 'novo' && (
-        <SimuladoImporter
-          onSaveSimulado={handleSaveSimulado}
-          onCancel={() => setActiveTab('disponiveis')}
-        />
+        isAdmin ? (
+          <SimuladoImporter
+            onSaveSimulado={handleSaveSimulado}
+            onCancel={() => setActiveTab('disponiveis')}
+          />
+        ) : (
+          <div className="bg-white rounded-2xl border border-rose-200 p-8 text-center max-w-md mx-auto my-6 shadow-xs">
+            <h3 className="text-base font-bold text-slate-900 mb-2">
+              Acesso Exclusivo ao Administrador
+            </h3>
+            <p className="text-xs text-slate-600 mb-4">
+              Apenas o administrador (<strong>gcmdantas.pm@gmail.com</strong>) tem permissão para importar ou cadastrar simulados.
+            </p>
+            <button
+              type="button"
+              onClick={() => setActiveTab('disponiveis')}
+              className="px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl"
+            >
+              Voltar aos Simulados
+            </button>
+          </div>
+        )
       )}
 
       {/* Modal de Relatório do Último Simulado Finalizado */}
