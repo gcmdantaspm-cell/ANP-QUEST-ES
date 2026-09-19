@@ -107,26 +107,60 @@ export function generateOfflineHtml(questions: Question[], filterTitle: string =
       box-shadow: 0 1px 3px rgba(0,0,0,0.05);
       transition: border-color 0.2s;
     }
-    .q-meta {
+    .q-header-top {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 16px;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
     }
-    .q-tag {
-      background: #eff6ff;
-      color: var(--primary);
+    .q-number-badge {
+      background: #1e293b;
+      color: #ffffff;
       font-size: 12px;
-      font-weight: 600;
-      padding: 4px 10px;
+      font-weight: 800;
+      padding: 6px 12px;
       border-radius: 6px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .q-etiqueta-destaque {
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      background: #eff6ff;
+      border: 1.5px solid #bfdbfe;
+      border-left: 4px solid #2563eb;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #1e3a8a;
+      box-shadow: 0 1px 2px rgba(37, 99, 235, 0.06);
+    }
+    .etiqueta-badge {
+      background: #2563eb;
+      color: #ffffff;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+    .etiqueta-text {
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: 0.01em;
     }
     .q-enunciado {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 500;
-      line-height: 1.6;
+      line-height: 1.7;
       margin-bottom: 20px;
       white-space: pre-wrap;
+      text-align: justify;
+      color: #1e293b;
     }
     .alternatives-list {
       display: flex;
@@ -321,25 +355,41 @@ export function generateOfflineHtml(questions: Question[], filterTitle: string =
         card.className = 'question-card';
         card.id = 'q_' + index;
 
-        // Metadados
-        let metaHtml = '<div class="q-meta">';
-        metaHtml += '<span class="q-tag">Q' + (index + 1) + '</span>';
-        if (q.modulo) metaHtml += '<span class="q-tag">' + escapeStr(q.modulo) + '</span>';
-        if (q.capitulo) metaHtml += '<span class="q-tag">' + escapeStr(q.capitulo) + '</span>';
-        if (q.subtopico) metaHtml += '<span class="q-tag">' + escapeStr(q.subtopico) + '</span>';
-        if (q.tema_subtopico) metaHtml += '<span class="q-tag">' + escapeStr(q.tema_subtopico) + '</span>';
-        metaHtml += '</div>';
+        // Limpar menções a modelo e montar a etiqueta destacada: modulo - capitulo - subtopico - tema
+        const cleanMod = cleanField(q.modulo);
+        const cleanCap = cleanField(q.capitulo);
+        const cleanSub = cleanField(q.subtopico);
+        const cleanTema = cleanField(q.tema_subtopico);
 
-        // Enunciado
-        const enunciadoHtml = '<div class="q-enunciado">' + escapeStr(q.enunciado) + '</div>';
+        const etiquetaParts = [];
+        if (cleanMod) etiquetaParts.push(cleanMod);
+        if (cleanCap) etiquetaParts.push(cleanCap);
+        if (cleanSub) etiquetaParts.push(cleanSub);
+        if (cleanTema) etiquetaParts.push(cleanTema);
+        const etiquetaStr = etiquetaParts.join(' - ');
+
+        // Cabeçalho da questão com Etiqueta em destaque
+        let headerHtml = '<div class="q-header-top">';
+        headerHtml += '<span class="q-number-badge">Questão ' + (index + 1) + '</span>';
+        if (etiquetaStr) {
+          headerHtml += '<div class="q-etiqueta-destaque">' +
+            '<span class="etiqueta-badge">Etiqueta</span>' +
+            '<span class="etiqueta-text">' + escapeStr(etiquetaStr) + '</span>' +
+          '</div>';
+        }
+        headerHtml += '</div>';
+
+        // Enunciado limpo (sem tags de modelo ou módulo)
+        const cleanEnunciado = cleanQuestionEnunciado(q.enunciado);
+        const enunciadoHtml = '<div class="q-enunciado">' + escapeStr(cleanEnunciado) + '</div>';
 
         // Alternativas
         let altsHtml = '<div class="alternatives-list" id="alts_' + index + '">';
         const alts = Array.isArray(q.alternativas) ? q.alternativas : [];
         alts.forEach((alt, altIdx) => {
-          const letter = typeof alt === 'object' && alt.letra ? alt.letra : String.fromCharCode(65 + altIdx);
+          const letter = typeof alt === 'object' && alt.letra ? String(alt.letra).toUpperCase().trim() : String.fromCharCode(65 + altIdx);
           const text = typeof alt === 'object' && alt.texto ? alt.texto : String(alt);
-          altsHtml += '<button type="button" class="alt-btn" id="btn_' + index + '_' + letter + '" onclick="selectOption(' + index + ', \\'' + letter + '\\')">' +
+          altsHtml += '<button type="button" class="alt-btn" id="btn_' + index + '_' + letter + '" onclick="selectOption(' + index + ', \'' + letter + '\')">' +
             '<span class="alt-letter">' + letter + '</span>' +
             '<span class="alt-text">' + escapeStr(text) + '</span>' +
           '</button>';
@@ -371,7 +421,7 @@ export function generateOfflineHtml(questions: Question[], filterTitle: string =
         }
         accordionHtml += '</div>';
 
-        card.innerHTML = metaHtml + enunciadoHtml + altsHtml + actionsHtml + feedbackHtml + accordionHtml;
+        card.innerHTML = headerHtml + enunciadoHtml + altsHtml + actionsHtml + feedbackHtml + accordionHtml;
         container.appendChild(card);
       });
 
@@ -501,6 +551,23 @@ export function generateOfflineHtml(questions: Question[], filterTitle: string =
       document.getElementById('wrongCount').innerText = wrong;
       const rate = answered > 0 ? Math.round((correct / answered) * 100) : 0;
       document.getElementById('scoreRate').innerText = rate + '%';
+    }
+
+    function cleanField(str) {
+      if (!str) return '';
+      let s = String(str);
+      s = s.replace(/\(?\s*modelo\s*[12]\s*[-–—:]*\s*(?:m[úu]ltipla\s*escol(?:ha|a)|julgamento(?:\s+de\s+itens)?|certo\s*e?\s*errado)?\s*\)?/gi, '');
+      s = s.replace(/\(?\s*m[úu]ltipla\s*escol(?:ha|a)\s*\)?/gi, '');
+      s = s.replace(/\(?\s*julgamento\s+de\s+itens\s*\)?/gi, '');
+      s = s.replace(/\(?\s*modelo\s*[12]\s*\)?/gi, '');
+      return s.replace(/^[\s\-–—:.]+/g, '').replace(/[\s\-–—:.]+$/g, '').trim();
+    }
+
+    function cleanQuestionEnunciado(raw) {
+      if (!raw) return '';
+      let s = cleanField(raw);
+      s = s.replace(/^\s*\([^)]*m[óo]dulo[^)]*\)\s*/i, '');
+      return s.replace(/^[\s\-–—:.]+/g, '').trim();
     }
 
     function escapeStr(str) {

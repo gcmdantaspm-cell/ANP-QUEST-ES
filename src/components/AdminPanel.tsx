@@ -6,6 +6,7 @@ import {
   parseBatchRawQuestions,
   ParsedQuestionResult,
   SAMPLE_QUESTIONS_RAW,
+  formatEtiqueta,
 } from '../utils/parser';
 import { db, handleFirestoreError, OperationType } from '../firebase/config';
 import {
@@ -651,7 +652,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 onChange={(e) => setRawText(e.target.value)}
                 placeholder={`Cole aqui o texto das questões. Exemplo:
 
-(Modelo 1) (MÓDULO-2-CAPÍTULO 1) Julgue as assertivas a seguir:
+Módulo: Direito Constitucional
+Capítulo: Direitos e Garantias Fundamentais
+Subtópico: Artigo 5º
+Tema: Mandado de Segurança
+
+Julgue as assertivas a seguir:
 I. Primeiro item de análise...
 II. Segundo item de análise...
 Estão corretos os itens:
@@ -831,17 +837,38 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                             <span className="font-bold bg-slate-900 text-white px-2 py-0.5 rounded">
                               Questão #{idx + 1}
                             </span>
-                            <span className="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
-                              {q.modulo}
-                            </span>
-                            <span className="text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
-                              {q.capitulo}
-                            </span>
-                            {q.subtopico && (
-                              <span className="text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">
-                                {q.subtopico}
-                              </span>
-                            )}
+                            {(() => {
+                              const etq = formatEtiqueta(q);
+                              if (etq) {
+                                return (
+                                  <span className="inline-flex items-center gap-1.5 font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+                                    <span className="text-[9px] bg-blue-600 text-white px-1.5 py-0.2 rounded font-extrabold uppercase tracking-wide">
+                                      Etiqueta
+                                    </span>
+                                    {etq}
+                                  </span>
+                                );
+                              }
+                              return (
+                                <>
+                                  {q.modulo && (
+                                    <span className="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+                                      {q.modulo}
+                                    </span>
+                                  )}
+                                  {q.capitulo && (
+                                    <span className="text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                                      {q.capitulo}
+                                    </span>
+                                  )}
+                                  {q.subtopico && (
+                                    <span className="text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">
+                                      {q.subtopico}
+                                    </span>
+                                  )}
+                                </>
+                              );
+                            })()}
                             <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
                               Gabarito: {q.alternativa_correta}
                             </span>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Question, AlternativeItem } from '../types/question';
 import { QuestionComments } from './QuestionComments';
-import { smartFormatEnunciado, smartFormatComentario } from '../utils/parser';
+import { smartFormatEnunciado, smartFormatComentario, formatEtiqueta } from '../utils/parser';
 import {
   Flag,
   CheckCircle2,
@@ -162,6 +162,27 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
       <div className="flex-1 w-full space-y-3">
         {/* BLOCO AZUL-CLARO / CIANO PASTEL (ENUNCIADO E ALTERNATIVAS) */}
         <div className="bg-[#e7f3f5] border border-[#d2e8ec] rounded-md p-5 sm:p-6 shadow-2xs">
+          {/* ETIQUETA EM DESTAQUE (MÓDULO - CAPÍTULO - SUBTÓPICOS E TEMAS QUANDO HOUVER) */}
+          {(() => {
+            const etiqueta = formatEtiqueta({
+              modulo: question.modulo,
+              capitulo: question.capitulo,
+              subtopico: question.subtopico,
+              tema_subtopico: question.tema_subtopico,
+            });
+            if (!etiqueta) return null;
+            return (
+              <div className="mb-4 inline-flex flex-wrap items-center gap-2 px-3 py-1.5 bg-white border border-blue-200 border-l-4 border-l-blue-600 rounded-md shadow-2xs">
+                <span className="bg-blue-600 text-white font-extrabold uppercase text-[10px] tracking-wider px-2 py-0.5 rounded">
+                  Etiqueta
+                </span>
+                <span className="font-bold text-slate-800 text-xs sm:text-sm">
+                  {etiqueta}
+                </span>
+              </div>
+            );
+          })()}
+
           {/* Enunciado Justificado com espaçamento amplo entre linhas e parágrafos definidos */}
           <div className="text-slate-900 text-sm sm:text-base leading-relaxed sm:leading-loose text-justify mb-6 font-normal tracking-normal select-text whitespace-pre-line">
             {smartFormatEnunciado(question.enunciado)}

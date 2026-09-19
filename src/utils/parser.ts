@@ -35,22 +35,64 @@ export interface ParsedCommentItem {
 }
 
 /**
- * Formata e organiza o enunciado da questão, justificando e dando espaçamento
- * adequado para tags iniciais (Modelo/Módulo), itens de assertivas (I, II, III, IV) e comandos de fechamento.
+ * Limpa qualquer menção a Modelo 1, Modelo 2, Múltipla Escolha, Julgamento de Itens
+ */
+export function sanitizeEtiquetaField(field?: string): string {
+  if (!field) return '';
+  let s = field;
+  s = s.replace(/\(?\s*modelo\s*[12]\s*[-–—:]*\s*(?:m[úu]ltipla\s*escol(?:ha|a)|julgamento(?:\s+de\s+itens)?|certo\s*e?\s*errado)?\s*\)?/gi, '');
+  s = s.replace(/\(?\s*m[úu]ltipla\s*escol(?:ha|a)\s*\)?/gi, '');
+  s = s.replace(/\(?\s*julgamento\s+de\s+itens\s*\)?/gi, '');
+  s = s.replace(/\(?\s*modelo\s*[12]\s*\)?/gi, '');
+  s = s.replace(/^[\s\-–—:.]+/g, '').replace(/[\s\-–—:.]+$/g, '').trim();
+  return s;
+}
+
+/**
+ * Formata a etiqueta destacada das questões: Módulo - Capítulo - Subtópicos e Temas quando houver
+ */
+export function formatEtiqueta(q: {
+  modulo?: string;
+  capitulo?: string;
+  subtopico?: string;
+  tema_subtopico?: string;
+}): string {
+  const parts: string[] = [];
+  const mod = sanitizeEtiquetaField(q.modulo);
+  const cap = sanitizeEtiquetaField(q.capitulo);
+  const sub = sanitizeEtiquetaField(q.subtopico);
+  const tema = sanitizeEtiquetaField(q.tema_subtopico);
+
+  if (mod) parts.push(mod);
+  if (cap) parts.push(cap);
+  if (sub) parts.push(sub);
+  if (tema) parts.push(tema);
+
+  return parts.join(' - ');
+}
+
+/**
+ * Formata e organiza o enunciado da questão, retirando menções a Modelo 1/2 e tags de módulo,
+ * justificando e dando espaçamento adequado para itens de assertivas (I, II, III, IV) e comandos de fechamento.
  */
 export function smartFormatEnunciado(rawText: string): string {
   if (!rawText) return '';
 
   let text = rawText.replace(/\r\n/g, '\n').trim();
 
-  // 1. Tags iniciais como (Modelo 1 - Julgamento de Itens) (MÓDULO-2-CAPÍTULO 1- [1.0-INTRODUÇÃO])
-  // Garante linha em branco após os blocos parentetizados do cabeçalho
-  text = text.replace(
-    /^(\((?:Modelo|M[óo]dulo|Cap[íi]tulo|CEBRASPE|CESPE|VUNESP|FCC|FGV|ENEM)[^)]*\)(?:\s*\([^)]*\))*)\s*(?=[A-Z\u00C0-\u00DC])/i,
-    '$1\n\n'
-  );
+  // 1. Remover Modelo 1, Modelo 2, Múltipla Escolha, Julgamento de Itens
+  text = text.replace(/\(?\s*modelo\s*[12]\s*[-–—:]*\s*(?:m[úu]ltipla\s*escol(?:ha|a)|julgamento(?:\s+de\s+itens)?|certo\s*e?\s*errado)?\s*\)?/gi, '');
+  text = text.replace(/\(?\s*m[úu]ltipla\s*escol(?:ha|a)\s*\)?/gi, '');
+  text = text.replace(/\(?\s*julgamento\s+de\s+itens\s*\)?/gi, '');
+  text = text.replace(/\(?\s*modelo\s*[12]\s*\)?/gi, '');
 
-  // 2. Quebrar assertivas / itens numerais romanos em linhas separadas e bem espaçadas
+  // 2. Remover tags iniciais de cabeçalho do tipo (MÓDULO-2-CAPÍTULO 1- [1.0-INTRODUÇÃO])
+  text = text.replace(/^\s*\([^)]*m[óo]dulo[^)]*\)\s*/i, '');
+
+  // 3. Limpar traços ou pontuações residuais no início
+  text = text.replace(/^[\s\-–—:.]+/g, '').trim();
+
+  // 4. Quebrar assertivas / itens numerais romanos em linhas separadas e bem espaçadas
   // Exemplo: ": I. O domínio... II. A capacitação..." -> "\n\nI. O domínio...\n\nII. A capacitação..."
   text = text.replace(
     /(?:(?<=[:.;])|(?<=\n))\s*([IVXLCDM]{1,6})\.\s+/g,
@@ -67,14 +109,14 @@ export function smartFormatEnunciado(rawText: string): string {
     '\n\n($1) '
   );
 
-  // 3. Quebrar comandos finais de pergunta em linha separada
+  // 5. Quebrar comandos finais de pergunta em linha separada
   // Exemplo: "...trajetória profissional. Estão corretos os itens:" -> "\n\nEstão corretos os itens:"
   text = text.replace(
     /(?<=[\w.?!])\s+(Est[ãa]o\s+corret[ao]s(?:\s+os?\s+itens)?[:\s]|Assinale\s+a\s+alternativa\s+correta[:\s]|É\s+correto\s+o\s+que\s+se\s+afirma[:\s]|Julgue\s+os?\s+itens?[:\s]|Assinale\s+a\s+op[çc][ãa]o\s+correta[:\s]|Considerando\s+as\s+assertivas[:\s]|A\s+respeito\s+d[ao]s?[:\s]|Diante\s+d[ao]s?[:\s])/gi,
     '\n\n$1'
   );
 
-  // 4. Limpar múltiplos espaços consecutivos e limitar quebras a no máximo duas (\n\n)
+  // 6. Limpar múltiplos espaços consecutivos e limitar quebras a no máximo duas (\n\n)
   text = text
     .split('\n')
     .map((line) => line.replace(/[ \t]+/g, ' ').trim())
@@ -201,8 +243,6 @@ export function parseRawQuestionText(
   rawText: string,
   context?: HierarchyContext
 ): ParsedQuestionResult {
-  const lines = rawText.split(/\r?\n/).map((l) => l.trimEnd());
-
   let modulo = context?.modulo || context?.materia || '';
   let capitulo = context?.capitulo || '';
   let subtopico = context?.subtopico || '';
@@ -212,6 +252,30 @@ export function parseRawQuestionText(
   let comentario = '';
   let dica = '';
 
+  // 0. Limpar qualquer menção a Modelo 1, Modelo 2, Múltipla Escolha, etc.
+  let cleanedRaw = rawText
+    .replace(/\(?\s*modelo\s*[12]\s*[-–—:]*\s*(?:m[úu]ltipla\s*escol(?:ha|a)|julgamento(?:\s+de\s+itens)?|certo\s*e?\s*errado)?\s*\)?/gi, '')
+    .replace(/\(?\s*m[úu]ltipla\s*escol(?:ha|a)\s*\)?/gi, '')
+    .replace(/\(?\s*julgamento\s+de\s+itens\s*\)?/gi, '')
+    .replace(/\(?\s*modelo\s*[12]\s*\)?/gi, '')
+    .trim();
+
+  // 0.1 Extrair tag inicial parentetizada tipo (MÓDULO-2-CAPÍTULO 1- [1.0-INTRODUÇÃO])
+  const inlineTagMatch = cleanedRaw.match(/^\s*\(([^)]*m[óo]dulo[^)]*)\)\s*/i);
+  if (inlineTagMatch) {
+    const tagContent = inlineTagMatch[1];
+    const modM = tagContent.match(/m[óo]dulo[\s\-–—:]*([^:\-–—\n]+)/i);
+    const capM = tagContent.match(/cap[íi]tulo[\s\-–—:]*([^:\-–—\n\[]+)/i);
+    const subM = tagContent.match(/\[([^\]]+)\]|subt[óo]pico[\s\-–—:]*([^:\-–—\n]+)/i);
+
+    if (modM && !modulo) modulo = `Módulo ${modM[1].trim().replace(/^[\-–—:]+/, '').trim()}`;
+    if (capM && !capitulo) capitulo = `Capítulo ${capM[1].trim().replace(/^[\-–—:]+/, '').trim()}`;
+    if (subM && !subtopico) subtopico = (subM[1] || subM[2]).trim().replace(/^[\-–—:]+/, '').trim();
+
+    cleanedRaw = cleanedRaw.substring(inlineTagMatch[0].length).trim();
+  }
+
+  const lines = cleanedRaw.split(/\r?\n/).map((l) => l.trimEnd());
   const cleanLines: string[] = [];
 
   // Padrões de hierarquia no cabeçalho do texto bruto
@@ -281,14 +345,18 @@ export function parseRawQuestionText(
   }
 
   // Extrair Enunciado e Alternativas de textBeforeGabarito
-  // Suporta A), B), C), D), E) ou (A), [A], A - ou a), b), c)...
-  const altRegex = /(?:^|\n)\s*(?:\(?([A-Ea-e])\)|\[([A-Ea-e])\]|([A-Ea-e])\s*[-–.]\s+)([\s\S]*?)(?=(?:\n\s*(?:\(?[A-Ea-e]\)|\[[A-Ea-e]\]|[A-Ea-e]\s*[-–.]\s+)|$))/g;
+  // Normalizar quebras de linha e quebrar alternativas inline após pontuação (ex: "...correta: a) Primeira")
+  let altTargetText = textBeforeGabarito.replace(/\r\n/g, '\n');
+  altTargetText = altTargetText.replace(/(?<=[:.;]|\b)\s+(?=(?:\([a-eA-E]\)|\[[a-eA-E]\]|[a-eA-E][-.:–—)]\s*))/g, '\n');
+
+  // Suporta A), B), C), D), E) ou (A), [A], A - ou A. ou a), b), c)...
+  const altRegex = /(?:^|\n)\s*(?:\(([a-eA-E])\)|\[([a-eA-E])\]|([a-eA-E])\s*[-.:–—)])\s*([\s\S]*?)(?=(?:\n\s*(?:\([a-eA-E]\)|\[[a-eA-E]\]|[a-eA-E]\s*[-.:–—)]))|$)/g;
 
   const alternativas: AlternativeItem[] = [];
   let firstAltIndex = -1;
 
   let match: RegExpExecArray | null;
-  while ((match = altRegex.exec(textBeforeGabarito)) !== null) {
+  while ((match = altRegex.exec(altTargetText)) !== null) {
     if (firstAltIndex === -1) {
       firstAltIndex = match.index;
     }
@@ -302,12 +370,12 @@ export function parseRawQuestionText(
 
   let enunciado = '';
   if (firstAltIndex !== -1) {
-    enunciado = textBeforeGabarito.substring(0, firstAltIndex).trim();
+    enunciado = altTargetText.substring(0, firstAltIndex).trim();
   } else {
-    enunciado = textBeforeGabarito.trim();
+    enunciado = altTargetText.trim();
   }
 
-  // Limpar prefixos comuns no enunciado como "Questão 1:"
+  // Limpar prefixos comuns no enunciado como "Questão 1:" ou "Enunciado:"
   enunciado = enunciado.replace(/^(?:enunciado|quest[ãa]o\s*\d*[:.-]?)\s*/i, '').trim();
 
   // Formatar enunciado com espaçamentos justificados e quebras adequadas de assertivas
@@ -324,10 +392,10 @@ export function parseRawQuestionText(
   }
 
   return {
-    modulo,
-    capitulo,
-    subtopico,
-    tema_subtopico,
+    modulo: sanitizeEtiquetaField(modulo),
+    capitulo: sanitizeEtiquetaField(capitulo),
+    subtopico: sanitizeEtiquetaField(subtopico),
+    tema_subtopico: sanitizeEtiquetaField(tema_subtopico),
     enunciado,
     alternativas,
     alternativa_correta: gabarito || 'A',
@@ -356,7 +424,7 @@ export function parseBatchRawQuestions(
 ): ParsedQuestionResult[] {
   if (!rawQuestionsText.trim()) return [];
 
-  let questionsText = rawQuestionsText;
+  let questionsText = rawQuestionsText.replace(/\r\n/g, '\n').trim();
   let commentsText = rawCommentsText ? rawCommentsText.trim() : '';
 
   // Se commentsText não foi passado, checar se há uma seção separada de gabaritos comentados ao final de rawQuestionsText
@@ -369,21 +437,30 @@ export function parseBatchRawQuestions(
     }
   }
 
-  // Padrão de separador de questões: "Questão 1", "QUESTÃO 02", "---", "===Questão", ou linha começando com número seguido de ponto/hífen e enunciado
-  const separatorRegex = /(?:^|\n)(?:[-=_]{3,}|(?:quest[ãa]o\s*\d+[:.-]?)|(?:\d+\s*[-–.]\s+(?=[A-Z\u00C0-\u00DC(]))|(?:\*{3,}))/gi;
+  let splits: string[] = [];
 
-  const splits = questionsText
-    .split(separatorRegex)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 20);
-
-  let parsedQuestions: ParsedQuestionResult[] = [];
-
-  if (splits.length > 1) {
-    parsedQuestions = splits.map((chunk) => parseRawQuestionText(chunk, context));
-  } else {
-    parsedQuestions = [parseRawQuestionText(questionsText, context)];
+  // 1. Divisores explícitos: ---, ===, ***
+  if (/(?:\n|^)\s*[-=_*]{3,}\s*(?:\n|$)/.test(questionsText)) {
+    const rawChunks = questionsText.split(/(?:\n|^)\s*[-=_*]{3,}\s*(?:\n|$)/);
+    const filtered = rawChunks.map((c) => c.trim()).filter((c) => c.length > 20);
+    if (filtered.length > 1) {
+      splits = filtered;
+    }
   }
+
+  // 2. Divisão por quebra e nova questão explícita
+  if (splits.length === 0) {
+    const qSplitRegex = /(?:\n\s*\n|\n(?=(?:quest[ãa]o\s*\d+|\(?\s*modelo\s*[12])))(?=(?:quest[ãa]o\s*\d+|simulado\s*\d+|item\s*\d+|\(?\s*modelo\s*[12]|(?:\d+\s*[\.\-–]\s+(?=(?:\(?(?:modelo|m[óo]dulo|[A-Z\u00C0-\u00DC]))))))/gi;
+    const rawSplits = questionsText.split(qSplitRegex);
+    const filtered = rawSplits.map((c) => c.trim()).filter((c) => c.length > 20);
+    if (filtered.length > 1) {
+      splits = filtered;
+    } else {
+      splits = [questionsText.trim()];
+    }
+  }
+
+  const parsedQuestions = splits.map((chunk) => parseRawQuestionText(chunk, context));
 
   // Se houver gabaritos comentados separados (da 2ª caixa ou da seção final), vincular automaticamente
   if (commentsText) {
