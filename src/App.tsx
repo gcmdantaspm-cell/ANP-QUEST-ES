@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { Question, FilterOptions } from './types/question';
 import { Navbar } from './components/Navbar';
 import { HierarchyFilter } from './components/HierarchyFilter';
-import { StatsBar } from './components/StatsBar';
 import { QuestionCard } from './components/QuestionCard';
 import { AdminPanel } from './components/AdminPanel';
 import { OfflineExporter } from './components/OfflineExporter';
 import { StudentProgressDashboard } from './components/StudentProgressDashboard';
 import { MatriculaVerificationModal } from './components/MatriculaVerificationModal';
+import { SimuladosDashboard } from './components/SimuladosDashboard';
+import { ThemeSelectorModal } from './components/ThemeSelectorModal';
 import { db } from './firebase/config';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import {
   BookOpen,
   Sparkles,
@@ -19,10 +21,16 @@ import {
   ShieldCheck,
   AlertCircle,
   Layers,
+  Palette,
+  FileCheck2,
 } from 'lucide-react';
 
 function MainApp() {
   const { user, isAdmin, isMatriculaVerified, checkingMatricula, loginWithGoogle } = useAuth();
+  const { theme, setIsThemeSelectorOpen } = useTheme();
+
+  // Navegação principal entre Caderno de Questões e Simulados
+  const [activeNavSection, setActiveNavSection] = useState<'questoes' | 'simulados'>('questoes');
 
   // Estado das questões (salvas no banco de dados)
   const [firestoreQuestions, setFirestoreQuestions] = useState<Question[]>([]);
@@ -172,25 +180,6 @@ function MainApp() {
     });
   }, [firestoreQuestions, filters, userAnswers]);
 
-  // Estatísticas calculadas
-  const stats = useMemo(() => {
-    const totalAnswered = Object.keys(userAnswers).length;
-    let totalCorrect = 0;
-    let totalWrong = 0;
-
-    Object.values(userAnswers).forEach((ans) => {
-      if (ans.isCorrect) totalCorrect++;
-      else totalWrong++;
-    });
-
-    return {
-      totalAnswered,
-      totalCorrect,
-      totalWrong,
-      totalAvailable: firestoreQuestions.length,
-    };
-  }, [userAnswers, firestoreQuestions]);
-
   const currentFilterLabel = useMemo(() => {
     const parts = [
       filters.modulo,
@@ -202,170 +191,210 @@ function MainApp() {
   }, [filters]);
 
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-900 flex flex-col font-sans">
+    <div className={`min-h-screen ${theme.bodyBg} text-slate-900 flex flex-col font-sans transition-colors duration-200`}>
       {/* Barra de Navegação Superior */}
       <Navbar
         isAdminOpen={isAdminOpen}
         onToggleAdmin={() => setIsAdminOpen(!isAdminOpen)}
         onOpenOffline={() => {}}
         offlineCount={filteredQuestions.length}
+        activeNavSection={activeNavSection}
+        onSelectNavSection={setActiveNavSection}
       />
+
+      {/* Modal de Escolha de Paleta / Identidade Visual */}
+      <ThemeSelectorModal />
 
       {/* Modal obrigatório de vinculação de matrícula institucional */}
       {user && !isMatriculaVerified && !checkingMatricula && (
         <MatriculaVerificationModal />
       )}
 
-      {/* Banner informativo de boas-vindas / login */}
-      {!user && (
-        <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 text-white py-3 px-4 shadow-xs">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs sm:text-sm">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-blue-200 shrink-0" />
-              <span>
-                <strong>Acesso Restrito:</strong> Faça login com o Google e insira sua matrícula autorizada para acessar os simulados e resoluções comentadas.
-              </span>
-            </div>
-            <button
-              id="btn-banner-login"
-              type="button"
-              onClick={loginWithGoogle}
-              className="px-3.5 py-1.5 bg-white text-blue-700 hover:bg-blue-50 font-bold rounded-lg transition-colors cursor-pointer self-start sm:self-auto text-xs shadow-2xs"
-            >
-              Entrar com Google
-            </button>
+      {/* Banner de Boas-Vindas e Escolha de Design */}
+      <div className="bg-slate-900 text-white py-2.5 px-4 text-xs border-b border-slate-800">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono font-bold text-[10px] border border-blue-400/30">
+              LDA² SISTEMA
+            </span>
+            <span className="text-slate-300">
+              Design Ativo: <strong className="text-white">{theme.name}</strong> ({theme.tagline})
+            </span>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setIsThemeSelectorOpen(true)}
+            className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 font-bold underline cursor-pointer text-left self-start sm:self-auto"
+          >
+            <Palette className="w-3.5 h-3.5" />
+            Clique aqui para alterar a paleta de cores agora
+          </button>
         </div>
-      )}
+      </div>
 
       {/* Conteúdo Principal */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Painel do Administrador (exibido sob demanda para gcm.dantas.pm@gmail.com) */}
+        {/* Painel do Administrador */}
         {isAdminOpen && (
-          <AdminPanel
-            existingQuestions={firestoreQuestions}
-            onQuestionAdded={() => {}}
-            onClose={() => setIsAdminOpen(false)}
-          />
-        )}
-
-        {/* Barra de Ações Rápidas do Topo */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              Caderno de Questões
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-500">
-              Pratique questões de concursos públicos com resolução comentada e macetes didáticos
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <OfflineExporter
-              questions={filteredQuestions}
-              currentFilterLabel={currentFilterLabel}
+          <div className="mb-6">
+            <AdminPanel
+              existingQuestions={firestoreQuestions}
+              onQuestionAdded={() => {}}
+              onClose={() => setIsAdminOpen(false)}
             />
           </div>
-        </div>
+        )}
 
-        {/* Dashboard de Progresso com Gráfico de Pizza (Recharts) por Disciplina */}
-        <StudentProgressDashboard
-          questions={firestoreQuestions}
-          userAnswers={userAnswers}
-          onResetStats={handleResetSessionStats}
-        />
-
-        {/* Filtro Hierárquico: Módulo > Capítulo > Subtópico > Tema */}
-        <HierarchyFilter
-          questions={firestoreQuestions}
-          filters={filters}
-          onChangeFilters={setFilters}
-          filteredCount={filteredQuestions.length}
-          totalCount={firestoreQuestions.length}
-        />
-
-        {/* Lista de Questões */}
-        {loadingQuestions ? (
-          <div className="py-16 text-center text-slate-400">
-            <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-sm font-medium">Carregando banco de questões...</p>
-          </div>
-        ) : firestoreQuestions.length === 0 ? (
-          <div className="py-16 text-center bg-white rounded-2xl border border-slate-200 p-8 max-w-lg mx-auto shadow-xs">
-            <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100">
-              <Inbox className="w-7 h-7" />
-            </div>
-            <h3 className="text-base font-bold text-slate-900 mb-1.5">
-              Nenhuma questão cadastrada ainda
-            </h3>
-            <p className="text-xs text-slate-600 mb-6 leading-relaxed">
-              O banco de dados está pronto para receber suas questões com os campos padronizados: <strong>Matéria: IPO-2</strong> (Capítulo, Subtópico e Tema vazios). Cole as questões na caixa de texto do Painel Admin para salvá-las e iniciar os simulados no novo layout!
-            </p>
-            <button
-              id="btn-empty-open-admin"
-              type="button"
-              onClick={() => setIsAdminOpen(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-xs"
-            >
-              <Layers className="w-4 h-4" />
-              Abrir Painel Admin para Colar Questões
-            </button>
-          </div>
-        ) : filteredQuestions.length === 0 ? (
-          <div className="py-16 text-center bg-white rounded-2xl border border-slate-200 p-8 max-w-md mx-auto">
-            <Inbox className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-            <h3 className="text-base font-bold text-slate-800 mb-1">
-              Nenhuma questão encontrada
-            </h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Nenhuma questão corresponde aos filtros ou termos de busca selecionados.
-            </p>
-            <button
-              type="button"
-              onClick={() =>
-                setFilters({
-                  modulo: '',
-                  capitulo: '',
-                  subtopico: '',
-                  tema_subtopico: '',
-                  busca: '',
-                  statusFiltro: 'todas',
-                })
-              }
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
-            >
-              Limpar Filtros
-            </button>
-          </div>
+        {/* Renderização Condicional: Caderno de Questões vs. Módulo de Simulados */}
+        {activeNavSection === 'simulados' ? (
+          <SimuladosDashboard />
         ) : (
-          <div className="space-y-8 sm:space-y-10">
-            {filteredQuestions.map((q, idx) => {
-              const qId = q.id || `q_${idx}`;
-              return (
-                <QuestionCard
-                  key={qId}
-                  question={q}
-                  index={idx}
-                  savedAnswer={userAnswers[qId]}
-                  onAnswer={(id, isCorrect) => handleAnswerQuestion(id, isCorrect)}
+          <div className="space-y-6">
+            {/* Barra de Ações Rápidas do Topo */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                    Caderno de Questões
+                  </h1>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-bold">
+                    {firestoreQuestions.length} questões
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-500">
+                  Pratique com resolução comentada, etiquetas em destaque e macetes didáticos
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveNavSection('simulados')}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+                >
+                  <FileCheck2 className="w-4 h-4" />
+                  <span>Ir para Simulados Ponderados</span>
+                </button>
+
+                <OfflineExporter
+                  questions={filteredQuestions}
+                  currentFilterLabel={currentFilterLabel}
                 />
-              );
-            })}
+              </div>
+            </div>
+
+            {/* Dashboard de Progresso com Gráficos */}
+            <StudentProgressDashboard
+              questions={firestoreQuestions}
+              userAnswers={userAnswers}
+              onResetStats={handleResetSessionStats}
+            />
+
+            {/* Filtro Hierárquico: Módulo > Capítulo > Subtópico > Tema */}
+            <HierarchyFilter
+              questions={firestoreQuestions}
+              filters={filters}
+              onChangeFilters={setFilters}
+              filteredCount={filteredQuestions.length}
+              totalCount={firestoreQuestions.length}
+            />
+
+            {/* Lista de Questões */}
+            {loadingQuestions ? (
+              <div className="py-16 text-center text-slate-400">
+                <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-sm font-medium">Carregando banco de questões...</p>
+              </div>
+            ) : firestoreQuestions.length === 0 ? (
+              <div className="py-16 text-center bg-white rounded-2xl border border-slate-200 p-8 max-w-lg mx-auto shadow-xs">
+                <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100">
+                  <Inbox className="w-7 h-7" />
+                </div>
+                <h3 className="text-base font-bold text-slate-900 mb-1.5">
+                  Nenhuma questão cadastrada ainda no Caderno
+                </h3>
+                <p className="text-xs text-slate-600 mb-6 leading-relaxed">
+                  Utilize o Painel Admin para colar questões no caderno com Módulo/Capítulo, ou acesse a nova aba de <strong>Simulados</strong> para importar questões exigindo apenas a Matéria e o Peso!
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsAdminOpen(true)}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-xs"
+                  >
+                    <Layers className="w-4 h-4" />
+                    Abrir Painel Admin
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveNavSection('simulados')}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-xs"
+                  >
+                    <FileCheck2 className="w-4 h-4" />
+                    Acessar Simulados
+                  </button>
+                </div>
+              </div>
+            ) : filteredQuestions.length === 0 ? (
+              <div className="py-16 text-center bg-white rounded-2xl border border-slate-200 p-8 max-w-md mx-auto">
+                <Inbox className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+                <h3 className="text-base font-bold text-slate-800 mb-1">
+                  Nenhuma questão encontrada
+                </h3>
+                <p className="text-xs text-slate-500 mb-4">
+                  Nenhuma questão corresponde aos filtros selecionados.
+                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFilters({
+                      modulo: '',
+                      capitulo: '',
+                      subtopico: '',
+                      tema_subtopico: '',
+                      busca: '',
+                      statusFiltro: 'todas',
+                    })
+                  }
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                >
+                  Limpar Filtros
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-8 sm:space-y-10">
+                {filteredQuestions.map((q, idx) => {
+                  const qId = q.id || `q_${idx}`;
+                  return (
+                    <QuestionCard
+                      key={qId}
+                      question={q}
+                      index={idx}
+                      savedAnswer={userAnswers[qId]}
+                      onAnswer={(id, isCorrect) => handleAnswerQuestion(id, isCorrect)}
+                    />
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </main>
 
-      {/* Rodapé institucional */}
+      {/* Rodapé Institucional LDA² Questões */}
       <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500 mt-12">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <GraduationCap className="w-4 h-4 text-blue-600" />
+            <span className="w-5 h-5 rounded bg-slate-900 text-white flex items-center justify-center font-black text-[10px]">
+              LDA²
+            </span>
             <span className="font-bold text-slate-800">
-              Plataforma de Resolução de Questões
+              LDA² Questões &bull; Sistema Oficial de Questões & Simulados
             </span>
           </div>
           <p>
-            Desenvolvido com React, Tailwind CSS e Firebase Firestore. Otimizado para dispositivos móveis.
+            Plataforma desenvolvida para alta performance em concursos. Suporte a pesos ponderados e estudo offline.
           </p>
         </div>
       </footer>
@@ -375,8 +404,10 @@ function MainApp() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <MainApp />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <MainApp />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

@@ -52,6 +52,19 @@ service cloud.firestore {
       }
     }
 
+    // Coleção de Simulados Ponderados (Apenas matéria e peso)
+    match /simulados/{simuladoId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(simuladoId) && (isAdmin() || isSignedIn());
+    }
+
+    // Coleção de Tentativas e Estatísticas de Simulados
+    match /simulado_attempts/{attemptId} {
+      allow get, list: if isSignedIn() || isAdmin();
+      allow create: if isValidId(attemptId);
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
     // Matrículas autorizadas a realizar login e acessar a plataforma
     match /authorized_matriculas/{matriculaId} {
       // O Administrador tem acesso total

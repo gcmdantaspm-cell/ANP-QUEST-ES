@@ -93,6 +93,78 @@
         }
       },
       "required": ["userId", "userName", "texto"]
+    },
+    "Simulado": {
+      "title": "Simulado",
+      "description": "Simulado com questões ponderadas por matéria",
+      "type": "object",
+      "properties": {
+        "titulo": {
+          "type": "string",
+          "description": "Título do simulado"
+        },
+        "descricao": {
+          "type": "string",
+          "description": "Instruções do simulado"
+        },
+        "duracaoMinutos": {
+          "type": "number",
+          "description": "Tempo limite em minutos"
+        },
+        "questoes": {
+          "type": "array",
+          "description": "Lista de questões do simulado"
+        },
+        "totalQuestoes": {
+          "type": "number",
+          "description": "Quantidade de questões"
+        },
+        "pesoTotal": {
+          "type": "number",
+          "description": "Soma de todos os pesos"
+        },
+        "materias": {
+          "type": "array",
+          "description": "Lista de matérias do simulado"
+        }
+      },
+      "required": ["titulo", "questoes", "totalQuestoes", "pesoTotal"]
+    },
+    "SimuladoAttempt": {
+      "title": "SimuladoAttempt",
+      "description": "Tentativa registrada de simulado pelo aluno",
+      "type": "object",
+      "properties": {
+        "simuladoId": {
+          "type": "string",
+          "description": "ID do simulado"
+        },
+        "simuladoTitulo": {
+          "type": "string",
+          "description": "Título do simulado"
+        },
+        "userId": {
+          "type": "string",
+          "description": "UID do usuário"
+        },
+        "pontosObtidos": {
+          "type": "number",
+          "description": "Pontuação ponderada conquistada"
+        },
+        "pontosPossiveis": {
+          "type": "number",
+          "description": "Pontos máximos possíveis"
+        },
+        "aproveitamentoPercentual": {
+          "type": "number",
+          "description": "Porcentagem ponderada de aproveitamento"
+        },
+        "duracaoSegundos": {
+          "type": "number",
+          "description": "Duração em segundos"
+        }
+      },
+      "required": ["simuladoId", "simuladoTitulo", "pontosObtidos", "pontosPossiveis", "aproveitamentoPercentual"]
     }
   },
   "firestore": {
@@ -103,6 +175,14 @@
     "/questions/{questionId}/comments/{commentId}": {
       "schema": "Comment",
       "description": "Fórum de comentários da questão"
+    },
+    "/simulados/{simuladoId}": {
+      "schema": "Simulado",
+      "description": "Coleção de simulados ponderados"
+    },
+    "/simulado_attempts/{attemptId}": {
+      "schema": "SimuladoAttempt",
+      "description": "Registros de tentativas de simulados dos alunos"
     }
   }
 }
