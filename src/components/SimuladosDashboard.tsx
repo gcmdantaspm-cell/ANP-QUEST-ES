@@ -5,7 +5,7 @@ import { SimuladoImporter } from './SimuladoImporter';
 import { SimuladoExamView } from './SimuladoExamView';
 import { SimuladosStatsView } from './SimuladosStatsView';
 import { SimuladoResultModal } from './SimuladoResultModal';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, ADMIN_EMAIL } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { db } from '../firebase/config';
 import {
@@ -132,6 +132,11 @@ export const SimuladosDashboard: React.FC = () => {
   };
 
   const handleSaveSimulado = async (newSim: Simulado) => {
+    if (!user || user.email?.trim().toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+      alert(`Permissão negada. Apenas o administrador oficial (${ADMIN_EMAIL}) pode salvar ou importar simulados.`);
+      return;
+    }
+
     const updated = [newSim, ...simulados];
     setSimulados(updated);
     try {
@@ -150,6 +155,11 @@ export const SimuladosDashboard: React.FC = () => {
   };
 
   const handleDeleteSimulado = async (simId: string) => {
+    if (!user || user.email?.trim().toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+      alert(`Permissão negada. Apenas o administrador oficial (${ADMIN_EMAIL}) pode excluir simulados.`);
+      return;
+    }
+
     if (!confirm('Deseja realmente excluir este simulado?')) return;
     const updated = simulados.filter((s) => s.id !== simId);
     setSimulados(updated);
@@ -208,18 +218,17 @@ export const SimuladosDashboard: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in">
       {/* Banner Principal do Módulo de Simulados */}
-      <div className="bg-slate-900 text-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-800 relative overflow-hidden">
+      <div className="bg-emerald-950 text-white rounded-2xl p-6 sm:p-8 shadow-sm border border-emerald-900 relative overflow-hidden">
         <div className="relative z-10 max-w-2xl space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-xs font-mono font-bold">
-            <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-            MÓDULO OFICIAL DE SIMULADOS PONDERADOS
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-mono font-bold">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            MÓDULO OFICIAL DE SIMULADOS
           </div>
           <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white">
-            Simulados LDA² Questões
+            Simulados LDA²
           </h2>
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            Realize provas no formato real com <strong>pesos ponderados por questão</strong>, controle de tempo,
-            relatórios completos de desempenho e gráficos comparativos de linhas e barras.
+          <p className="text-xs sm:text-sm text-emerald-100/80 leading-relaxed">
+            Realize provas com controle de tempo, gabaritos detalhados, relatórios completos de desempenho e estatísticas integradas.
           </p>
         </div>
       </div>
@@ -232,7 +241,7 @@ export const SimuladosDashboard: React.FC = () => {
             onClick={() => setActiveTab('disponiveis')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 ${
               activeTab === 'disponiveis'
-                ? 'bg-slate-900 text-white shadow-xs'
+                ? 'bg-emerald-900 text-white shadow-xs'
                 : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
             }`}
           >
@@ -245,7 +254,7 @@ export const SimuladosDashboard: React.FC = () => {
             onClick={() => setActiveTab('estatisticas')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 ${
               activeTab === 'estatisticas'
-                ? 'bg-slate-900 text-white shadow-xs'
+                ? 'bg-emerald-900 text-white shadow-xs'
                 : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
             }`}
           >
@@ -260,8 +269,8 @@ export const SimuladosDashboard: React.FC = () => {
             onClick={() => setActiveTab('novo')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 shadow-xs ${
               activeTab === 'novo'
-                ? 'bg-blue-700 text-white'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                ? 'bg-emerald-900 text-white'
+                : 'bg-emerald-700 hover:bg-emerald-800 text-white'
             }`}
           >
             <PlusCircle className="w-4 h-4" />

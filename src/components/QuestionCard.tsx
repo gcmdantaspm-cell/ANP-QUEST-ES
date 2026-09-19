@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { Question, AlternativeItem } from '../types/question';
 import { QuestionComments } from './QuestionComments';
-import { smartFormatEnunciado, smartFormatComentario, formatEtiqueta } from '../utils/parser';
+import {
+  smartFormatEnunciado,
+  smartFormatComentario,
+  getHierarchySegments,
+} from '../utils/parser';
 import {
   Flag,
   CheckCircle2,
@@ -160,25 +164,68 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
       {/* 2. CORPO DA QUESTÃO E RESPOSTA (LADO DIREITO) */}
       <div className="flex-1 w-full space-y-3">
-        {/* BLOCO AZUL-CLARO / CIANO PASTEL (ENUNCIADO E ALTERNATIVAS) */}
-        <div className="bg-[#e7f3f5] border border-[#d2e8ec] rounded-md p-5 sm:p-6 shadow-2xs">
-          {/* ETIQUETA EM DESTAQUE (MÓDULO - CAPÍTULO - SUBTÓPICOS E TEMAS QUANDO HOUVER) */}
+        {/* BLOCO PRINCIPAL (ENUNCIADO E ALTERNATIVAS) EM TOM ESMERALDA SUAVE E SOBRIO */}
+        <div className="bg-[#f0f7f4] border border-[#d3e8df] rounded-md p-5 sm:p-6 shadow-2xs">
+          {/* CABEÇALHO FORMATADO: Questão X - (Módulo - Capítulo - Subtópico - Tema) */}
           {(() => {
-            const etiqueta = formatEtiqueta({
+            const segments = getHierarchySegments({
               modulo: question.modulo,
               capitulo: question.capitulo,
               subtopico: question.subtopico,
               tema_subtopico: question.tema_subtopico,
             });
-            if (!etiqueta) return null;
+
             return (
-              <div className="mb-4 inline-flex flex-wrap items-center gap-2 px-3 py-1.5 bg-white border border-blue-200 border-l-4 border-l-blue-600 rounded-md shadow-2xs">
-                <span className="bg-blue-600 text-white font-extrabold uppercase text-[10px] tracking-wider px-2 py-0.5 rounded">
-                  Etiqueta
+              <div className="mb-4 pb-3 border-b border-[#d3e8df]/80 flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <span className="font-extrabold text-emerald-950 text-sm sm:text-base tracking-tight">
+                  Questão {index + 1}
                 </span>
-                <span className="font-bold text-slate-800 text-xs sm:text-sm">
-                  {etiqueta}
-                </span>
+
+                {segments.length > 0 && (
+                  <>
+                    <span className="font-bold text-emerald-800 text-sm sm:text-base">
+                      - (
+                    </span>
+                    <div className="inline-flex flex-wrap items-center gap-1.5">
+                      {segments.map((seg, sIdx) => {
+                        // Cores distintas e harmoniosas para Módulo, Capítulo, Subtópico e Tema
+                        let badgeClass = '';
+                        if (seg.type === 'modulo') {
+                          badgeClass =
+                            'bg-emerald-800 text-white border-emerald-900 font-bold';
+                        } else if (seg.type === 'capitulo') {
+                          badgeClass =
+                            'bg-teal-700 text-white border-teal-800 font-semibold';
+                        } else if (seg.type === 'subtopico') {
+                          badgeClass =
+                            'bg-amber-100 text-amber-900 border-amber-300 font-medium';
+                        } else {
+                          badgeClass =
+                            'bg-slate-100 text-slate-800 border-slate-300 font-medium';
+                        }
+
+                        return (
+                          <React.Fragment key={seg.type}>
+                            <span
+                              className={`text-[11px] sm:text-xs px-2 py-0.5 rounded border shadow-2xs ${badgeClass}`}
+                              title={`${seg.label}: ${seg.value}`}
+                            >
+                              {seg.value}
+                            </span>
+                            {sIdx < segments.length - 1 && (
+                              <span className="text-emerald-700 font-bold text-xs">
+                                -
+                              </span>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+                    <span className="font-bold text-emerald-800 text-sm sm:text-base">
+                      )
+                    </span>
+                  </>
+                )}
               </div>
             );
           })()}
@@ -205,9 +252,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                   onClick={() => handleSelectRadio(letter)}
                   className={`flex items-start gap-3 p-2.5 rounded-lg transition-colors text-xs sm:text-sm leading-relaxed sm:leading-relaxed select-none ${
                     !answered
-                      ? 'hover:bg-[#d8ecf0] cursor-pointer'
+                      ? 'hover:bg-[#e2f0ea] cursor-pointer'
                       : isChecked
-                      ? 'bg-[#d8ecf0]/70'
+                      ? 'bg-[#e2f0ea]/80'
                       : ''
                   }`}
                 >
@@ -216,12 +263,12 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                     <span
                       className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all bg-white ${
                         isChecked
-                          ? 'border-blue-600 ring-2 ring-blue-500/20'
+                          ? 'border-emerald-700 ring-2 ring-emerald-600/20'
                           : 'border-slate-400'
                       }`}
                     >
                       {isChecked && (
-                        <span className="w-2 h-2 rounded-full bg-blue-600" />
+                        <span className="w-2 h-2 rounded-full bg-emerald-700" />
                       )}
                     </span>
                   </div>
@@ -260,7 +307,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
           {/* BOTÃO RESPONDER OU BOTÃO DE LIMPAR ESCOLHA */}
           {!answered ? (
-            <div className="mt-6 pt-4 border-t border-[#d2e8ec] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="mt-6 pt-4 border-t border-[#d3e8df] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="text-xs text-slate-500">
                 {selectedTemp ? (
                   <span>
@@ -290,7 +337,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                   disabled={!selectedTemp}
                   className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold shadow-xs transition-all ${
                     selectedTemp
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer shadow-blue-500/20'
+                      ? 'bg-emerald-800 hover:bg-emerald-900 text-white cursor-pointer shadow-emerald-900/20'
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                   }`}
                 >
@@ -300,7 +347,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               </div>
             </div>
           ) : (
-            <div className="mt-4 pt-3 border-t border-[#d2e8ec] flex items-center justify-between text-xs">
+            <div className="mt-4 pt-3 border-t border-[#d3e8df] flex items-center justify-between text-xs">
               <span className="text-slate-500 text-[11px]">
                 {question.modulo && (
                   <span>
@@ -313,7 +360,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               <button
                 type="button"
                 onClick={handleReset}
-                className="inline-flex items-center gap-1.5 text-xs text-blue-700 hover:text-blue-900 font-semibold cursor-pointer py-1"
+                className="inline-flex items-center gap-1.5 text-xs text-emerald-800 hover:text-emerald-950 font-semibold cursor-pointer py-1"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 Limpar minha escolha / Tentar novamente

@@ -136,22 +136,22 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+          <div className="p-1.5 bg-emerald-50 text-emerald-800 rounded-lg">
             <Filter className="w-4 h-4" />
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-800">
-              Filtro Hierárquico de Conteúdo
+              Filtro por Matéria e Conteúdo
             </h3>
             <p className="text-xs text-slate-500">
-              Módulo &gt; Capítulo &gt; Subtópico &gt; Tema
+              Matéria / Módulo &gt; Capítulo &gt; Subtópico &gt; Tema
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 text-xs">
           <span className="text-slate-500">
-            Exibindo <strong className="text-blue-600 font-bold">{filteredCount}</strong> de {totalCount} questões
+            Exibindo <strong className="text-emerald-800 font-bold">{filteredCount}</strong> de {totalCount} questões
           </span>
           {hasActiveFilters && (
             <button
@@ -173,17 +173,17 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
         <div>
           <label
             htmlFor="filter-modulo"
-            className="block text-xs font-semibold text-slate-700 mb-1"
+            className="block text-xs font-bold text-emerald-950 mb-1"
           >
-            1. Módulo / Matéria
+            1. Matéria / Módulo
           </label>
           <select
             id="filter-modulo"
             value={filters.modulo}
             onChange={handleModuloChange}
-            className="w-full text-xs sm:text-sm p-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-800"
+            className="w-full text-xs sm:text-sm p-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700 focus:bg-white text-slate-800 font-medium"
           >
-            <option value="">Todos os Módulos</option>
+            <option value="">Todas as Matérias / Módulos</option>
             {modulos.map((m) => (
               <option key={m} value={m}>
                 {m}
@@ -296,7 +296,7 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             onClick={() => handleStatusChange('todas')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
               filters.statusFiltro === 'todas'
-                ? 'bg-slate-900 text-white'
+                ? 'bg-emerald-950 text-white'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
@@ -308,7 +308,7 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             onClick={() => handleStatusChange('nao_resolvidas')}
             className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
               filters.statusFiltro === 'nao_resolvidas'
-                ? 'bg-blue-600 text-white'
+                ? 'bg-emerald-800 text-white'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
@@ -334,7 +334,7 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             onClick={() => handleStatusChange('erros')}
             className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
               filters.statusFiltro === 'erros'
-                ? 'bg-rose-600 text-white'
+                ? 'bg-rose-700 text-white'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >

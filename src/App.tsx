@@ -210,29 +210,6 @@ function MainApp() {
         <MatriculaVerificationModal />
       )}
 
-      {/* Banner de Boas-Vindas e Escolha de Design */}
-      <div className="bg-slate-900 text-white py-2.5 px-4 text-xs border-b border-slate-800">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono font-bold text-[10px] border border-blue-400/30">
-              LDA² SISTEMA
-            </span>
-            <span className="text-slate-300">
-              Design Ativo: <strong className="text-white">{theme.name}</strong> ({theme.tagline})
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setIsThemeSelectorOpen(true)}
-            className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 font-bold underline cursor-pointer text-left self-start sm:self-auto"
-          >
-            <Palette className="w-3.5 h-3.5" />
-            Clique aqui para alterar a paleta de cores agora
-          </button>
-        </div>
-      </div>
-
       {/* Conteúdo Principal */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Painel do Administrador */}

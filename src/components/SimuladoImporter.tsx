@@ -82,15 +82,15 @@ export const SimuladoImporter: React.FC<SimuladoImporterProps> = ({
       {/* Cabeçalho do Importador */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-5">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+          <div className="w-10 h-10 rounded-xl bg-emerald-800 text-white flex items-center justify-center shadow-xs">
             <Upload className="w-5 h-5" />
           </div>
           <div>
             <h2 className="text-lg font-black text-slate-900 tracking-tight">
-              Importador Simplificado de Simulados
+              Importador de Questões do Simulado
             </h2>
             <p className="text-xs text-slate-500">
-              Cadastre questões informando <strong>apenas a Matéria e o Peso</strong> da questão.
+              Cadastre questões informando <strong>a Matéria e o Peso</strong> da questão.
             </p>
           </div>
         </div>
@@ -98,22 +98,22 @@ export const SimuladoImporter: React.FC<SimuladoImporterProps> = ({
         <button
           type="button"
           onClick={handleLoadSample}
-          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 text-xs font-bold rounded-lg transition-colors cursor-pointer"
         >
-          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+          <Sparkles className="w-3.5 h-3.5 text-emerald-700" />
           Carregar Exemplo de Simulado Pronto
         </button>
       </div>
 
-      {/* Regra de Ouro em Destaque */}
-      <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start gap-3">
-        <HelpCircle className="w-5 h-5 text-blue-700 shrink-0 mt-0.5" />
+      {/* Instruções em Destaque */}
+      <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs text-emerald-950 flex items-start gap-3">
+        <HelpCircle className="w-5 h-5 text-emerald-800 shrink-0 mt-0.5" />
         <div className="space-y-1 leading-relaxed">
-          <p className="font-bold text-blue-950">
-            Estrutura Livre e Direta (Sem burocracia de módulo, capítulo ou subtópico):
+          <p className="font-bold text-emerald-950">
+            Estrutura Direta por Matéria e Peso:
           </p>
           <p>
-            Basta declarar no topo de cada questão a <strong>Matéria</strong> (ex: <em>Matéria: Direito Penal</em>) e o <strong>Peso</strong> (ex: <em>Peso: 2</em> ou <em>Peso: 1.5</em>).
+            Declare no início da questão a <strong>Matéria</strong> (ex: <em>Matéria: Direito Penal</em>) e o <strong>Peso</strong> (ex: <em>Peso: 2</em> ou <em>Peso: 1.5</em>).
             As questões podem ser separadas por <strong>---</strong> ou identificadas automaticamente.
           </p>
         </div>
@@ -216,7 +216,7 @@ Assinale a palavra corretamente grafada...`}
           type="button"
           onClick={handleParse}
           disabled={!rawText.trim()}
-          className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs inline-flex items-center gap-2"
+          className="px-6 py-2.5 bg-emerald-800 hover:bg-emerald-900 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs inline-flex items-center gap-2"
         >
           <Sparkles className="w-4 h-4" />
           Processar & Visualizar Questões

@@ -51,7 +51,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
   onResetStats,
 }) => {
   const [selectedDisciplina, setSelectedDisciplina] = useState<string>('todas');
-  const [isExpanded, setIsExpanded] = useState<boolean>(true);
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
   // Mapear perguntas para facilitar lookup do módulo por ID
   const questionMap = useMemo(() => {
@@ -202,9 +202,9 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
       className="bg-white rounded-2xl border border-slate-200 shadow-xs mb-6 overflow-hidden transition-all"
     >
       {/* Cabeçalho do Dashboard */}
-      <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-slate-50 via-blue-50/20 to-white">
+      <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-emerald-50/40 via-teal-50/20 to-white">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-xs">
+          <div className="w-10 h-10 rounded-xl bg-emerald-800 text-white flex items-center justify-center font-bold shadow-xs">
             <PieIcon className="w-5 h-5" />
           </div>
           <div>
@@ -212,7 +212,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
               <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
                 Dashboard de Progresso do Aluno
               </h2>
-              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 uppercase tracking-wider">
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 uppercase tracking-wider">
                 Dados em Tempo Real
               </span>
             </div>

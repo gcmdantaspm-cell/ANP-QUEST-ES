@@ -49,6 +49,36 @@ export function sanitizeEtiquetaField(field?: string): string {
 }
 
 /**
+ * Retorna os segmentos hierárquicos estruturados (Módulo, Capítulo, Subtópico, Tema)
+ * para exibição em cores diferenciadas na questão.
+ */
+export interface HierarchySegment {
+  type: 'modulo' | 'capitulo' | 'subtopico' | 'tema';
+  label: string;
+  value: string;
+}
+
+export function getHierarchySegments(q: {
+  modulo?: string;
+  capitulo?: string;
+  subtopico?: string;
+  tema_subtopico?: string;
+}): HierarchySegment[] {
+  const segments: HierarchySegment[] = [];
+  const mod = sanitizeEtiquetaField(q.modulo);
+  const cap = sanitizeEtiquetaField(q.capitulo);
+  const sub = sanitizeEtiquetaField(q.subtopico);
+  const tema = sanitizeEtiquetaField(q.tema_subtopico);
+
+  if (mod) segments.push({ type: 'modulo', label: 'Módulo', value: mod });
+  if (cap) segments.push({ type: 'capitulo', label: 'Capítulo', value: cap });
+  if (sub) segments.push({ type: 'subtopico', label: 'Subtópico', value: sub });
+  if (tema) segments.push({ type: 'tema', label: 'Tema', value: tema });
+
+  return segments;
+}
+
+/**
  * Formata a etiqueta destacada das questões: Módulo - Capítulo - Subtópicos e Temas quando houver
  */
 export function formatEtiqueta(q: {
@@ -344,11 +374,19 @@ export function parseRawQuestionText(
   }
 
   // Extrair Enunciado e Alternativas de textBeforeGabarito
-  // Normalizar quebras de linha e quebrar alternativas inline após pontuação (ex: "...correta: a) Primeira")
+  // Normalizar quebras de linha e forçar quebras antes de marcadores de alternativas (A, B, C, D, E)
+  // mesmo que venham grudadas após dois-pontos, ponto ou no meio da linha
   let altTargetText = textBeforeGabarito.replace(/\r\n/g, '\n').trim();
+
+  // Garante quebra de linha antes de qualquer indicador de alternativa
   altTargetText = altTargetText.replace(
-    /(?:^|\n|[:.;?!]|\b)[ \t]+(?=(?:\(?\s*[a-eA-E]\s*[\)\].\-–—:]|\([a-eA-E]\)|\[[a-eA-E]\])[ \t]*)/g,
+    /(?:^|\n|[.:;?!]|\b)[ \t]*(?=(?:\(?\s*[a-eA-E]\s*[\)\].\-–—:]|\([a-eA-E]\)|\[[a-eA-E]\])[ \t]+)/g,
     '\n'
+  );
+  // Também para casos colados como: "correta:A) Primeira" ou "correta:a) Primeira"
+  altTargetText = altTargetText.replace(
+    /([.:;?!])[ \t]*(?=(?:\(?\s*[a-eA-E]\s*[\)\].\-–—:]|\([a-eA-E]\)|\[[a-eA-E]\]))/g,
+    '$1\n'
   );
 
   // Suporta A), B), C), D), E) ou (A), [A], A - ou A. ou a), b), c)...
@@ -377,13 +415,13 @@ export function parseRawQuestionText(
     enunciado = altTargetText.trim();
   }
 
-  // RESGATE DE SEGURANÇA DA ALTERNATIVA A:
+  // RESGATE DE ALTA PRECISÃO DA ALTERNATIVA A:
   // Se as alternativas encontradas não contiverem a Letra A (por exemplo, começaram em B),
   // significa que o enunciado absorveu a Alternativa A no seu término.
   // Resgatamos a Alternativa A do final do enunciado com precisão cirúrgica.
   if (alternativas.length > 0 && !alternativas.some((a) => a.letra === 'A')) {
     const rescueMatch = enunciado.match(
-      /(?:^|\n|[:.;?!])[ \t]*(?:\(?\s*A\s*[\)\].\-–—:]|\(A\)|\[A\])[ \t]*([\s\S]+)$/i
+      /(?:^|\n|[:.;?!])[ \t]*(?:\(?\s*[aA]\s*[\)\].\-–—:]|\([aA]\)|\[[aA]\])[ \t]*([\s\S]+)$/
     );
     if (rescueMatch) {
       const rescuedText = rescueMatch[1].trim();

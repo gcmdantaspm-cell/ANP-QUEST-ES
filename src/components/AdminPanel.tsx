@@ -225,9 +225,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setErrorMessage(null);
   };
 
-  // Inserir todas as questões extraídas no Firestore
+  // Inserir todas as questões extraídas no Firestore (Exclusivo para gcmdantas.pm@gmail.com)
   const handleSalvarLoteNoFirestore = async () => {
     if (extractedQuestions.length === 0) return;
+
+    if (!user || user.email?.trim().toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+      setErrorMessage(`Permissão negada. Apenas o administrador oficial (${ADMIN_EMAIL}) pode importar ou salvar questões.`);
+      return;
+    }
 
     setSaving(true);
     setErrorMessage(null);

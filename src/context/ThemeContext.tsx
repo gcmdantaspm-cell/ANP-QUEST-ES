@@ -119,7 +119,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch {
       // fallback
     }
-    return 'navy';
+    return 'emerald';
   });
 
   const [isThemeSelectorOpen, setIsThemeSelectorOpen] = useState(false);
@@ -135,7 +135,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const theme = THEMES[themeId] || THEMES.navy;
+  const theme = THEMES[themeId] || THEMES.emerald;
 
   return (
     <ThemeContext.Provider
