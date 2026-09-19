@@ -22,7 +22,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenOffline,
   offlineCount,
 }) => {
-  const { user, isAdmin, loginWithGoogle, logout, loading } = useAuth();
+  const { user, isAdmin, loginWithGoogle, logout, loading, userMatricula } = useAuth();
 
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
@@ -78,13 +78,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className="text-xs font-semibold text-slate-800 truncate max-w-[140px]">
                     {user.displayName || user.email?.split('@')[0]}
                   </span>
-                  <span
-                    className={`text-[10px] font-bold uppercase tracking-wider ${
-                      isAdmin ? 'text-purple-700' : 'text-blue-600'
-                    }`}
-                  >
-                    {isAdmin ? 'Administrador' : 'Aluno'}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {userMatricula && (
+                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                        Matrícula: {userMatricula}
+                      </span>
+                    )}
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-wider ${
+                        isAdmin ? 'text-purple-700' : 'text-blue-600'
+                      }`}
+                    >
+                      {isAdmin ? 'Administrador' : 'Aluno'}
+                    </span>
+                  </div>
                 </div>
 
                 {user.photoURL ? (

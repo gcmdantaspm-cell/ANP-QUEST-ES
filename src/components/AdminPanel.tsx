@@ -31,7 +31,9 @@ import {
   HelpCircle,
   AlertTriangle,
   X,
+  IdCard,
 } from 'lucide-react';
+import { MatriculaManager } from './MatriculaManager';
 
 interface AdminPanelProps {
   existingQuestions: Question[];
@@ -46,8 +48,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 }) => {
   const { user, isAdmin, loginWithGoogle } = useAuth();
 
-  // Abas: 'organizador_lote' (padrão automatizado), 'manual' ou 'gerenciar'
-  const [activeTab, setActiveTab] = useState<'lote' | 'gerenciar'>('lote');
+  // Abas: 'lote', 'gerenciar' ou 'matriculas'
+  const [activeTab, setActiveTab] = useState<'lote' | 'gerenciar' | 'matriculas'>('lote');
 
   // Metadados solicitados pelo usuário padronizados: Matéria IPO-2, Capítulo vazio, Subtópico vazio, Tema vazio
   const [nomeMateria, setNomeMateria] = useState('IPO-2');
@@ -470,6 +472,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           >
             <FileEdit className="w-4 h-4" />
             Banco de Questões ({existingQuestions.length})
+          </button>
+          <button
+            id="tab-matriculas"
+            type="button"
+            onClick={() => setActiveTab('matriculas')}
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+              activeTab === 'matriculas'
+                ? 'bg-purple-600 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            <IdCard className="w-4 h-4" />
+            Matrículas Autorizadas
           </button>
         </div>
       </div>
@@ -1096,6 +1111,9 @@ Comentário: Apenas a alternativa B atende ao comando...`}
           )}
         </div>
       )}
+
+      {/* Aba 3: Gestão de Matrículas Autorizadas */}
+      {activeTab === 'matriculas' && <MatriculaManager />}
 
       {/* Modal de Confirmação Interno (Totalmente funcional em iframes) */}
       {confirmModal && (

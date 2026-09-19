@@ -8,6 +8,7 @@ import { QuestionCard } from './components/QuestionCard';
 import { AdminPanel } from './components/AdminPanel';
 import { OfflineExporter } from './components/OfflineExporter';
 import { StudentProgressDashboard } from './components/StudentProgressDashboard';
+import { MatriculaVerificationModal } from './components/MatriculaVerificationModal';
 import { db } from './firebase/config';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import {
@@ -21,7 +22,7 @@ import {
 } from 'lucide-react';
 
 function MainApp() {
-  const { user, isAdmin, loginWithGoogle } = useAuth();
+  const { user, isAdmin, isMatriculaVerified, checkingMatricula, loginWithGoogle } = useAuth();
 
   // Estado das questões (salvas no banco de dados)
   const [firestoreQuestions, setFirestoreQuestions] = useState<Question[]>([]);
@@ -210,21 +211,26 @@ function MainApp() {
         offlineCount={filteredQuestions.length}
       />
 
+      {/* Modal obrigatório de vinculação de matrícula institucional */}
+      {user && !isMatriculaVerified && !checkingMatricula && (
+        <MatriculaVerificationModal />
+      )}
+
       {/* Banner informativo de boas-vindas / login */}
       {!user && (
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-4 shadow-xs">
+        <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 text-white py-3 px-4 shadow-xs">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs sm:text-sm">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-blue-200 shrink-0" />
               <span>
-                Você está em modo de visualização. Faça login com o Google para salvar comentários e participar do fórum!
+                <strong>Acesso Restrito:</strong> Faça login com o Google e insira sua matrícula autorizada para acessar os simulados e resoluções comentadas.
               </span>
             </div>
             <button
               id="btn-banner-login"
               type="button"
               onClick={loginWithGoogle}
-              className="px-3 py-1 bg-white text-blue-700 hover:bg-blue-50 font-bold rounded-lg transition-colors cursor-pointer self-start sm:self-auto text-xs"
+              className="px-3.5 py-1.5 bg-white text-blue-700 hover:bg-blue-50 font-bold rounded-lg transition-colors cursor-pointer self-start sm:self-auto text-xs shadow-2xs"
             >
               Entrar com Google
             </button>

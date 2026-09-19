@@ -35,7 +35,7 @@ service cloud.firestore {
     }
 
     match /questions/{questionId} {
-      // Qualquer pessoa que acessar pode ver e resolver as questões
+      // Qualquer pessoa autenticada ou visitante pode ler as questões
       allow get, list: if true;
       // Apenas o administrador pode criar, editar ou excluir questões
       allow create, update: if isValidId(questionId) && isAdmin() && isValidQuestion(request.resource.data);
@@ -50,6 +50,34 @@ service cloud.firestore {
         allow delete: if isValidId(commentId) && isSignedIn() &&
                       (resource.data.userId == request.auth.uid || isAdmin());
       }
+    }
+
+    // Matrículas autorizadas a realizar login e acessar a plataforma
+    match /authorized_matriculas/{matriculaId} {
+      // O Administrador tem acesso total
+      allow read, write: if isAdmin();
+
+      // Qualquer usuário autenticado com Google pode consultar para validação de matrícula
+      allow get: if isSignedIn();
+
+      // Aluno autenticado pode vincular sua conta Google à matrícula livre
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (
+          resource.data.active == true &&
+          (resource.data.linkedUid == null || resource.data.linkedUid == request.auth.uid) &&
+          request.resource.data.linkedUid == request.auth.uid &&
+          request.resource.data.linkedEmail == request.auth.token.email
+        )
+      );
+    }
+
+    // Coleção de usuários e perfis com matrícula vinculada
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create, update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
     }
   }
 }
