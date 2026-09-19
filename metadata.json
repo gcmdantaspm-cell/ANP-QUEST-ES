@@ -1,0 +1,6 @@
+{
+  "name": "Plataforma de Resolução de Questões",
+  "description": "Sistema de resolução de questões com filtros hierárquicos, feedback em tempo real, dicas, comentários e exportação offline.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

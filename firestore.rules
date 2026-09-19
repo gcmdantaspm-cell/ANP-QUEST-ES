@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+             request.auth.token.email.lower() == 'gcm.dantas.pm@gmail.com';
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    function isValidQuestion(data) {
+      return data.modulo is string &&
+             data.capitulo is string &&
+             data.enunciado is string &&
+             data.alternativas is list;
+    }
+
+    function isValidComment(data) {
+      return data.userId is string &&
+             data.userId == request.auth.uid &&
+             data.texto is string &&
+             data.texto.size() > 0 &&
+             data.texto.size() <= 5000;
+    }
+
+    match /questions/{questionId} {
+      // Qualquer pessoa que acessar pode ver e resolver as questões
+      allow get, list: if true;
+      // Apenas o administrador pode criar, editar ou excluir questões
+      allow create, update: if isValidId(questionId) && isAdmin() && isValidQuestion(request.resource.data);
+      allow delete: if isValidId(questionId) && isAdmin();
+
+      match /comments/{commentId} {
+        allow get, list: if true;
+        allow create: if isValidId(commentId) && isSignedIn() && isValidComment(request.resource.data);
+        allow update: if isValidId(commentId) && isSignedIn() &&
+                      isValidComment(request.resource.data) &&
+                      (resource.data.userId == request.auth.uid || isAdmin());
+        allow delete: if isValidId(commentId) && isSignedIn() &&
+                      (resource.data.userId == request.auth.uid || isAdmin());
+      }
+    }
+  }
+}

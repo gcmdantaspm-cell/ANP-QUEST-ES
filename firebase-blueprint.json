@@ -1,0 +1,108 @@
+{
+  "entities": {
+    "Question": {
+      "title": "Question",
+      "description": "Uma questão de concurso público com metadados hierárquicos e conteúdo didático",
+      "type": "object",
+      "properties": {
+        "modulo": {
+          "type": "string",
+          "description": "Módulo ou disciplina (ex: Direito Constitucional, Português)",
+          "maxLength": 100
+        },
+        "capitulo": {
+          "type": "string",
+          "description": "Capítulo ou tópico principal (ex: Direitos Fundamentais)",
+          "maxLength": 150
+        },
+        "subtopico": {
+          "type": "string",
+          "description": "Subtópico específico opcional (ex: Art. 5º)",
+          "maxLength": 150
+        },
+        "tema_subtopico": {
+          "type": "string",
+          "description": "Tema detalhado opcional (ex: Remédios Constitucionais)",
+          "maxLength": 150
+        },
+        "enunciado": {
+          "type": "string",
+          "description": "Texto do enunciado da questão",
+          "maxLength": 10000
+        },
+        "alternativas": {
+          "type": "array",
+          "description": "Lista de alternativas da questão"
+        },
+        "alternativa_correta": {
+          "type": "string",
+          "description": "Letra da alternativa correta (A, B, C, D ou E)",
+          "maxLength": 5
+        },
+        "gabarito_comentado": {
+          "type": "string",
+          "description": "Explicação fundamentada do gabarito",
+          "maxLength": 10000
+        },
+        "dica_macete": {
+          "type": "string",
+          "description": "Dica mnemônica ou macete de memorização",
+          "maxLength": 3000
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Data de criação da questão"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Email ou UID do autor criador"
+        }
+      },
+      "required": [
+        "modulo",
+        "capitulo",
+        "enunciado",
+        "alternativas",
+        "alternativa_correta",
+        "gabarito_comentado"
+      ]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Comentário de um aluno no fórum de discussão de uma questão",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "UID do autor do comentário",
+          "maxLength": 128
+        },
+        "userName": {
+          "type": "string",
+          "description": "Nome de exibição do autor",
+          "maxLength": 100
+        },
+        "texto": {
+          "type": "string",
+          "description": "Conteúdo textual da dúvida ou contribuição",
+          "maxLength": 3000
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Data e hora do comentário"
+        }
+      },
+      "required": ["userId", "userName", "texto"]
+    }
+  },
+  "firestore": {
+    "/questions/{questionId}": {
+      "schema": "Question",
+      "description": "Coleção de questões cadastradas"
+    },
+    "/questions/{questionId}/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Fórum de comentários da questão"
+    }
+  }
+}
