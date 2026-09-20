@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-export type ThemeId = 'papafox' | 'gold_luxury' | 'gold_dark' | 'navy' | 'emerald' | 'sapphire';
+export type ThemeId = 'azul_claro' | 'azul_celeste' | 'papafox' | 'navy' | 'emerald' | 'sapphire';
 
 export interface ThemeConfig {
   id: ThemeId;
@@ -23,9 +23,47 @@ export interface ThemeConfig {
 }
 
 export const THEMES: Record<ThemeId, ThemeConfig> = {
+  azul_claro: {
+    id: 'azul_claro',
+    name: 'Papa Fox Azul Claro (Ice Blue & Slate)',
+    tagline: 'Design em tom azul claro suave, com alto contraste e máxima legibilidade visual',
+    primaryClass: 'bg-sky-600',
+    primaryHoverClass: 'hover:bg-sky-700',
+    primaryBgLight: 'bg-sky-50',
+    primaryText: 'text-sky-900',
+    badgeBg: 'bg-sky-100',
+    badgeText: 'text-sky-800',
+    accentBorder: 'border-sky-300',
+    navGradient: 'from-[#0c2331] via-[#102d3e] to-[#16384c]',
+    brandAccent: '#0284c7',
+    hexPrimary: '#0284c7',
+    hexSecondary: '#38bdf8',
+    hexAccent: '#dce9ea',
+    bodyBg: 'bg-[#edf4f6]',
+    cardBorder: 'border-[#c5d8da]',
+  },
+  azul_celeste: {
+    id: 'azul_celeste',
+    name: 'Azul Celeste & Tech',
+    tagline: 'Azul claro vibrante e moderno com detalhes em ciano e branco puro',
+    primaryClass: 'bg-cyan-600',
+    primaryHoverClass: 'hover:bg-cyan-700',
+    primaryBgLight: 'bg-cyan-50',
+    primaryText: 'text-cyan-900',
+    badgeBg: 'bg-cyan-100',
+    badgeText: 'text-cyan-800',
+    accentBorder: 'border-cyan-300',
+    navGradient: 'from-slate-900 via-sky-950 to-cyan-950',
+    brandAccent: '#06b6d4',
+    hexPrimary: '#0891b2',
+    hexSecondary: '#06b6d4',
+    hexAccent: '#e0f2fe',
+    bodyBg: 'bg-[#f0f7f9]',
+    cardBorder: 'border-cyan-200',
+  },
   papafox: {
     id: 'papafox',
-    name: 'Ouro Real Metálico (Black & Pure Gold)',
+    name: 'Ouro Real Metálico (Black & Gold)',
     tagline: 'Dourado nobre refinado (#D4AF37) com fundo preto tático fosco',
     primaryClass: 'bg-zinc-950',
     primaryHoverClass: 'hover:bg-zinc-900',
@@ -41,63 +79,6 @@ export const THEMES: Record<ThemeId, ThemeConfig> = {
     hexAccent: '#C5A028',
     bodyBg: 'bg-[#0b0c0e]',
     cardBorder: 'border-amber-500/30',
-  },
-  gold_luxury: {
-    id: 'gold_luxury',
-    name: 'Ouro Champanhe & Bronze Militar',
-    tagline: 'Tom dourado acetinado clássico e elegante com alto contraste visual',
-    primaryClass: 'bg-stone-950',
-    primaryHoverClass: 'hover:bg-stone-900',
-    primaryBgLight: 'bg-yellow-700/10',
-    primaryText: 'text-yellow-200',
-    badgeBg: 'bg-yellow-600/20',
-    badgeText: 'text-yellow-100',
-    accentBorder: 'border-yellow-600/40',
-    navGradient: 'from-stone-950 via-zinc-950 to-stone-900',
-    brandAccent: '#E6C687',
-    hexPrimary: '#0c0a09',
-    hexSecondary: '#E6C687',
-    hexAccent: '#D4AF37',
-    bodyBg: 'bg-[#0a0a0b]',
-    cardBorder: 'border-yellow-600/30',
-  },
-  gold_dark: {
-    id: 'gold_dark',
-    name: 'Ouro Imperial Tático',
-    tagline: 'Dourado profundo com toques âmbar e grafite especial para leitura noturna',
-    primaryClass: 'bg-zinc-950',
-    primaryHoverClass: 'hover:bg-zinc-900',
-    primaryBgLight: 'bg-amber-700/10',
-    primaryText: 'text-amber-400',
-    badgeBg: 'bg-amber-600/20',
-    badgeText: 'text-amber-300',
-    accentBorder: 'border-amber-600/40',
-    navGradient: 'from-black via-zinc-950 to-neutral-950',
-    brandAccent: '#B8860B',
-    hexPrimary: '#000000',
-    hexSecondary: '#B8860B',
-    hexAccent: '#DAA520',
-    bodyBg: 'bg-[#090a0c]',
-    cardBorder: 'border-amber-600/30',
-  },
-  emerald: {
-    id: 'emerald',
-    name: 'Esmeralda Nobre & Jurídico',
-    tagline: 'Estilo nobre acadêmico para carreiras jurídicas e policiais',
-    primaryClass: 'bg-emerald-800',
-    primaryHoverClass: 'hover:bg-emerald-900',
-    primaryBgLight: 'bg-emerald-50',
-    primaryText: 'text-emerald-900',
-    badgeBg: 'bg-emerald-100',
-    badgeText: 'text-emerald-800',
-    accentBorder: 'border-emerald-700',
-    navGradient: 'from-emerald-950 via-emerald-900 to-teal-950',
-    brandAccent: '#059669',
-    hexPrimary: '#064e3b',
-    hexSecondary: '#059669',
-    hexAccent: '#10b981',
-    bodyBg: 'bg-[#f7faf8]',
-    cardBorder: 'border-emerald-100',
   },
   navy: {
     id: 'navy',
@@ -117,6 +98,25 @@ export const THEMES: Record<ThemeId, ThemeConfig> = {
     hexAccent: '#38bdf8',
     bodyBg: 'bg-[#f8fafc]',
     cardBorder: 'border-slate-200',
+  },
+  emerald: {
+    id: 'emerald',
+    name: 'Esmeralda Nobre & Jurídico',
+    tagline: 'Estilo nobre acadêmico para carreiras jurídicas e policiais',
+    primaryClass: 'bg-emerald-800',
+    primaryHoverClass: 'hover:bg-emerald-900',
+    primaryBgLight: 'bg-emerald-50',
+    primaryText: 'text-emerald-900',
+    badgeBg: 'bg-emerald-100',
+    badgeText: 'text-emerald-800',
+    accentBorder: 'border-emerald-700',
+    navGradient: 'from-emerald-950 via-emerald-900 to-teal-950',
+    brandAccent: '#059669',
+    hexPrimary: '#064e3b',
+    hexSecondary: '#059669',
+    hexAccent: '#10b981',
+    bodyBg: 'bg-[#f7faf8]',
+    cardBorder: 'border-emerald-100',
   },
   sapphire: {
     id: 'sapphire',
@@ -157,7 +157,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch {
       // fallback
     }
-    return 'papafox';
+    return 'azul_claro';
   });
 
   const [isThemeSelectorOpen, setIsThemeSelectorOpen] = useState(false);
