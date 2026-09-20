@@ -78,7 +78,7 @@ export const SimuladoImporter: React.FC<SimuladoImporterProps> = ({
       {/* Cabeçalho do Importador */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-5">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-600 text-zinc-950 flex items-center justify-center shadow-md font-bold">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-400 to-blue-600 text-white flex items-center justify-center shadow-md font-bold">
             <Upload className="w-5 h-5" />
           </div>
           <div>
@@ -94,23 +94,23 @@ export const SimuladoImporter: React.FC<SimuladoImporterProps> = ({
         <button
           type="button"
           onClick={handleLoadSample}
-          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-zinc-950 hover:bg-zinc-800 text-amber-400 border border-amber-500/30 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-zinc-950 hover:bg-zinc-800 text-sky-400 border border-sky-500/30 text-xs font-bold rounded-lg transition-colors cursor-pointer"
         >
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          <Sparkles className="w-3.5 h-3.5 text-sky-400" />
           Carregar Exemplo de Simulado Pronto
         </button>
       </div>
 
       {/* Instruções em Destaque */}
-      <div className="p-4 bg-zinc-950/80 border border-amber-500/20 rounded-xl text-xs text-zinc-300 flex items-start gap-3">
-        <HelpCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+      <div className="p-4 bg-zinc-950/80 border border-sky-500/20 rounded-xl text-xs text-zinc-300 flex items-start gap-3">
+        <HelpCircle className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
         <div className="space-y-1 leading-relaxed">
-          <p className="font-bold text-amber-400">
+          <p className="font-bold text-sky-400">
             Estrutura Direta por Matéria e Peso:
           </p>
           <p className="text-zinc-300">
-            Declare no início da questão a <strong className="text-amber-300">Matéria</strong> (ex: <em>Matéria: Direito Penal</em>) e o <strong className="text-amber-300">Peso</strong> (ex: <em>Peso: 2</em> ou <em>Peso: 1.5</em>).
-            As questões podem ser separadas por <strong className="text-amber-300">---</strong> ou identificadas automaticamente.
+            Declare no início da questão a <strong className="text-sky-300">Matéria</strong> (ex: <em>Matéria: Direito Penal</em>) e o <strong className="text-sky-300">Peso</strong> (ex: <em>Peso: 2</em> ou <em>Peso: 1.5</em>).
+            As questões podem ser separadas por <strong className="text-sky-300">---</strong> ou identificadas automaticamente.
           </p>
         </div>
       </div>
@@ -126,13 +126,13 @@ export const SimuladoImporter: React.FC<SimuladoImporterProps> = ({
             value={titulo}
             onChange={(e) => setTitulo(e.target.value)}
             placeholder="Ex: Simulado Especial 01 - Papa Fox Treino"
-            className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-amber-500 text-zinc-100 font-medium placeholder-zinc-600"
+            className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-sky-500 text-zinc-100 font-medium placeholder-zinc-600"
           />
         </div>
 
         <div>
           <label className="block text-xs font-bold text-zinc-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5 text-amber-400" />
+            <Clock className="w-3.5 h-3.5 text-sky-400" />
             Tempo Limite (Minutos)
           </label>
           <input
@@ -142,7 +142,7 @@ export const SimuladoImporter: React.FC<SimuladoImporterProps> = ({
             value={duracaoMinutos}
             onChange={(e) => setDuracaoMinutos(Number(e.target.value))}
             placeholder="Ex: 60 (0 para livre)"
-            className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-amber-500 text-zinc-100 font-medium placeholder-zinc-600"
+            className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-sky-500 text-zinc-100 font-medium placeholder-zinc-600"
           />
           <span className="text-[10px] text-zinc-500 mt-1 block">
             {duracaoMinutos > 0 ? `${duracaoMinutos} minutos de prova` : 'Sem limite de tempo'}
@@ -159,7 +159,7 @@ export const SimuladoImporter: React.FC<SimuladoImporterProps> = ({
           value={descricao}
           onChange={(e) => setDescricao(e.target.value)}
           placeholder="Ex: Simulado composto por disciplinas com pesos diferenciados e pontuação ponderada."
-          className="w-full px-3.5 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-amber-500 text-zinc-100 font-medium placeholder-zinc-600"
+          className="w-full px-3.5 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-sky-500 text-zinc-100 font-medium placeholder-zinc-600"
         />
       </div>
 
@@ -202,7 +202,7 @@ Comentário: A prevaricação (art. 319 do CP) exige o elemento subjetivo especi
 Matéria: Português
 Peso: 1
 Assinale a palavra corretamente grafada...`}
-          className="w-full p-4 bg-zinc-950 border border-zinc-800 rounded-xl text-xs sm:text-sm font-mono leading-relaxed focus:outline-hidden focus:ring-2 focus:ring-amber-500 text-zinc-200 placeholder-zinc-600"
+          className="w-full p-4 bg-zinc-950 border border-zinc-800 rounded-xl text-xs sm:text-sm font-mono leading-relaxed focus:outline-hidden focus:ring-2 focus:ring-sky-500 text-zinc-200 placeholder-zinc-600"
         />
       </div>
 
@@ -212,7 +212,7 @@ Assinale a palavra corretamente grafada...`}
           type="button"
           onClick={handleParse}
           disabled={!rawText.trim()}
-          className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 disabled:opacity-50 text-zinc-950 text-xs font-black rounded-xl transition-all cursor-pointer shadow-md inline-flex items-center gap-2"
+          className="px-6 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-black rounded-xl transition-all cursor-pointer shadow-md inline-flex items-center gap-2"
         >
           <Sparkles className="w-4 h-4" />
           Processar & Visualizar Questões
@@ -233,15 +233,15 @@ Assinale a palavra corretamente grafada...`}
           <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-zinc-950 text-zinc-100 rounded-xl border border-zinc-800">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-amber-400" />
+                <BookOpen className="w-4 h-4 text-sky-400" />
                 <span className="text-xs">
                   Questões identificadas: <strong className="text-zinc-100">{parsedResult.questions.length}</strong>
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <Scale className="w-4 h-4 text-amber-400" />
+                <Scale className="w-4 h-4 text-sky-400" />
                 <span className="text-xs">
-                  Pontos Totais (Pesos): <strong className="text-amber-400">{parsedResult.totalPeso} pts</strong>
+                  Pontos Totais (Pesos): <strong className="text-sky-400">{parsedResult.totalPeso} pts</strong>
                 </span>
               </div>
             </div>
@@ -251,7 +251,7 @@ Assinale a palavra corretamente grafada...`}
               {parsedResult.materias.map((mat) => (
                 <span
                   key={mat}
-                  className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30"
+                  className="px-2 py-0.5 rounded text-[11px] font-bold bg-sky-500/10 text-sky-300 border border-sky-500/30"
                 >
                   {mat}
                 </span>
@@ -285,10 +285,10 @@ Assinale a palavra corretamente grafada...`}
                     <span className="font-extrabold text-zinc-200 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded">
                       #{idx + 1}
                     </span>
-                    <span className="font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+                    <span className="font-bold text-sky-300 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded">
                       Matéria: {q.materia}
                     </span>
-                    <span className="font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded flex items-center gap-1">
+                    <span className="font-bold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded flex items-center gap-1">
                       <Scale className="w-3 h-3" />
                       Peso {q.peso}
                     </span>
@@ -305,7 +305,7 @@ Assinale a palavra corretamente grafada...`}
                     )}
                   </div>
 
-                  <span className="font-bold text-amber-400 bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded">
+                  <span className="font-bold text-sky-400 bg-sky-500/20 border border-sky-500/30 px-2 py-0.5 rounded">
                     Gabarito: {q.alternativa_correta}
                   </span>
                 </div>
@@ -320,7 +320,7 @@ Assinale a palavra corretamente grafada...`}
                       key={alt.letra}
                       className={`p-1.5 rounded border ${
                         alt.letra === q.alternativa_correta
-                          ? 'bg-amber-500/20 border-amber-500/40 font-bold text-amber-300'
+                          ? 'bg-sky-500/20 border-sky-500/40 font-bold text-sky-300'
                           : 'bg-zinc-900 border-zinc-800 text-zinc-400'
                       }`}
                     >
@@ -331,7 +331,7 @@ Assinale a palavra corretamente grafada...`}
 
                 {q.gabarito_comentado && (
                   <p className="text-[11px] text-zinc-400 italic line-clamp-2">
-                    <strong className="text-amber-400 font-semibold not-italic">Comentário:</strong> {q.gabarito_comentado}
+                    <strong className="text-sky-400 font-semibold not-italic">Comentário:</strong> {q.gabarito_comentado}
                   </p>
                 )}
               </div>
@@ -343,7 +343,7 @@ Assinale a palavra corretamente grafada...`}
             <button
               type="button"
               onClick={handleSave}
-              className="px-7 py-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md inline-flex items-center gap-2"
+              className="px-7 py-3 bg-sky-600 hover:bg-sky-500 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md inline-flex items-center gap-2"
             >
               <CheckCircle2 className="w-4 h-4" />
               Salvar e Disponibilizar Simulado ({parsedResult.questions.length} Questões)

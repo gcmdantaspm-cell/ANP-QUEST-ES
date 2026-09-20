@@ -48,14 +48,14 @@ export const MatriculaVerificationModal: React.FC = () => {
       id="modal-matricula-verification"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fadeIn"
     >
-      <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-amber-500/30 overflow-hidden">
-        {/* Cabeçalho Preto & Ouro com Brasão da Águia */}
-        <div className="bg-gradient-to-b from-zinc-950 via-zinc-900 to-black p-6 text-white text-center relative border-b border-amber-500/20">
-          <div className="flex items-center justify-center mx-auto mb-3 drop-shadow-[0_0_12px_rgba(234,179,8,0.5)]">
+      <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-sky-500/30 overflow-hidden">
+        {/* Cabeçalho com Brasão da Águia */}
+        <div className="bg-gradient-to-b from-zinc-950 via-zinc-900 to-black p-6 text-white text-center relative border-b border-sky-500/20">
+          <div className="flex items-center justify-center mx-auto mb-3 drop-shadow-[0_0_12px_rgba(14,165,233,0.5)]">
             <EagleShieldLogo size={52} />
           </div>
           <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase">
-            PAPA FOX <span className="text-amber-400">QUESTÕES</span>
+            PAPA FOX <span className="text-sky-400">QUESTÕES</span>
           </h2>
           <p className="text-xs sm:text-sm text-zinc-300 mt-1 max-w-md mx-auto">
             Vincule sua matrícula institucional autorizada para desbloquear o acesso aos cadernos de questões e simulados.
@@ -71,10 +71,10 @@ export const MatriculaVerificationModal: React.FC = () => {
                 <img
                   src={user.photoURL}
                   alt={user.displayName || 'Avatar'}
-                  className="w-10 h-10 rounded-full border-2 border-amber-400/60 object-cover shrink-0"
+                  className="w-10 h-10 rounded-full border-2 border-sky-400/60 object-cover shrink-0"
                 />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-zinc-900 text-amber-300 border border-amber-400/40 flex items-center justify-center font-bold shrink-0">
+                <div className="w-10 h-10 rounded-full bg-zinc-900 text-sky-300 border border-sky-400/40 flex items-center justify-center font-bold shrink-0">
                   {user.displayName?.[0] || 'U'}
                 </div>
               )}
@@ -134,7 +134,7 @@ export const MatriculaVerificationModal: React.FC = () => {
                   autoFocus
                   required
                   disabled={submitting}
-                  className="w-full text-base font-mono font-bold tracking-wider px-4 py-3 bg-zinc-50 border-2 border-zinc-300 rounded-2xl focus:border-amber-500 focus:bg-white focus:ring-2 focus:ring-amber-400/20 focus:outline-hidden transition-all text-zinc-900"
+                  className="w-full text-base font-mono font-bold tracking-wider px-4 py-3 bg-zinc-50 border-2 border-zinc-300 rounded-2xl focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-400/20 focus:outline-hidden transition-all text-zinc-900"
                 />
                 <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-400">
                   <Lock className="w-5 h-5" />
@@ -143,9 +143,9 @@ export const MatriculaVerificationModal: React.FC = () => {
             </div>
 
             {/* Aviso importante de unicidade e vínculo */}
-            <div className="p-3 bg-amber-50/90 border border-amber-200/80 rounded-xl text-[11px] sm:text-xs text-amber-900 leading-relaxed space-y-1">
-              <div className="font-bold flex items-center gap-1.5 text-amber-950">
-                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+            <div className="p-3 bg-sky-50/90 border border-sky-200/80 rounded-xl text-[11px] sm:text-xs text-sky-950 leading-relaxed space-y-1">
+              <div className="font-bold flex items-center gap-1.5 text-sky-950">
+                <Sparkles className="w-3.5 h-3.5 text-sky-600" />
                 Regra de Vínculo Exclusivo:
               </div>
               <p>
@@ -158,11 +158,11 @@ export const MatriculaVerificationModal: React.FC = () => {
               id="btn-confirm-matricula"
               type="submit"
               disabled={submitting || !matriculaInput.trim()}
-              className="w-full py-3.5 px-6 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 disabled:opacity-50 text-zinc-950 font-extrabold text-sm rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3.5 px-6 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-extrabold text-sm rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               {submitting ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   <span>Validando Matrícula no Sistema...</span>
                 </>
               ) : (

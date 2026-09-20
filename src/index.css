@@ -7,25 +7,30 @@
   }
 }
 
-/* Efeitos Metálicos Ouro Papa Fox */
+/* Efeitos Metálicos Azul Papa Fox */
+.blue-gradient-text,
 .gold-gradient-text {
-  background: linear-gradient(135deg, #FFF176 0%, #F5B041 35%, #D4AF37 70%, #AA7A1E 100%);
+  background: linear-gradient(135deg, #7dd3fc 0%, #38bdf8 35%, #0284c7 70%, #0369a1 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
+.blue-gradient-bg,
 .gold-gradient-bg {
-  background: linear-gradient(135deg, #FFF176 0%, #F5B041 35%, #D4AF37 70%, #AA7A1E 100%);
+  background: linear-gradient(135deg, #7dd3fc 0%, #38bdf8 35%, #0284c7 70%, #0369a1 100%);
 }
 
+.blue-gradient-border,
 .gold-gradient-border {
-  border-image: linear-gradient(135deg, #FFF176, #D4AF37, #AA7A1E) 1;
+  border-image: linear-gradient(135deg, #7dd3fc, #0284c7, #0369a1) 1;
 }
 
+.blue-glow,
 .gold-glow {
-  box-shadow: 0 0 15px rgba(212, 175, 55, 0.25);
+  box-shadow: 0 0 15px rgba(2, 132, 199, 0.25);
 }
 
+.blue-glow-hover:hover,
 .gold-glow-hover:hover {
-  box-shadow: 0 0 20px rgba(212, 175, 55, 0.4);
+  box-shadow: 0 0 20px rgba(2, 132, 199, 0.4);
 }

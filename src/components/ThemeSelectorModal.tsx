@@ -11,15 +11,15 @@ export const ThemeSelectorModal: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full overflow-hidden">
         {/* Topo do Modal */}
-        <div className="bg-zinc-950 text-white p-5 flex items-center justify-between border-b border-amber-500/20">
+        <div className="bg-zinc-950 text-white p-5 flex items-center justify-between border-b border-sky-500/20">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center">
-              <Palette className="w-5 h-5 text-amber-400" />
+            <div className="w-9 h-9 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center">
+              <Palette className="w-5 h-5 text-sky-400" />
             </div>
             <div>
               <h2 className="text-base font-bold tracking-tight text-white flex items-center gap-2">
                 Identidade Visual & Paleta de Cores
-                <span className="text-[10px] uppercase font-mono px-2 py-0.5 bg-amber-400/20 text-amber-300 rounded border border-amber-400/30">
+                <span className="text-[10px] uppercase font-mono px-2 py-0.5 bg-sky-500/20 text-sky-300 rounded border border-sky-400/30">
                   PAPA FOX
                 </span>
               </h2>
@@ -98,7 +98,7 @@ export const ThemeSelectorModal: React.FC = () => {
           </div>
 
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 flex items-center gap-2.5">
-            <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+            <Sparkles className="w-4 h-4 text-sky-500 shrink-0" />
             <span>
               A paleta escolhida é salva instantaneamente no seu navegador e aplicada a todos os painéis, simulados e relatórios estatísticos da plataforma.
             </span>

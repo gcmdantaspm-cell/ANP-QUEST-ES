@@ -132,17 +132,17 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
   return (
     <div
       id="hierarchy-filters"
-      className="bg-zinc-900 rounded-2xl border border-amber-500/30 shadow-md p-4 sm:p-5 mb-6 text-white"
+      className="bg-zinc-900 rounded-2xl border border-sky-500/30 shadow-md p-4 sm:p-5 mb-6 text-white"
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-zinc-950 border border-amber-500/40 text-amber-400 rounded-xl shadow-xs">
+          <div className="p-2 bg-zinc-950 border border-sky-500/40 text-sky-400 rounded-xl shadow-xs">
             <Filter className="w-4 h-4" />
           </div>
           <div>
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               Filtro Tático por Matéria e Conteúdo
-              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-400/20 text-amber-300 font-extrabold border border-amber-400/30">
+              <span className="text-[10px] px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-extrabold border border-sky-400/30">
                 PAPA FOX
               </span>
             </h3>
@@ -154,14 +154,14 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
 
         <div className="flex items-center gap-2 text-xs">
           <span className="text-zinc-400">
-            Exibindo <strong className="text-amber-400 font-extrabold">{filteredCount}</strong> de {totalCount} questões
+            Exibindo <strong className="text-sky-400 font-extrabold">{filteredCount}</strong> de {totalCount} questões
           </span>
           {hasActiveFilters && (
             <button
               id="btn-reset-filters"
               type="button"
               onClick={handleResetFilters}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-zinc-950 hover:text-black bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-yellow-400 rounded-lg font-bold transition-all cursor-pointer shadow-xs"
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-white bg-sky-600 hover:bg-sky-500 rounded-lg font-bold transition-all cursor-pointer shadow-xs"
             >
               <X className="w-3.5 h-3.5" />
               Limpar Filtros
@@ -176,7 +176,7 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
         <div>
           <label
             htmlFor="filter-materia"
-            className="block text-xs font-bold text-amber-400 mb-1 uppercase tracking-wider"
+            className="block text-xs font-bold text-sky-400 mb-1 uppercase tracking-wider"
           >
             1. Matéria
           </label>
@@ -184,7 +184,7 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             id="filter-materia"
             value={filters.modulo}
             onChange={handleModuloChange}
-            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-amber-500 rounded-xl focus:ring-2 focus:ring-amber-500/20 text-zinc-100 font-medium transition-colors"
+            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 font-medium transition-colors"
           >
             <option value="">Todas as Matérias</option>
             {modulos.map((m) => (
@@ -208,7 +208,7 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             value={filters.capitulo}
             onChange={handleCapituloChange}
             disabled={capitulos.length === 0}
-            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-amber-500 rounded-xl focus:ring-2 focus:ring-amber-500/20 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
+            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
           >
             <option value="">(Em branco / Todos os Capítulos)</option>
             {capitulos.map((c) => (
@@ -232,7 +232,7 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             value={filters.subtopico}
             onChange={handleSubtopicoChange}
             disabled={subtopicos.length === 0}
-            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-amber-500 rounded-xl focus:ring-2 focus:ring-amber-500/20 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
+            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
           >
             <option value="">(Em branco / Todos os Subtópicos)</option>
             {subtopicos.map((s) => (
@@ -256,7 +256,7 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             value={filters.tema_subtopico}
             onChange={handleTemaChange}
             disabled={temas.length === 0}
-            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-amber-500 rounded-xl focus:ring-2 focus:ring-amber-500/20 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
+            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
           >
             <option value="">(Em branco / Todos os Temas)</option>
             {temas.map((t) => (
@@ -279,7 +279,7 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             value={filters.busca}
             onChange={handleSearchChange}
             placeholder="Pesquisar por palavras-chave ou jurisprudência..."
-            className="w-full text-xs sm:text-sm pl-9 pr-3 py-2 bg-zinc-950 border border-zinc-700 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-zinc-100 placeholder-zinc-500"
+            className="w-full text-xs sm:text-sm pl-9 pr-3 py-2 bg-zinc-950 border border-zinc-700 rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-zinc-100 placeholder-zinc-500"
           />
           {filters.busca && (
             <button
@@ -300,7 +300,7 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             onClick={() => handleStatusChange('todas')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
               filters.statusFiltro === 'todas'
-                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 font-black shadow-xs'
+                ? 'bg-sky-600 hover:bg-sky-500 text-white font-black shadow-xs ring-1 ring-sky-400/40'
                 : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800 hover:bg-zinc-800'
             }`}
           >
@@ -312,8 +312,8 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             onClick={() => handleStatusChange('acertos')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
               filters.statusFiltro === 'acertos'
-                ? 'bg-amber-400 text-zinc-950 font-extrabold shadow-xs'
-                : 'bg-zinc-950 text-amber-400 border border-amber-500/30 hover:bg-amber-400/10'
+                ? 'bg-emerald-600 text-white font-extrabold shadow-xs'
+                : 'bg-zinc-950 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-400/10'
             }`}
           >
             <CheckCircle2 className="w-3.5 h-3.5" />

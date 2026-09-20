@@ -38,7 +38,7 @@ export const SimuladosStatsView: React.FC<SimuladosStatsViewProps> = ({ attempts
   if (attempts.length === 0) {
     return (
       <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-8 sm:p-12 text-center max-w-xl mx-auto shadow-md font-sans">
-        <div className="w-14 h-14 rounded-2xl bg-zinc-950 text-amber-400 flex items-center justify-center mx-auto mb-4 border border-amber-500/30">
+        <div className="w-14 h-14 rounded-2xl bg-zinc-950 text-sky-400 flex items-center justify-center mx-auto mb-4 border border-sky-500/30">
           <BarChart3 className="w-7 h-7" />
         </div>
         <h3 className="text-base font-bold text-zinc-100 mb-2">
@@ -126,7 +126,7 @@ export const SimuladosStatsView: React.FC<SimuladosStatsViewProps> = ({ attempts
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
         <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800 shadow-md">
           <div className="flex items-center gap-2 text-zinc-400 mb-1">
-            <Calendar className="w-4 h-4 text-amber-400" />
+            <Calendar className="w-4 h-4 text-sky-400" />
             <span className="text-xs font-semibold">Simulados Feitos</span>
           </div>
           <div className="text-xl sm:text-2xl font-black text-zinc-100">
@@ -137,10 +137,10 @@ export const SimuladosStatsView: React.FC<SimuladosStatsViewProps> = ({ attempts
 
         <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800 shadow-md">
           <div className="flex items-center gap-2 text-zinc-400 mb-1">
-            <Target className="w-4 h-4 text-amber-400" />
+            <Target className="w-4 h-4 text-sky-400" />
             <span className="text-xs font-semibold">Média Ponderada</span>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-amber-400">
+          <div className="text-xl sm:text-2xl font-black text-sky-400">
             {mediaAproveitamento}%
           </div>
           <p className="text-[11px] text-zinc-400 mt-0.5">Considerando pesos</p>
@@ -148,10 +148,10 @@ export const SimuladosStatsView: React.FC<SimuladosStatsViewProps> = ({ attempts
 
         <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800 shadow-md">
           <div className="flex items-center gap-2 text-zinc-400 mb-1">
-            <Award className="w-4 h-4 text-amber-400" />
+            <Award className="w-4 h-4 text-sky-400" />
             <span className="text-xs font-semibold">Melhor Desempenho</span>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-amber-300">
+          <div className="text-xl sm:text-2xl font-black text-sky-300">
             {melhorAproveitamento}%
           </div>
           <p className="text-[11px] text-zinc-400 mt-0.5">Pico de rendimento</p>
@@ -159,7 +159,7 @@ export const SimuladosStatsView: React.FC<SimuladosStatsViewProps> = ({ attempts
 
         <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800 shadow-md">
           <div className="flex items-center gap-2 text-zinc-400 mb-1">
-            <Scale className="w-4 h-4 text-amber-400" />
+            <Scale className="w-4 h-4 text-sky-400" />
             <span className="text-xs font-semibold">Pontos Acumulados</span>
           </div>
           <div className="text-xl sm:text-2xl font-black text-zinc-100">
@@ -174,14 +174,14 @@ export const SimuladosStatsView: React.FC<SimuladosStatsViewProps> = ({ attempts
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
           <div>
             <h3 className="text-sm sm:text-base font-bold text-zinc-100 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-amber-400" />
+              <TrendingUp className="w-4 h-4 text-sky-400" />
               Evolução Temporal do Aproveitamento Ponderado (%)
             </h3>
             <p className="text-xs text-zinc-400">
               Acompanhamento da nota ponderada ao longo de cada simulado realizado
             </p>
           </div>
-          <span className="text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg bg-zinc-950 text-amber-400 border border-amber-500/30 self-start sm:self-auto">
+          <span className="text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg bg-zinc-950 text-sky-400 border border-sky-500/30 self-start sm:self-auto">
             Meta Recomendada: 70%
           </span>
         </div>
@@ -208,9 +208,9 @@ export const SimuladosStatsView: React.FC<SimuladosStatsViewProps> = ({ attempts
                   if (active && payload && payload.length) {
                     const d = payload[0].payload;
                     return (
-                      <div className="bg-zinc-950 text-white p-3 rounded-xl border border-amber-500/30 shadow-xl text-xs space-y-1">
+                      <div className="bg-zinc-950 text-white p-3 rounded-xl border border-sky-500/30 shadow-xl text-xs space-y-1">
                         <p className="font-bold text-zinc-200">{d.name}</p>
-                        <p className="text-amber-400 font-extrabold text-sm">
+                        <p className="text-sky-400 font-extrabold text-sm">
                           Aproveitamento: {d.aproveitamento}%
                         </p>
                         <p className="text-zinc-400">
@@ -223,13 +223,13 @@ export const SimuladosStatsView: React.FC<SimuladosStatsViewProps> = ({ attempts
                   return null;
                 }}
               />
-              <ReferenceLine y={70} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: 'Meta 70%', fill: '#fbbf24', fontSize: 10, position: 'right' }} />
+              <ReferenceLine y={70} stroke="#38bdf8" strokeDasharray="3 3" label={{ value: 'Meta 70%', fill: '#38bdf8', fontSize: 10, position: 'right' }} />
               <Line
                 type="monotone"
                 dataKey="aproveitamento"
-                stroke="#f59e0b"
+                stroke="#0284c7"
                 strokeWidth={3}
-                dot={{ r: 5, fill: '#f59e0b', stroke: '#18181b', strokeWidth: 2 }}
+                dot={{ r: 5, fill: '#38bdf8', stroke: '#0f172a', strokeWidth: 2 }}
                 activeDot={{ r: 7 }}
               />
             </LineChart>
@@ -243,7 +243,7 @@ export const SimuladosStatsView: React.FC<SimuladosStatsViewProps> = ({ attempts
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 sm:p-6 shadow-md">
           <div className="mb-4">
             <h3 className="text-sm sm:text-base font-bold text-zinc-100 flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-amber-400" />
+              <BarChart3 className="w-4 h-4 text-sky-400" />
               Pontuação Ponderada por Simulado
             </h3>
             <p className="text-xs text-zinc-400">
@@ -271,15 +271,15 @@ export const SimuladosStatsView: React.FC<SimuladosStatsViewProps> = ({ attempts
                     if (active && payload && payload.length) {
                       const d = payload[0].payload;
                       return (
-                        <div className="bg-zinc-950 text-white p-3 rounded-xl border border-amber-500/30 shadow-xl text-xs space-y-1">
+                        <div className="bg-zinc-950 text-white p-3 rounded-xl border border-sky-500/30 shadow-xl text-xs space-y-1">
                           <p className="font-bold text-zinc-200">{d.titulo}</p>
-                          <p className="text-amber-400 font-bold">
+                          <p className="text-sky-400 font-bold">
                             Obtidos: <strong>{d['Pontos Obtidos']} pts</strong>
                           </p>
                           <p className="text-zinc-400">
                             Possíveis: <strong>{d['Pontos Possíveis']} pts</strong>
                           </p>
-                          <p className="text-amber-300 font-bold">Taxa: {d.taxa}</p>
+                          <p className="text-sky-300 font-bold">Taxa: {d.taxa}</p>
                         </div>
                       );
                     }
@@ -287,7 +287,7 @@ export const SimuladosStatsView: React.FC<SimuladosStatsViewProps> = ({ attempts
                   }}
                 />
                 <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                <Bar dataKey="Pontos Obtidos" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Pontos Obtidos" fill="#0284c7" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Pontos Possíveis" fill="#3f3f46" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -298,7 +298,7 @@ export const SimuladosStatsView: React.FC<SimuladosStatsViewProps> = ({ attempts
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 sm:p-6 shadow-md">
           <div className="mb-4">
             <h3 className="text-sm sm:text-base font-bold text-zinc-100 flex items-center gap-2">
-              <Layers className="w-4 h-4 text-amber-400" />
+              <Layers className="w-4 h-4 text-sky-400" />
               Taxa de Aproveitamento por Matéria (%)
             </h3>
             <p className="text-xs text-zinc-400">
@@ -335,9 +335,9 @@ export const SimuladosStatsView: React.FC<SimuladosStatsViewProps> = ({ attempts
                     if (active && payload && payload.length) {
                       const d = payload[0].payload;
                       return (
-                        <div className="bg-zinc-950 text-white p-3 rounded-xl border border-amber-500/30 shadow-xl text-xs space-y-1">
+                        <div className="bg-zinc-950 text-white p-3 rounded-xl border border-sky-500/30 shadow-xl text-xs space-y-1">
                           <p className="font-bold text-zinc-200">{d.materia}</p>
-                          <p className="text-amber-400 font-bold">
+                          <p className="text-sky-400 font-bold">
                             Aproveitamento: {d['Aproveitamento (%)']}%
                           </p>
                           <p className="text-zinc-400">
@@ -351,7 +351,7 @@ export const SimuladosStatsView: React.FC<SimuladosStatsViewProps> = ({ attempts
                 />
                 <Bar
                   dataKey="Aproveitamento (%)"
-                  fill="#d97706"
+                  fill="#0284c7"
                   radius={[0, 4, 4, 0]}
                 />
               </BarChart>
@@ -403,7 +403,7 @@ export const SimuladosStatsView: React.FC<SimuladosStatsViewProps> = ({ attempts
                       })}
                     </td>
                     <td className="py-3 px-4 text-center font-medium">
-                      <span className="text-amber-400 font-bold">{att.acertos}</span> / {totalQ}
+                      <span className="text-sky-400 font-bold">{att.acertos}</span> / {totalQ}
                     </td>
                     <td className="py-3 px-4 text-center font-bold text-zinc-100">
                       {att.pontosObtidos} <span className="text-zinc-500 font-normal">/ {att.pontosPossiveis} pts</span>
@@ -412,9 +412,9 @@ export const SimuladosStatsView: React.FC<SimuladosStatsViewProps> = ({ attempts
                       <span
                         className={`inline-block px-2.5 py-0.5 rounded-full font-black text-[11px] ${
                           att.aproveitamentoPercentual >= 70
-                            ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
+                            ? 'bg-sky-500/20 text-sky-300 border border-sky-400/30'
                             : att.aproveitamentoPercentual >= 50
-                            ? 'bg-yellow-500/10 text-yellow-300 border border-yellow-500/30'
+                            ? 'bg-slate-700/40 text-slate-300 border border-slate-600/30'
                             : 'bg-rose-950/60 text-rose-300 border border-rose-500/30'
                         }`}
                       >

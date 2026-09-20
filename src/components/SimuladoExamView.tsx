@@ -184,10 +184,10 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
   return (
     <div className="bg-zinc-950 min-h-screen text-zinc-100 pb-16 font-sans">
       {/* Barra Superior Fixa do Simulado */}
-      <header className="sticky top-0 z-30 bg-zinc-900/95 border-b border-amber-500/30 backdrop-blur-md shadow-md">
+      <header className="sticky top-0 z-30 bg-zinc-900/95 border-b border-sky-500/30 backdrop-blur-md shadow-md">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="w-8 h-8 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 flex items-center justify-center font-black text-xs shadow-md">
+            <span className="w-8 h-8 rounded-lg bg-sky-600 text-white flex items-center justify-center font-black text-xs shadow-md">
               PF
             </span>
             <div>
@@ -206,10 +206,10 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono font-bold text-xs sm:text-sm border ${
                 totalMinutes > 0 && secondsRemaining < 300
                   ? 'bg-rose-950/60 border-rose-500/80 text-rose-400 animate-pulse'
-                  : 'bg-zinc-950 border-zinc-800 text-amber-400'
+                  : 'bg-zinc-950 border-zinc-800 text-sky-400'
               }`}
             >
-              <Clock className="w-4 h-4 text-amber-400" />
+              <Clock className="w-4 h-4 text-sky-400" />
               <span>
                 {totalMinutes > 0
                   ? formatTimer(secondsRemaining)
@@ -220,7 +220,7 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
             <button
               type="button"
               onClick={() => setShowConfirmModal(true)}
-              className="px-4 py-2 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 text-xs font-black rounded-xl transition-all cursor-pointer shadow-md inline-flex items-center gap-1.5"
+              className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-black rounded-xl transition-all cursor-pointer shadow-md inline-flex items-center gap-1.5"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span className="hidden sm:inline">Finalizar Prova</span>
@@ -237,11 +237,11 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
 
             let btnStyle = 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:bg-zinc-800 hover:text-zinc-200';
             if (isCurrent) {
-              btnStyle = 'ring-2 ring-amber-400 bg-amber-400/20 text-amber-300 border-amber-400 font-black';
+              btnStyle = 'ring-2 ring-sky-400 bg-sky-500/20 text-sky-300 border-sky-400 font-black';
             } else if (isFlagged) {
               btnStyle = 'bg-rose-950/60 text-rose-300 border-rose-500/50 font-bold';
             } else if (isAnswered) {
-              btnStyle = 'bg-zinc-800 text-amber-400 border-amber-500/40 font-bold';
+              btnStyle = 'bg-zinc-800 text-sky-400 border-sky-500/40 font-bold';
             }
 
             return (
@@ -416,9 +416,9 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
       {/* Modal de Confirmação de Finalização */}
       {showConfirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
-          <div className="bg-zinc-900 rounded-2xl border border-amber-500/40 shadow-2xl max-w-md w-full p-6 space-y-4 text-zinc-100">
-            <div className="flex items-center gap-3 text-amber-400">
-              <div className="w-10 h-10 rounded-full bg-amber-400/10 border border-amber-400/30 flex items-center justify-center">
+          <div className="bg-zinc-900 rounded-2xl border border-sky-500/40 shadow-2xl max-w-md w-full p-6 space-y-4 text-zinc-100">
+            <div className="flex items-center gap-3 text-sky-400">
+              <div className="w-10 h-10 rounded-full bg-sky-500/10 border border-sky-500/30 flex items-center justify-center">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-zinc-100">
@@ -430,7 +430,7 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
               <p>
                 Total de questões: <strong className="text-zinc-100">{totalQuestions}</strong>
               </p>
-              <p className="text-amber-400 font-semibold">
+              <p className="text-sky-400 font-semibold">
                 Respondidas: <strong>{totalAnswered}</strong>
               </p>
               {unansweredCount > 0 && (
@@ -439,7 +439,7 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
                 </p>
               )}
               {flaggedForReview.size > 0 && (
-                <p className="text-amber-300">
+                <p className="text-sky-300">
                   Marcadas para revisão: <strong>{flaggedForReview.size}</strong>
                 </p>
               )}
@@ -460,7 +460,7 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
               <button
                 type="button"
                 onClick={handleFinalizeExam}
-                className="px-5 py-2 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 text-xs font-black rounded-xl cursor-pointer transition-all shadow-md"
+                className="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-black rounded-xl cursor-pointer transition-all shadow-md"
               >
                 Sim, Finalizar Agora
               </button>

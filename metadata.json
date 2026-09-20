@@ -1,6 +1,6 @@
 {
   "name": "PAPA FOX QUESTÕES",
-  "description": "Plataforma tática de alta performance para resolução de questões e simulados com pesos ponderados, métricas em gráficos de barras e linhas e design profissional preto e dourado.",
+  "description": "Plataforma tática de alta performance para resolução de questões e simulados com pesos ponderados, métricas em gráficos de barras e linhas e design profissional no padrão visual Papa Fox Treino.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

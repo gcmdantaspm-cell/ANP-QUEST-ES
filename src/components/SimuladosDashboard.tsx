@@ -218,15 +218,15 @@ export const SimuladosDashboard: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in text-zinc-100 font-sans">
       {/* Banner Principal do Módulo de Simulados PAPA FOX TREINO */}
-      <div className="bg-zinc-950 text-white rounded-2xl p-6 sm:p-8 shadow-xl border border-amber-500/30 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="bg-zinc-950 text-white rounded-2xl p-6 sm:p-8 shadow-xl border border-sky-500/30 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 max-w-2xl space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/15 text-amber-300 border border-amber-400/40 text-xs font-mono font-bold tracking-wider uppercase">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/40 text-xs font-mono font-bold tracking-wider uppercase">
+            <Sparkles className="w-3.5 h-3.5 text-sky-400" />
             MÓDULO OFICIAL TÁTICO
           </div>
           <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white uppercase">
-            SIMULADOS <span className="text-amber-400">PAPA FOX TREINO</span>
+            SIMULADOS <span className="text-sky-400">PAPA FOX TREINO</span>
           </h2>
           <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed">
             Realize provas táticas com controle estrito de tempo, gabaritos detalhados, relatórios completos de desempenho ponderado e estatísticas integradas.
@@ -242,8 +242,8 @@ export const SimuladosDashboard: React.FC = () => {
             onClick={() => setActiveTab('disponiveis')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 ${
               activeTab === 'disponiveis'
-                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 shadow-md font-extrabold'
-                : 'bg-zinc-900 text-zinc-400 hover:text-amber-300 hover:bg-zinc-850 border border-zinc-800'
+                ? 'bg-sky-600 hover:bg-sky-500 text-white shadow-md font-extrabold ring-1 ring-sky-400/40'
+                : 'bg-zinc-900 text-zinc-400 hover:text-sky-300 hover:bg-zinc-850 border border-zinc-800'
             }`}
           >
             <BookOpen className="w-4 h-4" />
@@ -255,8 +255,8 @@ export const SimuladosDashboard: React.FC = () => {
             onClick={() => setActiveTab('estatisticas')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 ${
               activeTab === 'estatisticas'
-                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 shadow-md font-extrabold'
-                : 'bg-zinc-900 text-zinc-400 hover:text-amber-300 hover:bg-zinc-850 border border-zinc-800'
+                ? 'bg-sky-600 hover:bg-sky-500 text-white shadow-md font-extrabold ring-1 ring-sky-400/40'
+                : 'bg-zinc-900 text-zinc-400 hover:text-sky-300 hover:bg-zinc-850 border border-zinc-800'
             }`}
           >
             <BarChart3 className="w-4 h-4" />
@@ -270,8 +270,8 @@ export const SimuladosDashboard: React.FC = () => {
             onClick={() => setActiveTab('novo')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 shadow-md ${
               activeTab === 'novo'
-                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 font-black'
-                : 'bg-zinc-900 hover:bg-zinc-800 text-amber-400 border border-amber-500/40 hover:border-amber-400'
+                ? 'bg-sky-600 hover:bg-sky-500 text-white font-black'
+                : 'bg-zinc-900 hover:bg-zinc-800 text-sky-400 border border-sky-500/40 hover:border-sky-400'
             }`}
           >
             <PlusCircle className="w-4 h-4" />
@@ -298,7 +298,7 @@ export const SimuladosDashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setActiveTab('novo')}
-                  className="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 text-xs font-black rounded-xl shadow-md cursor-pointer hover:from-amber-400 hover:to-yellow-400 transition-all"
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-black rounded-xl shadow-md cursor-pointer transition-all"
                 >
                   Cadastrar Primeiro Simulado
                 </button>
@@ -313,12 +313,12 @@ export const SimuladosDashboard: React.FC = () => {
                 return (
                   <div
                     key={sim.id}
-                    className="bg-zinc-900/90 rounded-2xl border border-amber-500/30 hover:border-amber-500/60 shadow-md hover:shadow-xl transition-all p-5 flex flex-col justify-between space-y-4 relative group"
+                    className="bg-zinc-900/90 rounded-2xl border border-sky-500/30 hover:border-sky-500/60 shadow-md hover:shadow-xl transition-all p-5 flex flex-col justify-between space-y-4 relative group"
                   >
                     <div>
                       {/* Topo do Card */}
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <span className="text-[10px] font-mono font-bold uppercase px-2.5 py-0.5 rounded-lg bg-zinc-950 text-amber-300 border border-amber-500/30">
+                        <span className="text-[10px] font-mono font-bold uppercase px-2.5 py-0.5 rounded-lg bg-zinc-950 text-sky-300 border border-sky-500/30">
                           {sim.totalQuestoes} Questões
                         </span>
 
@@ -334,7 +334,7 @@ export const SimuladosDashboard: React.FC = () => {
                         )}
                       </div>
 
-                      <h3 className="text-base font-extrabold text-zinc-100 tracking-tight leading-snug group-hover:text-amber-300 transition-colors">
+                      <h3 className="text-base font-extrabold text-zinc-100 tracking-tight leading-snug group-hover:text-sky-300 transition-colors">
                         {sim.titulo}
                       </h3>
 
@@ -346,8 +346,8 @@ export const SimuladosDashboard: React.FC = () => {
 
                       {/* Metadados: Pesos e Duração */}
                       <div className="flex flex-wrap items-center gap-3 pt-3 text-xs text-zinc-300 border-t border-zinc-800 mt-3">
-                        <span className="flex items-center gap-1 font-semibold text-amber-400">
-                          <Scale className="w-3.5 h-3.5 text-amber-400" />
+                        <span className="flex items-center gap-1 font-semibold text-sky-400">
+                          <Scale className="w-3.5 h-3.5 text-sky-400" />
                           {sim.pesoTotal} pts totais
                         </span>
                         <span className="flex items-center gap-1 text-zinc-400">
@@ -379,8 +379,8 @@ export const SimuladosDashboard: React.FC = () => {
                           <span
                             className={`font-black ${
                               lastAttempt.aproveitamentoPercentual >= 70
-                                ? 'text-amber-400'
-                                : 'text-amber-600'
+                                ? 'text-sky-400'
+                                : 'text-slate-400'
                             }`}
                           >
                             {lastAttempt.aproveitamentoPercentual}% ({lastAttempt.pontosObtidos}/{lastAttempt.pontosPossiveis} pts)
@@ -391,7 +391,7 @@ export const SimuladosDashboard: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setCurrentExam(sim)}
-                        className="w-full py-2.5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md inline-flex items-center justify-center gap-2 hover:scale-[1.01]"
+                        className="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md inline-flex items-center justify-center gap-2 hover:scale-[1.01]"
                       >
                         <Play className="w-3.5 h-3.5 fill-current" />
                         {lastAttempt ? 'Refazer Simulado' : 'Iniciar Simulado'}
@@ -426,7 +426,7 @@ export const SimuladosDashboard: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveTab('disponiveis')}
-              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-amber-500/30 text-xs font-bold rounded-xl cursor-pointer"
+              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-sky-400 border border-sky-500/30 text-xs font-bold rounded-xl cursor-pointer"
             >
               Voltar aos Simulados
             </button>

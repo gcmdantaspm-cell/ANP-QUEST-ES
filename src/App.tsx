@@ -236,7 +236,7 @@ function MainApp() {
                   <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                     Caderno de Questões
                   </h1>
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-zinc-800 text-amber-300 font-bold border border-amber-500/30">
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-zinc-800 text-sky-300 font-bold border border-sky-500/30">
                     {firestoreQuestions.length} questões
                   </span>
                 </div>
@@ -346,12 +346,12 @@ function MainApp() {
       </main>
 
       {/* Rodapé Institucional PAPA FOX QUESTÕES */}
-      <footer className="bg-zinc-950 border-t border-amber-500/20 py-6 text-center text-xs text-zinc-400 mt-12">
+      <footer className="bg-zinc-950 border-t border-sky-500/20 py-6 text-center text-xs text-zinc-400 mt-12">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <EagleShieldLogo size={24} />
             <span className="font-extrabold text-white tracking-wider uppercase">
-              PAPA FOX <span className="text-amber-400">QUESTÕES</span> &bull; Sistema Oficial Tático
+              PAPA FOX <span className="text-sky-400">QUESTÕES</span> &bull; Sistema Oficial Tático
             </span>
           </div>
           <p className="text-zinc-400">

@@ -135,12 +135,12 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
     };
   }, [userAnswers, questionMap]);
 
-  // Cores Ouro Metálico e Preto Tático para Gráficos
+  // Cores Azul Elétrico Tático e Preto para Gráficos
   const pieData = useMemo(() => {
     if (selectedDisciplina === 'todas') {
       if (totalStats.total === 0) return [];
       return [
-        { name: 'Acertos', value: totalStats.acertos, color: '#D4AF37' },
+        { name: 'Acertos', value: totalStats.acertos, color: '#0284c7' },
         { name: 'Erros', value: totalStats.erros, color: '#EF4444' },
       ];
     }
@@ -152,7 +152,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
     if (!discData || discData.total === 0) return [];
 
     return [
-      { name: 'Acertos', value: discData.acertos, color: '#D4AF37' },
+      { name: 'Acertos', value: discData.acertos, color: '#0284c7' },
       { name: 'Erros', value: discData.erros, color: '#EF4444' },
     ];
   }, [selectedDisciplina, totalStats, statsPorDisciplina]);
@@ -179,14 +179,14 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
       const pct = totalCount > 0 ? Math.round((data.value / totalCount) * 100) : 0;
 
       return (
-        <div className="bg-zinc-950 text-white text-xs py-2 px-3.5 rounded-xl shadow-xl border border-amber-500/40">
+        <div className="bg-zinc-950 text-white text-xs py-2 px-3.5 rounded-xl shadow-xl border border-sky-500/40">
           <p className="font-bold flex items-center gap-1.5">
             <span
               className="w-2.5 h-2.5 rounded-full"
               style={{ backgroundColor: data.payload.color }}
             />
             <span className="text-zinc-200">{data.name}:</span>
-            <strong className="text-amber-400">{data.value}</strong> ({pct}%)
+            <strong className="text-sky-400">{data.value}</strong> ({pct}%)
           </p>
         </div>
       );
@@ -197,12 +197,12 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
   return (
     <section
       id="student-progress-dashboard"
-      className="bg-zinc-900/90 backdrop-blur-md rounded-2xl border border-amber-500/30 shadow-lg mb-6 overflow-hidden transition-all text-white"
+      className="bg-zinc-900/90 backdrop-blur-md rounded-2xl border border-sky-500/30 shadow-lg mb-6 overflow-hidden transition-all text-white"
     >
       {/* Cabeçalho do Dashboard */}
-      <div className="p-4 sm:p-5 border-b border-amber-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-zinc-950 via-zinc-900 to-black">
+      <div className="p-4 sm:p-5 border-b border-sky-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-zinc-950 via-zinc-900 to-black">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-600 text-zinc-950 flex items-center justify-center font-black shadow-md border border-amber-300">
+          <div className="w-10 h-10 rounded-xl bg-sky-600 hover:bg-sky-500 text-white flex items-center justify-center font-black shadow-md border border-sky-400/40">
             <PieIcon className="w-5 h-5 stroke-[2.5]" />
           </div>
           <div>
@@ -210,7 +210,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
               <h2 className="text-base sm:text-lg font-black text-white tracking-tight">
                 Painel Tático de Progresso do Aluno
               </h2>
-              <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40 uppercase tracking-wider">
+              <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/40 uppercase tracking-wider">
                 Tempo Real
               </span>
             </div>
@@ -237,7 +237,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
           <button
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-amber-300 bg-zinc-950 hover:bg-black border border-amber-500/40 rounded-xl transition-all cursor-pointer shadow-xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-sky-300 bg-zinc-950 hover:bg-black border border-sky-500/40 rounded-xl transition-all cursor-pointer shadow-xs"
           >
             {isExpanded ? (
               <>
@@ -257,7 +257,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
       {/* Conteúdo Expansível do Dashboard */}
       {isExpanded && (
         <div className="p-4 sm:p-6 space-y-6 bg-zinc-950/60">
-          {/* Métricas Principais em Cartões Preto & Dourado */}
+          {/* Métricas Principais em Cartões Preto & Azul Elétrico */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <div className="p-3.5 bg-zinc-900 rounded-xl border border-zinc-800">
               <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block mb-0.5">
@@ -271,12 +271,12 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
               </span>
             </div>
 
-            <div className="p-3.5 bg-zinc-900 rounded-xl border border-amber-500/40">
-              <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider block mb-0.5 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
+            <div className="p-3.5 bg-zinc-900 rounded-xl border border-sky-500/40">
+              <span className="text-[11px] font-bold text-sky-400 uppercase tracking-wider block mb-0.5 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-sky-400" />
                 Acertos
               </span>
-              <div className="text-xl sm:text-2xl font-black text-amber-400">
+              <div className="text-xl sm:text-2xl font-black text-sky-400">
                 {totalStats.acertos}
               </div>
               <span className="text-[11px] text-zinc-400 font-medium">
@@ -297,12 +297,12 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
               </span>
             </div>
 
-            <div className="p-3.5 bg-zinc-900 rounded-xl border border-yellow-500/30">
-              <span className="text-[11px] font-bold text-yellow-300 uppercase tracking-wider block mb-0.5 flex items-center gap-1">
-                <Award className="w-3.5 h-3.5 text-yellow-400" />
+            <div className="p-3.5 bg-zinc-900 rounded-xl border border-sky-500/30">
+              <span className="text-[11px] font-bold text-sky-300 uppercase tracking-wider block mb-0.5 flex items-center gap-1">
+                <Award className="w-3.5 h-3.5 text-sky-400" />
                 Pontuação
               </span>
-              <div className="text-xl sm:text-2xl font-black text-yellow-300">
+              <div className="text-xl sm:text-2xl font-black text-sky-300">
                 {totalStats.pontosObtidos}
               </div>
               <span className="text-[11px] text-zinc-400 font-medium">
@@ -310,12 +310,12 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
               </span>
             </div>
 
-            <div className="p-3.5 bg-gradient-to-br from-zinc-900 to-black rounded-xl border border-amber-400/50 col-span-2 sm:col-span-1 shadow-md">
-              <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider block mb-0.5 flex items-center gap-1">
-                <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
+            <div className="p-3.5 bg-gradient-to-br from-zinc-900 to-black rounded-xl border border-sky-400/50 col-span-2 sm:col-span-1 shadow-md">
+              <span className="text-[11px] font-bold text-sky-300 uppercase tracking-wider block mb-0.5 flex items-center gap-1">
+                <TrendingUp className="w-3.5 h-3.5 text-sky-400" />
                 Aproveitamento
               </span>
-              <div className="text-xl sm:text-2xl font-black text-amber-400">
+              <div className="text-xl sm:text-2xl font-black text-sky-400">
                 {totalStats.taxa}%
               </div>
               <span className="text-[11px] text-zinc-400 font-medium">
@@ -327,10 +327,10 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
           {/* Seção dos Gráficos com Recharts */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Gráfico 1: Proporção de Acertos e Erros (PieChart) */}
-            <div className="lg:col-span-6 bg-zinc-900/80 p-4 sm:p-5 rounded-2xl border border-amber-500/20 space-y-4">
+            <div className="lg:col-span-6 bg-zinc-900/80 p-4 sm:p-5 rounded-2xl border border-sky-500/20 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
-                  <PieIcon className="w-4 h-4 text-amber-400" />
+                  <PieIcon className="w-4 h-4 text-sky-400" />
                   Proporção de Acertos vs Erros
                 </h3>
 
@@ -345,7 +345,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                     id="select-pie-disciplina"
                     value={selectedDisciplina}
                     onChange={(e) => setSelectedDisciplina(e.target.value)}
-                    className="text-xs font-semibold text-amber-300 bg-zinc-950 border border-amber-500/30 rounded-lg px-2.5 py-1 focus:ring-2 focus:ring-amber-500"
+                    className="text-xs font-semibold text-sky-300 bg-zinc-950 border border-sky-500/30 rounded-lg px-2.5 py-1 focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="todas">Geral (Todas)</option>
                     {listaDisciplinas.map((disc) => (
@@ -406,9 +406,9 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
 
               {/* Detalhes da disciplina selecionada */}
               {selectedDisciplina !== 'todas' && (
-                <div className="p-3 bg-zinc-950 rounded-xl border border-amber-500/30 text-xs flex items-center justify-between">
+                <div className="p-3 bg-zinc-950 rounded-xl border border-sky-500/30 text-xs flex items-center justify-between">
                   <span className="text-zinc-300 font-medium">
-                    Disciplina: <strong className="text-amber-300">{selectedDisciplina}</strong>
+                    Disciplina: <strong className="text-sky-300">{selectedDisciplina}</strong>
                   </span>
                   {(() => {
                     const d = statsPorDisciplina.find(
@@ -420,7 +420,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                       );
                     }
                     return (
-                      <span className="font-bold text-amber-400">
+                      <span className="font-bold text-sky-400">
                         {d.acertos} acertos / {d.erros} erros ({d.taxa}%)
                       </span>
                     );
@@ -430,10 +430,10 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
             </div>
 
             {/* Gráfico 2: Desempenho Acumulado por Disciplina (BarChart) */}
-            <div className="lg:col-span-6 bg-zinc-900/80 p-4 sm:p-5 rounded-2xl border border-amber-500/20 space-y-4">
+            <div className="lg:col-span-6 bg-zinc-900/80 p-4 sm:p-5 rounded-2xl border border-sky-500/20 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
-                  <BarChart3 className="w-4 h-4 text-amber-400" />
+                  <BarChart3 className="w-4 h-4 text-sky-400" />
                   Desempenho Acumulado por Disciplina
                 </h3>
                 <span className="text-[11px] text-zinc-400">
@@ -469,7 +469,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                         labelFormatter={(label: any) => `Disciplina: ${label}`}
                         contentStyle={{
                           backgroundColor: '#09090B',
-                          borderColor: '#D4AF37',
+                          borderColor: '#0284c7',
                           borderRadius: '12px',
                           color: '#fff',
                           fontSize: '11px',
@@ -484,7 +484,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                           </span>
                         )}
                       />
-                      <Bar dataKey="Acertos" fill="#D4AF37" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Acertos" fill="#0284c7" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="Erros" fill="#EF4444" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -513,13 +513,13 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                         {item.disciplina}
                       </span>
                       <div className="flex items-center gap-3">
-                        <span className="text-amber-400 font-semibold">
+                        <span className="text-sky-400 font-semibold">
                           {item.acertos} acertos
                         </span>
                         <span className="text-rose-400 font-semibold">
                           {item.erros} erros
                         </span>
-                        <span className="font-extrabold text-amber-300 px-2 py-0.5 rounded-md bg-amber-400/20 border border-amber-400/30">
+                        <span className="font-extrabold text-sky-300 px-2 py-0.5 rounded-md bg-sky-500/20 border border-sky-400/30">
                           {item.taxa}%
                         </span>
                       </div>

@@ -689,7 +689,7 @@ export const MatriculaManager: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleUnlink(mat)}
-                              className="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                              className="p-1.5 text-sky-600 hover:text-sky-800 hover:bg-sky-50 rounded-lg transition-colors cursor-pointer"
                               title="Desvincular Conta Google (liberar matrícula)"
                             >
                               <Unlink className="w-4 h-4" />
@@ -720,8 +720,8 @@ export const MatriculaManager: React.FC = () => {
       {confirmAction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
           <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-6 space-y-4">
-            <div className="flex items-center gap-3 text-amber-600">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center border border-amber-200">
+            <div className="flex items-center gap-3 text-sky-600">
+              <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center border border-sky-200">
                 <ShieldAlert className="w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-slate-900">{confirmAction.title}</h3>

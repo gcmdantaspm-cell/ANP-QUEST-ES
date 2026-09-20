@@ -146,7 +146,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   if (!user) {
     return (
       <div id="admin-login-required" className="p-8 text-center bg-white rounded-2xl border border-slate-200 shadow-sm max-w-xl mx-auto my-8">
-        <ShieldAlert className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+        <ShieldAlert className="w-12 h-12 text-sky-500 mx-auto mb-4" />
         <h2 className="text-xl font-bold text-slate-800 mb-2">
           Acesso Restrito ao Painel do Administrador
         </h2>
@@ -512,9 +512,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   return (
     <div id="admin-panel" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 mb-8">
       {/* Cabeçalho do Painel Admin */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-amber-500/20 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-sky-500/20 mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-zinc-950 text-amber-400 border border-amber-500/30 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-xl bg-zinc-950 text-sky-400 border border-sky-500/30 flex items-center justify-center font-bold">
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
@@ -522,7 +522,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <h2 className="text-lg font-bold text-zinc-950">
                 Organizador Automático &amp; Painel Admin
               </h2>
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-900 border border-amber-400/40">
+              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-900 border border-sky-400/40">
                 Acesso Exclusivo
               </span>
             </div>
@@ -540,11 +540,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             onClick={() => setActiveTab('lote')}
             className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
               activeTab === 'lote'
-                ? 'bg-zinc-950 text-amber-400 border border-amber-500/40 shadow-xs'
+                ? 'bg-zinc-950 text-sky-400 border border-sky-500/40 shadow-xs'
                 : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
             }`}
           >
-            <Sparkles className="w-4 h-4 text-amber-400" />
+            <Sparkles className="w-4 h-4 text-sky-400" />
             Organizar &amp; Inserir Questões
           </button>
           <button
@@ -553,11 +553,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             onClick={() => setActiveTab('gerenciar')}
             className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
               activeTab === 'gerenciar'
-                ? 'bg-zinc-950 text-amber-400 border border-amber-500/40 shadow-xs'
+                ? 'bg-zinc-950 text-sky-400 border border-sky-500/40 shadow-xs'
                 : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
             }`}
           >
-            <FileEdit className="w-4 h-4 text-amber-400" />
+            <FileEdit className="w-4 h-4 text-sky-400" />
             Banco de Questões ({existingQuestions.length})
           </button>
           <button
@@ -566,11 +566,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             onClick={() => setActiveTab('matriculas')}
             className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
               activeTab === 'matriculas'
-                ? 'bg-zinc-950 text-amber-400 border border-amber-500/40 shadow-xs'
+                ? 'bg-zinc-950 text-sky-400 border border-sky-500/40 shadow-xs'
                 : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
             }`}
           >
-            <IdCard className="w-4 h-4 text-amber-400" />
+            <IdCard className="w-4 h-4 text-sky-400" />
             Matrículas Autorizadas
           </button>
         </div>
@@ -932,8 +932,8 @@ Comentário: Apenas a alternativa B atende ao comando...`}
 
               {/* Banner de Validação de Integridade das Alternativas */}
               {extractedQuestions.some((q) => !q.alternativas.some((a) => a.letra === 'A')) ? (
-                <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 flex items-center gap-2.5">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <div className="p-3.5 bg-sky-50 border border-sky-300 rounded-xl text-xs text-sky-900 flex items-center gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-sky-600 shrink-0" />
                   <span>
                     <strong>Atenção ao Lote:</strong> Foram identificadas questões onde a <strong>Alternativa A</strong> não veio delimitada. Você pode clicar em <em>"+ Inserir Letra A"</em> diretamente no card para adicioná-la.
                   </span>
@@ -1177,7 +1177,7 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                             Comentário Vinculado com Sucesso
                           </span>
                         ) : (
-                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
                             Sem comentário vinculado (digite abaixo se desejar)
                           </span>
                         )}
@@ -1194,8 +1194,8 @@ Comentário: Apenas a alternativa B atende ao comando...`}
 
                     {/* Dica / Macete */}
                     <div className="space-y-1 pt-1">
-                      <label className="text-[11px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1">
-                        <Lightbulb className="w-3.5 h-3.5 text-amber-600" />
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-sky-800 flex items-center gap-1">
+                        <Lightbulb className="w-3.5 h-3.5 text-sky-600" />
                         Dica / Macete (Opcional):
                       </label>
                       <input
@@ -1203,7 +1203,7 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                         value={q.dica_macete}
                         onChange={(e) => handleUpdateExtractedField(idx, 'dica_macete', e.target.value)}
                         placeholder="Mnemônico ou bizu de memorização..."
-                        className="w-full text-xs p-2 bg-amber-50/50 border border-amber-200 rounded-lg text-amber-950 focus:ring-2 focus:ring-amber-500"
+                        className="w-full text-xs p-2 bg-sky-50/50 border border-sky-200 rounded-lg text-sky-950 focus:ring-2 focus:ring-sky-500"
                       />
                     </div>
                   </div>
