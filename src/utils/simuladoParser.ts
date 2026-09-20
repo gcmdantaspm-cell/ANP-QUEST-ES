@@ -1,6 +1,6 @@
 import { SimuladoQuestion, Simulado } from '../types/simulado';
 import { AlternativeItem } from '../types/question';
-import { splitBatchQuestionsText } from './parser';
+import { splitBatchQuestionsText, extractStrictGabaritoFromText, extractStrictCertoErrado } from './parser';
 
 export interface SimuladoParseResult {
   questions: SimuladoQuestion[];
@@ -67,19 +67,31 @@ export function parseSimuladoRawQuestions(rawText: string): SimuladoParseResult 
       }
 
       // 3. Extração de Gabarito Estrita (Nunca confundir com 'assinale a alternativa correta')
-      const gabRegex = /(?:^|\n)[^\S\r\n]*(?:gabarito(?:\s+oficial|\s+definitivo)?|resposta(?:\s+oficial)?|resp\.?)[^\S\r\n]*[:=-][^\S\r\n]*(?:letra\s*|alternativa\s*)?([A-Ea-e]|certo|errado|c|e)\b/i;
-      const gabMatch = block.match(gabRegex);
-      if (gabMatch) {
-        const rawG = gabMatch[1].toUpperCase();
-        if (rawG === 'CERTO' || rawG === 'C') gabarito = 'A';
-        else if (rawG === 'ERRADO' || rawG === 'E') gabarito = 'B';
-        else gabarito = rawG;
+      const strictG = extractStrictGabaritoFromText(block) || extractStrictCertoErrado(block);
+      if (strictG) {
+        gabarito = strictG;
+      } else {
+        const gabRegex = /(?:^|\n)[^\S\r\n]*(?:gabarito(?:\s+oficial|\s+definitivo)?|resposta(?:\s+oficial)?|resp\.?)[^\S\r\n]*[:=-][^\S\r\n]*(?:letra\s*|alternativa\s*)?([A-Ea-e]|certo|errado|c|e)\b/i;
+        const gabMatch = block.match(gabRegex);
+        if (gabMatch) {
+          const rawG = gabMatch[1].toUpperCase();
+          if (rawG === 'CERTO' || rawG === 'C') gabarito = 'A';
+          else if (rawG === 'ERRADO' || rawG === 'E') gabarito = 'B';
+          else gabarito = rawG;
+        }
       }
 
-      // 4. Extração de Comentário
-      const comMatch = block.match(/(?:coment[áa]rio(?:s)?|resolu[çc][ãa]o|fundamenta[çc][ãa]o|explica[çc][ãa]o)\s*[:=-]\s*([\s\S]+?)(?=(?:\ndica|\nmacete|$))/i);
+      // 4. Extração de Comentário (inclui suporte a "Gabarito Comentado — Questão \d+:")
+      const comMatch = block.match(
+        /(?:gabarito\s+comentado(?:\s*[\-–—:]+\s*(?:quest[ãa]o\s*\d+|q\d+))?|resolu[çc][ãa]o\s+comentada|coment[áa]rio\s+da\s+quest[ãa]o|coment[áa]rio(?:s)?|resolu[çc][ãa]o|fundamenta[çc][ãa]o|explica[çc][ãa]o)\s*[:=\-–—]\s*([\s\S]+?)(?=(?:\ndica|\nmacete|$))/i
+      );
       if (comMatch) {
         comentario = comMatch[1].trim();
+        // Se ainda não tinha gabarito, tentar extrair do comentário
+        if (!gabarito) {
+          const comG = extractStrictGabaritoFromText(block, comentario);
+          if (comG) gabarito = comG;
+        }
       }
 
       // 5. Extração de Dica/Macete
@@ -94,12 +106,11 @@ export function parseSimuladoRawQuestions(rawText: string): SimuladoParseResult 
         .replace(/(?:^|\n)[^\S\r\n]*(?:mat[ée]ria|disciplina|conte[úu]do)\s*[:=-][^\n\r]*/gi, '')
         .replace(/(?:^|\n)[^\S\r\n]*(?:peso|pontos?|valor|pontua[çc][ãa]o)\s*[:=-][^\n\r]*/gi, '');
 
-      if (gabMatch) {
-        cleanedBody = cleanedBody.replace(gabRegex, '\n');
-      }
+      const gabRegex = /(?:^|\n)[^\S\r\n]*(?:gabarito(?:\s+oficial|\s+definitivo)?|resposta(?:\s+oficial)?|resp\.?)[^\S\r\n]*[:=-][^\S\r\n]*(?:letra\s*|alternativa\s*)?([A-Ea-e]|certo|errado|c|e)\b/i;
+      cleanedBody = cleanedBody.replace(gabRegex, '\n');
 
       cleanedBody = cleanedBody
-        .replace(/(?:coment[áa]rio(?:s)?|resolu[çc][ãa]o|fundamenta[çc][ãa]o|explica[çc][ãa]o)\s*[:=-]\s*[\s\S]+?$/gi, '')
+        .replace(/(?:gabarito\s+comentado(?:\s*[\-–—:]+\s*(?:quest[ãa]o\s*\d+|q\d+))?|resolu[çc][ãa]o\s+comentada|coment[áa]rio\s+da\s+quest[ãa]o|coment[áa]rio(?:s)?|resolu[çc][ãa]o|fundamenta[çc][ãa]o|explica[çc][ãa]o)\s*[:=\-–—]\s*[\s\S]+?$/gi, '')
         .replace(/(?:dica|macete|mnem[ôo]nico)\s*[:=-]\s*[\s\S]+?$/gi, '')
         .replace(/\r\n/g, '\n')
         .trim();

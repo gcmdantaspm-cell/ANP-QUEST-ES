@@ -227,6 +227,89 @@ export function smartFormatComentario(rawText: string): string {
 }
 
 /**
+ * Extração estrita e de alta precisão do gabarito oficial / resposta correta.
+ * Evita falsos positivos como palavras iniciadas por "A", "E" (ex: "A autorização...", "Em regra...")
+ * e garante suporte a dezenas de convenções de bancas (Cespe, FGV, FCC, PF, etc.).
+ */
+export function extractStrictGabaritoFromText(
+  fullBlock: string,
+  comentarioText?: string
+): string | undefined {
+  // 1. Cabeçalho de Gabarito Comentado no bloco
+  // Ex: "Gabarito Comentado — Questão 1: Alternativa a." ou "Gabarito Comentado: Alternativa B" ou "Gabarito Comentado - Letra C"
+  const headerMatch = fullBlock.match(
+    /(?:gabarito(?:\s+comentado)?|resposta(?:\s+comentada)?|resolu[çc][ãa]o(?:\s+comentada)?)[^\n\r]*?[:\-–—]\s*(?:alternativa|letra|op[çc][ãa]o)?\s*([a-eA-E])\b[.:\-–—)]?/i
+  );
+  if (headerMatch && headerMatch[1]) {
+    return headerMatch[1].toUpperCase();
+  }
+
+  // 2. Linha clássica de Gabarito / Resposta no corpo
+  // Ex: "Gabarito: A" ou "Resposta: B" ou "Resp: C" ou "Gabarito Oficial: D"
+  const gabRegex = /(?:^|\n)[^\S\r\n]*(?:gabarito(?:\s+oficial|\s+definitivo)?|resposta(?:\s+oficial|\s+correta)?|resp\.?)[^\S\r\n]*[:=-][^\S\r\n]*(?:letra\s*|alternativa\s*|op[çc][ãa]o\s*)?([A-Ea-e])\b/i;
+  const gabMatch = fullBlock.match(gabRegex);
+  if (gabMatch && gabMatch[1]) {
+    return gabMatch[1].toUpperCase();
+  }
+
+  // Se temos texto de comentário analisado
+  const com = (comentarioText || '').trim();
+  if (com) {
+    // 3. Início do comentário com identificador explícito de letra:
+    // Ex: "Alternativa a." ou "Letra B:" ou "Opção C -" ou "Gabarito D" ou "Resposta correta: E"
+    const comLetraMatch = com.match(
+      /^(?:alternativa|letra|op[çc][ãa]o|resposta(?:\s+correta)?|gabarito)\s*[:\-–—]?\s*([a-eA-E])\b[.:\-–—)]?/i
+    );
+    if (comLetraMatch && comLetraMatch[1]) {
+      return comLetraMatch[1].toUpperCase();
+    }
+
+    // 4. Início do comentário com formato "a) Correta" ou "a. Verdadeira" ou "[b] Correto"
+    const comDirectMatch = com.match(
+      /^(?:\[|\()?([a-eA-E])(?:\)|\].|\.|[\-–—:])\s*(?:corret[ao]|verdadeir[ao])/i
+    );
+    if (comDirectMatch && comDirectMatch[1]) {
+      return comDirectMatch[1].toUpperCase();
+    }
+
+    // 5. No corpo do comentário com linha iniciando por alternativa correta:
+    // Ex: "b) Correta:" ou "c. Verdadeira:" ou "d) É a alternativa correta"
+    const corretaInComentMatch = com.match(
+      /(?:^|\n)[^\S\r\n]*(?:\[|\()?([a-eA-E])(?:\)|\].|\.|[\-–—:])\s*(?:corret[ao]|verdadeir[ao]|[ée]\s+a\s+alternativa\s+correta)/i
+    );
+    if (corretaInComentMatch && corretaInComentMatch[1]) {
+      return corretaInComentMatch[1].toUpperCase();
+    }
+
+    // 6. Frase explicativa no comentário:
+    // Ex: "A alternativa correta é a letra B" ou "O gabarito correto é a alternativa C"
+    const phraseMatch = com.match(
+      /(?:alternativa|resposta|gabarito)\s+(?:corret[ao]\s+)?(?:[ée]\s+a\s+|est[áa]\s+)?(?:letra\s+|alternativa\s+)?([a-eA-E])\b/i
+    );
+    if (phraseMatch && phraseMatch[1]) {
+      return phraseMatch[1].toUpperCase();
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Extração de padrão Certo / Errado (Cebraspe / PF)
+ */
+export function extractStrictCertoErrado(fullBlock: string): 'A' | 'B' | undefined {
+  const ceMatch = fullBlock.match(
+    /(?:^|\n)[^\S\r\n]*(?:gabarito(?:\s+oficial)?|resposta(?:\s+oficial)?)[^\S\r\n]*[:=-][^\S\r\n]*(certo|errado|corret[ao]|incorret[ao])\b/i
+  );
+  if (ceMatch) {
+    const val = ceMatch[1].toLowerCase();
+    if (val.startsWith('certo') || val.startsWith('corret')) return 'A';
+    if (val.startsWith('errad') || val.startsWith('incorret')) return 'B';
+  }
+  return undefined;
+}
+
+/**
  * Analisa um bloco de texto com múltiplos comentários e resoluções,
  * extraindo por número de questão ou por blocos ordenados.
  */
@@ -263,14 +346,8 @@ export function parseCommentsBlock(rawComments: string): ParsedCommentItem[] {
         ''
       ).trim();
 
-      // Detectar se especifica letra do gabarito: "Gabarito: B" ou "Resposta: B" ou "Letra B"
-      let detectedLetter: string | undefined;
-      const letterMatch = cleanChunk.match(
-        /(?:gabarito|resposta(?:\s+correta)?|alternativa|letra):\s*([A-Ea-e])\b/i
-      );
-      if (letterMatch) {
-        detectedLetter = letterMatch[1].toUpperCase();
-      }
+      // Detectar letra do gabarito com alta precisão
+      const detectedLetter = extractStrictGabaritoFromText(chunk, cleanChunk) || extractStrictCertoErrado(chunk);
 
       results.push({
         questionNumber: matches[i].qNum,
@@ -288,13 +365,7 @@ export function parseCommentsBlock(rawComments: string): ParsedCommentItem[] {
     .filter((b) => b.length > 5);
 
   return blocks.map((block, idx) => {
-    let detectedLetter: string | undefined;
-    const letterMatch = block.match(
-      /(?:gabarito|resposta(?:\s+correta)?|alternativa|letra):\s*([A-Ea-e])\b/i
-    );
-    if (letterMatch) {
-      detectedLetter = letterMatch[1].toUpperCase();
-    }
+    const detectedLetter = extractStrictGabaritoFromText(block, block) || extractStrictCertoErrado(block);
 
     return {
       questionNumber: idx + 1,
@@ -404,9 +475,8 @@ export function parseRawQuestionText(
   }
 
   let textBeforeGabarito = textBeforeComentario;
-  // Extração estrita de Gabarito: APENAS quando a linha for explicitamente destinada ao gabarito/resposta,
-  // NUNCA confundindo com comandos do enunciado como "Assinale a alternativa correta:"
-  const gabRegex = /(?:^|\n)[^\S\r\n]*(?:gabarito(?:\s+oficial|\s+definitivo)?|resposta(?:\s+oficial)?|resp\.?)[^\S\r\n]*[:=-][^\S\r\n]*(?:letra\s*|alternativa\s*)?([A-Ea-e])\b/i;
+  // Extração estrita de Gabarito: APENAS quando a linha for explicitamente destinada ao gabarito/resposta
+  const gabRegex = /(?:^|\n)[^\S\r\n]*(?:gabarito(?:\s+oficial|\s+definitivo)?|resposta(?:\s+oficial|\s+correta)?|resp\.?)[^\S\r\n]*[:=-][^\S\r\n]*(?:letra\s*|alternativa\s*)?([A-Ea-e])\b/i;
   const gabMatch = textBeforeComentario.match(gabRegex);
   if (gabMatch) {
     gabarito = gabMatch[1].toUpperCase().trim();
@@ -414,24 +484,10 @@ export function parseRawQuestionText(
     textBeforeGabarito = textBeforeComentario.replace(gabRegex, '\n').trim();
   }
 
-  // Se o comentário começou com a letra do gabarito ou indicação de alternativa:
-  // Ex: "Alternativa a." ou "Alternativa a - ..." ou "Letra B" ou "B - ..." ou "a) Incorreta..."
-  if (comentario) {
-    // 1. Padrão inicial: "Alternativa a." ou "Letra a" ou "Gabarito A" ou "A." ou "a)"
-    const comLetraMatch = comentario.match(/^(?:alternativa|letra|gabarito|resposta(?:\s+correta)?|op[çc][ãa]o)?\s*([A-Ea-e])\b[.:\-–—)]?\s*/i);
-    if (comLetraMatch && comLetraMatch[1]) {
-      if (!gabarito) {
-        gabarito = comLetraMatch[1].toUpperCase();
-      }
-    }
-
-    // 2. Se o comentário listar as alternativas comentadas como "a) Incorreta... b) Correta...", extrair a correta
-    if (!gabarito) {
-      const corretaInComentMatch = comentario.match(/(?:^|\n)\s*([a-eA-E])\s*[\)\].\-–—:]\s*(?:corret[ao]|verdadeir[ao])/i);
-      if (corretaInComentMatch && corretaInComentMatch[1]) {
-        gabarito = corretaInComentMatch[1].toUpperCase();
-      }
-    }
+  // Extração avançada e estrita de Gabarito (cabeçalho comentado, início de comentário, frases de conclusão ou Certo/Errado)
+  const strictGabarito = extractStrictGabaritoFromText(fullCleanText, comentario) || extractStrictCertoErrado(fullCleanText);
+  if (strictGabarito) {
+    gabarito = strictGabarito;
   }
 
   // Extrair Enunciado e Alternativas de textBeforeGabarito
@@ -723,13 +779,27 @@ export function parseBatchRawQuestions(
   let questionsText = rawQuestionsText.replace(/\r\n/g, '\n').trim();
   let commentsText = rawCommentsText ? rawCommentsText.trim() : '';
 
-  // Se commentsText não foi passado, checar se há uma seção separada de gabaritos comentados ao final de rawQuestionsText
+  // Se commentsText não foi passado, checar se há uma seção separada de gabaritos comentados ao final de rawQuestionsText.
+  // IMPORTANTE: NUNCA fatiar o texto se a linha for o gabarito comentado de uma questão específica
+  // (ex: "Gabarito Comentado — Questão 1: Alternativa a.") ou se houver questões subsequentes com alternativas.
   if (!commentsText) {
-    const splitCommentsHeader = /(?:^|\n)\s*(?:[-=_]{3,}\s*)?(?:GABARITOS?\s+COMENTADOS?|RESOLU[ÇC][ÕO]ES?\s+COMENTADAS?|COMENT[ÁA]RIOS?\s+DAS?\s+QUEST[ÕO]ES?|GABARITO\s+E\s+COMENT[ÁA]RIOS?)(?:\s*[-=_]{3,})?[:\s]*/i;
-    const headerMatch = questionsText.match(splitCommentsHeader);
-    if (headerMatch && headerMatch.index !== undefined && headerMatch.index > 50) {
-      commentsText = questionsText.substring(headerMatch.index + headerMatch[0].length).trim();
-      questionsText = questionsText.substring(0, headerMatch.index).trim();
+    const globalCommentsHeaderRegex = /(?:^|\n)[ \t]*(?:[-=_*#]{3,}[ \t]*)?(?:GABARITOS?\s+COMENTADOS?|RESOLU[ÇC][ÕO]ES?\s+COMENTADAS?|COMENT[ÁA]RIOS?\s+DAS?\s+QUEST[ÕO]ES?|GABARITO\s+E\s+COMENT[ÁA]RIOS?)(?:[ \t]*[-=_*#]{3,})?[ \t]*(?:\n|$)/gi;
+    let ghMatch: RegExpExecArray | null;
+    while ((ghMatch = globalCommentsHeaderRegex.exec(questionsText)) !== null) {
+      const matchIndex = ghMatch.index;
+      if (matchIndex > 50) {
+        const textAfterHeader = questionsText.substring(matchIndex + ghMatch[0].length).trim();
+        // Se após esse cabeçalho existirem novas questões com alternativas completas, NÃO é um bloco final de comentários,
+        // mas sim questões com seus próprios gabaritos comentados!
+        const hasSubsequentQuestionsWithAlts = /(?:^|\n)[ \t]*(?:quest[ãa]o|item)\s*\d+[\s\S]*?(?:^|\n)[ \t]*[a-eA-E][\)\].\-–—]/i.test(
+          textAfterHeader
+        );
+        if (!hasSubsequentQuestionsWithAlts) {
+          commentsText = textAfterHeader;
+          questionsText = questionsText.substring(0, matchIndex).trim();
+          break;
+        }
+      }
     }
   }
 
