@@ -36,6 +36,7 @@ export interface ParsedCommentItem {
 
 /**
  * Limpa qualquer menção a Modelo 1, Modelo 2, Múltipla Escolha, Julgamento de Itens
+ * e remove duplicações de termos ("Módulo Módulo 1", "Capítulo Capítulo 1", "Questão 1", etc.)
  */
 export function sanitizeEtiquetaField(field?: string): string {
   if (!field) return '';
@@ -44,6 +45,16 @@ export function sanitizeEtiquetaField(field?: string): string {
   s = s.replace(/\(?\s*m[úu]ltipla\s*escol(?:ha|a)\s*\)?/gi, '');
   s = s.replace(/\(?\s*julgamento\s+de\s+itens\s*\)?/gi, '');
   s = s.replace(/\(?\s*modelo\s*[12]\s*\)?/gi, '');
+
+  // Remove duplicações de prefixos como "Módulo Módulo 1" -> "Módulo 1" ou "Capítulo Capítulo 1" -> "Capítulo 1"
+  s = s.replace(/\b(m[óo]dulo)[\s\-–—:]+\1\b/gi, '$1');
+  s = s.replace(/\b(cap[íi]tulo)[\s\-–—:]+\1\b/gi, '$1');
+  s = s.replace(/\b(subt[óo]pico)[\s\-–—:]+\1\b/gi, '$1');
+  s = s.replace(/\b(tema)[\s\-–—:]+\1\b/gi, '$1');
+
+  // Remove "Questão X" acidentalmente embutida dentro de campos de etiqueta
+  s = s.replace(/^(?:quest[ãa]o\s*\d*[:.-]?)\s*/i, '');
+
   s = s.replace(/^[\s\-–—:.]+/g, '').replace(/[\s\-–—:.]+$/g, '').trim();
   return s;
 }
@@ -298,9 +309,18 @@ export function parseRawQuestionText(
     const capM = tagContent.match(/cap[íi]tulo[\s\-–—:]*([^:\-–—\n\[]+)/i);
     const subM = tagContent.match(/\[([^\]]+)\]|subt[óo]pico[\s\-–—:]*([^:\-–—\n]+)/i);
 
-    if (modM && !modulo) modulo = `Módulo ${modM[1].trim().replace(/^[\-–—:]+/, '').trim()}`;
-    if (capM && !capitulo) capitulo = `Capítulo ${capM[1].trim().replace(/^[\-–—:]+/, '').trim()}`;
-    if (subM && !subtopico) subtopico = (subM[1] || subM[2]).trim().replace(/^[\-–—:]+/, '').trim();
+    if (modM && !modulo) {
+      const rawModVal = modM[1].trim().replace(/^[\-–—:]+/, '').trim();
+      modulo = /^m[óo]dulo/i.test(rawModVal) ? rawModVal : `Módulo ${rawModVal}`;
+    }
+    if (capM && !capitulo) {
+      const rawCapVal = capM[1].trim().replace(/^[\-–—:]+/, '').trim();
+      capitulo = /^cap[íi]tulo/i.test(rawCapVal) ? rawCapVal : `Capítulo ${rawCapVal}`;
+    }
+    if (subM && !subtopico) {
+      const rawSubVal = (subM[1] || subM[2]).trim().replace(/^[\-–—:]+/, '').trim();
+      subtopico = rawSubVal;
+    }
 
     cleanedRaw = cleanedRaw.substring(inlineTagMatch[0].length).trim();
   }
