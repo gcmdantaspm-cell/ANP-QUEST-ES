@@ -5,7 +5,7 @@ import { SimuladoImporter } from './SimuladoImporter';
 import { SimuladoExamView } from './SimuladoExamView';
 import { SimuladosStatsView } from './SimuladosStatsView';
 import { SimuladoResultModal } from './SimuladoResultModal';
-import { useAuth, ADMIN_EMAIL } from '../context/AuthContext';
+import { useAuth, ADMIN_EMAIL, isUserAdminEmail } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { db } from '../firebase/config';
 import {
@@ -132,7 +132,7 @@ export const SimuladosDashboard: React.FC = () => {
   };
 
   const handleSaveSimulado = async (newSim: Simulado) => {
-    if (!user || user.email?.trim().toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+    if (!user || !isUserAdminEmail(user.email)) {
       alert(`Permissão negada. Apenas o administrador oficial (${ADMIN_EMAIL}) pode salvar ou importar simulados.`);
       return;
     }
@@ -155,7 +155,7 @@ export const SimuladosDashboard: React.FC = () => {
   };
 
   const handleDeleteSimulado = async (simId: string) => {
-    if (!user || user.email?.trim().toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+    if (!user || !isUserAdminEmail(user.email)) {
       alert(`Permissão negada. Apenas o administrador oficial (${ADMIN_EMAIL}) pode excluir simulados.`);
       return;
     }

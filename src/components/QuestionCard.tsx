@@ -184,7 +184,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 {segments.length > 0 && (
                   <>
                     <span className="font-bold text-emerald-800 text-sm sm:text-base">
-                      - (
+                      -
                     </span>
                     <div className="inline-flex flex-wrap items-center gap-1.5">
                       {segments.map((seg, sIdx) => {
@@ -221,9 +221,6 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                         );
                       })}
                     </div>
-                    <span className="font-bold text-emerald-800 text-sm sm:text-base">
-                      )
-                    </span>
                   </>
                 )}
               </div>

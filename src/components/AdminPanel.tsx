@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth, ADMIN_EMAIL } from '../context/AuthContext';
+import { useAuth, ADMIN_EMAIL, isUserAdminEmail } from '../context/AuthContext';
 import { Question, AlternativeItem } from '../types/question';
 import {
   parseRawQuestionText,
@@ -229,7 +229,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleSalvarLoteNoFirestore = async () => {
     if (extractedQuestions.length === 0) return;
 
-    if (!user || user.email?.trim().toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+    if (!user || !isUserAdminEmail(user.email)) {
       setErrorMessage(`Permissão negada. Apenas o administrador oficial (${ADMIN_EMAIL}) pode importar ou salvar questões.`);
       return;
     }
