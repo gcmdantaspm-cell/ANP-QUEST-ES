@@ -510,7 +510,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   return (
-    <div id="admin-panel" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 mb-8">
+    <div id="admin-panel" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 mb-8 text-slate-900">
       {/* Cabeçalho do Painel Admin */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-sky-500/20 mb-6">
         <div className="flex items-center gap-3">
@@ -617,7 +617,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
               <div>
-                <label className="block text-xs font-bold text-emerald-950 mb-1">
+                <label className="block text-xs font-bold text-sky-950 mb-1">
                   Matéria *
                 </label>
                 <input
@@ -626,7 +626,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   value={nomeMateria}
                   onChange={(e) => setNomeMateria(e.target.value)}
                   placeholder="IPO-2"
-                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700 font-semibold text-slate-800"
+                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-semibold text-slate-900 placeholder-slate-400 shadow-2xs"
                 />
               </div>
 
@@ -640,7 +640,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   value={moduloMateria}
                   onChange={(e) => setModuloMateria(e.target.value)}
                   placeholder="(Em branco)"
-                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700"
+                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 placeholder-slate-400 shadow-2xs"
                 />
               </div>
 
@@ -656,7 +656,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       id="select-existing-capitulo"
                       value={capituloMateria}
                       onChange={(e) => handleSelectExistingCapitulo(e.target.value)}
-                      className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700 font-medium text-slate-800"
+                      className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs"
                     >
                       <option value="">(Selecionar Capítulo Criado...)</option>
                       {existingCapitulos.map((cap) => (
@@ -671,7 +671,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       value={capituloMateria}
                       onChange={(e) => setCapituloMateria(e.target.value)}
                       placeholder="Ou digite novo capítulo..."
-                      className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-200 rounded-md focus:ring-2 focus:ring-emerald-700 text-slate-700"
+                      className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-sky-500 text-slate-900 placeholder-slate-400"
                     />
                   </div>
                 ) : (
@@ -681,7 +681,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     value={capituloMateria}
                     onChange={(e) => setCapituloMateria(e.target.value)}
                     placeholder="(Em branco)"
-                    className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700"
+                    className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 placeholder-slate-400 shadow-2xs"
                   />
                 )}
               </div>
@@ -695,7 +695,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <select
                       value={subtopico}
                       onChange={(e) => setSubtopico(e.target.value)}
-                      className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700 font-medium text-slate-800"
+                      className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs"
                     >
                       <option value="">(Selecionar Subtópico...)</option>
                       {relatedSubtopicos.map((sub) => (
@@ -710,7 +710,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       value={subtopico}
                       onChange={(e) => setSubtopico(e.target.value)}
                       placeholder="Ou digite novo subtópico..."
-                      className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-200 rounded-md focus:ring-2 focus:ring-emerald-700 text-slate-700"
+                      className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-sky-500 text-slate-900 placeholder-slate-400"
                     />
                   </div>
                 ) : (
@@ -720,7 +720,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     value={subtopico}
                     onChange={(e) => setSubtopico(e.target.value)}
                     placeholder="(Em branco)"
-                    className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700"
+                    className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 placeholder-slate-400 shadow-2xs"
                   />
                 )}
               </div>
@@ -734,7 +734,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <select
                       value={tema}
                       onChange={(e) => setTema(e.target.value)}
-                      className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700 font-medium text-slate-800"
+                      className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs"
                     >
                       <option value="">(Selecionar Tema...)</option>
                       {relatedTemas.map((t) => (
@@ -749,7 +749,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       value={tema}
                       onChange={(e) => setTema(e.target.value)}
                       placeholder="Ou digite novo tema..."
-                      className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-200 rounded-md focus:ring-2 focus:ring-emerald-700 text-slate-700"
+                      className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-sky-500 text-slate-900 placeholder-slate-400"
                     />
                   </div>
                 ) : (
@@ -759,7 +759,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     value={tema}
                     onChange={(e) => setTema(e.target.value)}
                     placeholder="(Em branco)"
-                    className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700"
+                    className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 placeholder-slate-400 shadow-2xs"
                   />
                 )}
               </div>
@@ -776,7 +776,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   value={pesoQuestao}
                   onChange={(e) => setPesoQuestao(Math.max(0.1, Number(e.target.value) || 1))}
                   placeholder="1"
-                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700 font-bold text-emerald-950"
+                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-bold text-sky-950 placeholder-slate-400 shadow-2xs"
                 />
               </div>
             </div>
@@ -832,7 +832,7 @@ D) Nenhum dos itens
 
 Gabarito: C`}
                 rows={7}
-                className="w-full text-xs sm:text-sm font-mono p-3.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:bg-white"
+                className="w-full text-xs sm:text-sm font-mono p-3.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:bg-white text-slate-900 placeholder-slate-400 shadow-inner"
               />
             </div>
 
@@ -841,9 +841,9 @@ Gabarito: C`}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <label
                   htmlFor="input-raw-comments-text"
-                  className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5"
+                  className="text-xs font-bold text-sky-900 uppercase tracking-wider flex items-center gap-1.5"
                 >
-                  <Sparkles className="w-4 h-4 text-blue-600" />
+                  <Sparkles className="w-4 h-4 text-sky-600" />
                   3. Caixa de Gabarito Comentado (Opcional ou Separado)
                 </label>
 
@@ -858,8 +858,8 @@ Gabarito: C`}
                 )}
               </div>
 
-              <div className="p-2.5 rounded-lg bg-blue-50/80 border border-blue-200 text-xs text-blue-950 leading-relaxed flex items-start gap-2">
-                <span className="font-bold text-blue-700 shrink-0">💡 Vinculação Automática:</span>
+              <div className="p-2.5 rounded-lg bg-sky-50/80 border border-sky-200 text-xs text-sky-950 leading-relaxed flex items-start gap-2">
+                <span className="font-bold text-sky-700 shrink-0">💡 Vinculação Automática:</span>
                 <span>
                   Se você possui o gabarito comentado em um bloco ou arquivo separado, basta colar aqui! O sistema identificará o número da questão (ex: <em>Questão 1: B - comentário...</em> ou por ordem) e fará a vinculação automática com as questões acima, justificando e organizando os espaçamentos.
                 </span>
@@ -877,7 +877,7 @@ Comentário: O item I está correto conforme a lei... O item II está correto...
 Questão 2: Gabarito B.
 Comentário: Apenas a alternativa B atende ao comando...`}
                 rows={5}
-                className="w-full text-xs sm:text-sm font-mono p-3.5 bg-blue-50/40 border border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                className="w-full text-xs sm:text-sm font-mono p-3.5 bg-white border border-sky-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:bg-white text-slate-900 placeholder-slate-400 shadow-inner"
               />
             </div>
 
@@ -892,7 +892,7 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                 type="button"
                 onClick={handleOrganizarAutomaticamente}
                 disabled={!rawText.trim()}
-                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs sm:text-sm font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs sm:text-sm font-black rounded-xl shadow-md transition-all cursor-pointer"
               >
                 <Sparkles className="w-4 h-4" />
                 {rawCommentsText.trim()
@@ -905,13 +905,13 @@ Comentário: Apenas a alternativa B atende ao comando...`}
           {/* Seção 3: Questões Estruturadas Prontas para Inserir no Firestore */}
           {extractedQuestions.length > 0 && (
             <div className="space-y-4 animate-in fade-in">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-purple-50 border border-purple-200 rounded-2xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-sky-50 border border-sky-200 rounded-2xl">
                 <div>
-                  <h4 className="text-sm font-bold text-purple-950 flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-purple-700" />
+                  <h4 className="text-sm font-bold text-sky-950 flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-sky-600" />
                     {extractedQuestions.length} Questão(ões) Organizada(s) com Sucesso!
                   </h4>
-                  <p className="text-xs text-purple-800">
+                  <p className="text-xs text-sky-800">
                     Revise os campos abaixo. Ao confirmar, o sistema gravará tudo diretamente no Firestore.
                   </p>
                 </div>
@@ -957,7 +957,7 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                       selectedExtractedIndices.size === extractedQuestions.length
                     }
                     onChange={handleToggleSelectAllExtracted}
-                    className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                    className="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
                   />
                   <span>
                     {selectedExtractedIndices.size === extractedQuestions.length
@@ -1001,7 +1001,7 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                       key={idx}
                       className={`p-4 sm:p-5 rounded-2xl border shadow-xs relative space-y-3 transition-colors ${
                         isSelected
-                          ? 'bg-purple-50/40 border-purple-300'
+                          ? 'bg-sky-50/50 border-sky-300'
                           : 'bg-white border-slate-200'
                       }`}
                     >
@@ -1011,7 +1011,7 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => handleToggleSelectExtracted(idx)}
-                            className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer shrink-0"
+                            className="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer shrink-0"
                             title="Selecionar esta questão"
                           />
                           <div className="flex flex-wrap items-center gap-1.5 text-xs">

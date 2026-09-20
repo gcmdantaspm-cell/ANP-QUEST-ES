@@ -202,7 +202,7 @@ Comentário: A prevaricação (art. 319 do CP) exige o elemento subjetivo especi
 Matéria: Português
 Peso: 1
 Assinale a palavra corretamente grafada...`}
-          className="w-full p-4 bg-zinc-950 border border-zinc-800 rounded-xl text-xs sm:text-sm font-mono leading-relaxed focus:outline-hidden focus:ring-2 focus:ring-sky-500 text-zinc-200 placeholder-zinc-600"
+          className="w-full p-4 bg-zinc-950 border border-zinc-800 rounded-xl text-xs sm:text-sm font-mono leading-relaxed focus:outline-hidden focus:ring-2 focus:ring-sky-500 text-zinc-100 placeholder-zinc-500 shadow-inner"
         />
       </div>
 

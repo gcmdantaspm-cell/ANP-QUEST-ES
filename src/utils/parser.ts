@@ -551,6 +551,163 @@ export function parseRawQuestionText(
 }
 
 /**
+ * Fatiador inteligente e multi-estratégia para dividir blocos de questões coladas em lote.
+ * Identifica com robustez 10 questões coladas em qualquer padrão comum de concursos:
+ * 1. Divisores explícitos (---, ===, ***, ___)
+ * 2. Cabeçalhos repetidos ("Módulo:", "Matéria:", "Disciplina:")
+ * 3. Marcadores nominais ("Questão 1", "Item 1", "Q1.", "Simulado 1")
+ * 4. Numeração no início de linha ("1. ", "1) ", "1 - ", "01. ", "(01)", "[1]")
+ * 5. Fechamento de questão por Gabarito repetido ("Gabarito: [A-E]")
+ * 6. Blocos por parágrafos duplos com alternativas independentes
+ */
+export function splitBatchQuestionsText(rawText: string): string[] {
+  const text = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+  if (!text) return [];
+
+  // 1. Estratégia de Divisores Explícitos: ---, ===, ***, ___
+  if (/(?:\n|^)[ \t]*[-=_*]{3,}[ \t]*(?:\n|$)/.test(text)) {
+    const rawChunks = text.split(/(?:\n|^)[ \t]*[-=_*]{3,}[ \t]*(?:\n|$)/);
+    const filtered = rawChunks.map((c) => c.trim()).filter((c) => c.length > 20);
+    if (filtered.length > 1) {
+      return filtered;
+    }
+  }
+
+  // 2. Estratégia de Cabeçalhos Estruturados Repetidos no início de linha
+  // Ex: "Módulo: Direito...", "Matéria: Português...", "Disciplina: ..."
+  const headerMarkerRegex = /(?:^|\n)[ \t]*(?:m[óo]dulo|mat[ée]ria|disciplina|nome da mat[ée]ria)\s*[:=-]/gi;
+  const headerIndices: number[] = [];
+  let hm: RegExpExecArray | null;
+  while ((hm = headerMarkerRegex.exec(text)) !== null) {
+    const actualIndex = hm.index === 0 && !text.startsWith('\n') ? 0 : hm.index + 1;
+    headerIndices.push(actualIndex);
+  }
+  if (headerIndices.length > 1) {
+    // Se o primeiro cabeçalho não começar no índice 0 mas estiver perto do topo
+    if (headerIndices[0] > 0 && headerIndices[0] < 80) {
+      headerIndices[0] = 0;
+    }
+    const chunks: string[] = [];
+    for (let i = 0; i < headerIndices.length; i++) {
+      const start = headerIndices[i];
+      const end = i + 1 < headerIndices.length ? headerIndices[i + 1] : text.length;
+      const chunk = text.substring(start, end).trim();
+      if (chunk.length > 20) {
+        chunks.push(chunk);
+      }
+    }
+    if (chunks.length > 1) {
+      return chunks;
+    }
+  }
+
+  // 3. Estratégia de Marcadores Explícitos de "Questão X" ou "Item X" no início de linha
+  // Não confundir com linhas de comentários como "Gabarito Comentado — Questão 1"
+  const qMarkerRegex = /(?:^|\n)[ \t]*(?:quest[ãa]o|q\.?|item|exerc[íi]cio|simulado)\s*(?:n[º°o]\s*)?\d+\b[.:\-–—)]*/gi;
+  const markerIndices: number[] = [];
+  let qm: RegExpExecArray | null;
+  while ((qm = qMarkerRegex.exec(text)) !== null) {
+    const actualIndex = qm.index === 0 && !text.startsWith('\n') ? 0 : qm.index + 1;
+    const lineEnd = text.indexOf('\n', actualIndex);
+    const fullLine = text.substring(actualIndex, lineEnd !== -1 ? lineEnd : text.length);
+    if (!/gabarito\s+comentado|coment[áa]rio\s+da\s+quest|resolu[çc][ãa]o\s+comentada|justificativa/i.test(fullLine)) {
+      markerIndices.push(actualIndex);
+    }
+  }
+  if (markerIndices.length > 1) {
+    if (markerIndices[0] > 0 && markerIndices[0] < 80) {
+      markerIndices[0] = 0;
+    }
+    const chunks: string[] = [];
+    for (let i = 0; i < markerIndices.length; i++) {
+      const start = markerIndices[i];
+      const end = i + 1 < markerIndices.length ? markerIndices[i + 1] : text.length;
+      const chunk = text.substring(start, end).trim();
+      if (chunk.length > 20) {
+        chunks.push(chunk);
+      }
+    }
+    if (chunks.length > 1) {
+      return chunks;
+    }
+  }
+
+  // 4. Estratégia de Numeração no início de linha: "1. ", "1) ", "1 - ", "01. ", "(01) ", "[1] "
+  const numMarkerRegex = /(?:^|\n)[ \t]*(?:(?:\(?\s*\d{1,3}\s*[\.\)\-–—:ºª]|\[\s*\d{1,3}\s*\]|\(\s*\d{1,3}\s*\)))[ \t]+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g;
+  const numIndices: number[] = [];
+  let nm: RegExpExecArray | null;
+  while ((nm = numMarkerRegex.exec(text)) !== null) {
+    const actualIndex = nm.index === 0 && !text.startsWith('\n') ? 0 : nm.index + 1;
+    numIndices.push(actualIndex);
+  }
+  if (numIndices.length > 1) {
+    if (numIndices[0] > 0 && numIndices[0] < 80) {
+      numIndices[0] = 0;
+    }
+    const chunks: string[] = [];
+    for (let i = 0; i < numIndices.length; i++) {
+      const start = numIndices[i];
+      const end = i + 1 < numIndices.length ? numIndices[i + 1] : text.length;
+      const chunk = text.substring(start, end).trim();
+      if (chunk.length > 20) {
+        chunks.push(chunk);
+      }
+    }
+    if (chunks.length > 1) {
+      return chunks;
+    }
+  }
+
+  // 5. Estratégia de Fechamento por Gabarito repetido no corpo das questões
+  // Ex: cada questão termina com "Gabarito: [A-E]" ou "Resposta: [A-E]"
+  const gabDelimiterRegex = /(?:^|\n)[^\S\r\n]*(?:gabarito(?:\s+oficial|\s+definitivo)?|resposta(?:\s+oficial)?|resp\.?)[^\S\r\n]*[:=-][^\S\r\n]*(?:letra\s*|alternativa\s*)?[A-Ea-e]\b[^\n]*/gi;
+  const gabMatches: { start: number; end: number }[] = [];
+  let gm: RegExpExecArray | null;
+  while ((gm = gabDelimiterRegex.exec(text)) !== null) {
+    gabMatches.push({ start: gm.index, end: gm.index + gm[0].length });
+  }
+
+  if (gabMatches.length > 1) {
+    const chunks: string[] = [];
+    let currentStart = 0;
+    for (let i = 0; i < gabMatches.length; i++) {
+      let cutPoint = gabMatches[i].end;
+      const textAfterGab = text.substring(cutPoint);
+      const metaMatch = textAfterGab.match(/^[ \t]*(?:\n[ \t]*)*(?:(?:coment[áa]rio|resolu[çc][ãa]o|justificativa|dica|macete)[\s\S]*?)(?=\n\s*\n[^\s]|\n{2,}|\n(?=[A-Za-z0-9])|$)/i);
+      if (metaMatch && metaMatch.index !== undefined && metaMatch.index < 10) {
+        cutPoint += metaMatch[0].length;
+      }
+      const nextEnd = i + 1 < gabMatches.length ? cutPoint : text.length;
+      const chunk = text.substring(currentStart, nextEnd).trim();
+      if (chunk.length > 20) {
+        chunks.push(chunk);
+      }
+      currentStart = nextEnd;
+    }
+    if (chunks.length > 1) {
+      return chunks;
+    }
+  }
+
+  // 6. Estratégia de Divisão por Blocos de Parágrafos Duplos onde cada bloco contém alternativas
+  const paragraphBlocks = text
+    .split(/\n\s*\n+/)
+    .map((b) => b.trim())
+    .filter((b) => b.length > 25);
+
+  if (paragraphBlocks.length > 1) {
+    const blocksWithAlts = paragraphBlocks.filter((b) =>
+      /(?:^|\n)[ \t]*(?:\(?\s*[a-eA-E]\s*[\)\].\-–—:]|\([a-eA-E]\)|\[[a-eA-E]\]|Certo|Errado)/i.test(b)
+    );
+    if (blocksWithAlts.length >= 2 && blocksWithAlts.length >= paragraphBlocks.length * 0.6) {
+      return paragraphBlocks;
+    }
+  }
+
+  return [text];
+}
+
+/**
  * Divide e organiza questões em lote, com suporte a:
  * 1. Gabarito comentado na mesma caixa junto a cada questão
  * 2. Gabarito comentado em bloco separado ao final da caixa principal
@@ -576,36 +733,8 @@ export function parseBatchRawQuestions(
     }
   }
 
-  let splits: string[] = [];
-
-  // 1. Divisores explícitos: ---, ===, ***
-  if (/(?:\n|^)\s*[-=_*]{3,}\s*(?:\n|$)/.test(questionsText)) {
-    const rawChunks = questionsText.split(/(?:\n|^)\s*[-=_*]{3,}\s*(?:\n|$)/);
-    const filtered = rawChunks.map((c) => c.trim()).filter((c) => c.length > 20);
-    if (filtered.length > 1) {
-      splits = filtered;
-    }
-  }
-
-  // 2. Divisão por quebra e nova questão explícita
-  // Importante: NÃO deve dar split quando o "Questão X" for precedido de "Gabarito Comentado — Questão X"
-  if (splits.length === 0) {
-    const qSplitRegex = /(?:\n\s*\n|\n)(?=(?<!gabarito\s+comentado\s*[\-–—:]*\s*)(?:quest[ãa]o\s*\d+|simulado\s*\d+|item\s*\d+|\(?\s*modelo\s*[12]|(?:\d+\s*[\.\-–]\s+(?=(?:\(?(?:modelo|m[óo]dulo|[A-Z\u00C0-\u00DC]))))))/gi;
-    const rawSplits = questionsText.split(qSplitRegex);
-    const filtered = rawSplits.map((c) => c.trim()).filter((c) => c.length > 20);
-    if (filtered.length > 1) {
-      splits = filtered;
-    } else {
-      // Tentar divisão por "Questão X" no início de linha
-      const altSplit = questionsText.split(/(?:^|\n)(?=(?:quest[ãa]o\s*\d+)\b)/gi);
-      const altFiltered = altSplit.map((c) => c.trim()).filter((c) => c.length > 20);
-      if (altFiltered.length > 1) {
-        splits = altFiltered;
-      } else {
-        splits = [questionsText.trim()];
-      }
-    }
-  }
+  // Divisão com o fatiador inteligente multi-estratégia
+  const splits = splitBatchQuestionsText(questionsText);
 
   const parsedQuestions = splits.map((chunk) => parseRawQuestionText(chunk, context));
 

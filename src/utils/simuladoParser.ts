@@ -1,5 +1,6 @@
 import { SimuladoQuestion, Simulado } from '../types/simulado';
 import { AlternativeItem } from '../types/question';
+import { splitBatchQuestionsText } from './parser';
 
 export interface SimuladoParseResult {
   questions: SimuladoQuestion[];
@@ -26,12 +27,8 @@ export function parseSimuladoRawQuestions(rawText: string): SimuladoParseResult 
     return { questions: [], errors: [], totalPeso: 0, materias: [] };
   }
 
-  // Divide por separadores comuns entre questões
-  // Ex: "---", "===+", "Questão [0-9]+", ou quebras duplas onde há nova "Matéria:"
-  const rawBlocks = text
-    .split(/(?:\n\s*[-=_*]{3,}\s*\n)|(?:\n\s*(?:quest[ãa]o\s*\d+[\s:.-]*|item\s*\d+[\s:.-]*)(?=\n|mat[ée]ria|disciplina|julgue|assinale|em rela[çc][ãa]o))/i)
-    .map((b) => b.trim())
-    .filter((b) => b.length > 10);
+  // Divide por divisores e marcadores inteligentes multi-estratégia
+  const rawBlocks = splitBatchQuestionsText(text);
 
   const questions: SimuladoQuestion[] = [];
   const errors: string[] = [];
