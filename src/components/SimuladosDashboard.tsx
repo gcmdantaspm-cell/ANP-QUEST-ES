@@ -216,33 +216,34 @@ export const SimuladosDashboard: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in">
-      {/* Banner Principal do Módulo de Simulados */}
-      <div className="bg-emerald-950 text-white rounded-2xl p-6 sm:p-8 shadow-sm border border-emerald-900 relative overflow-hidden">
+    <div className="space-y-6 animate-in fade-in text-zinc-100 font-sans">
+      {/* Banner Principal do Módulo de Simulados PAPA FOX TREINO */}
+      <div className="bg-zinc-950 text-white rounded-2xl p-6 sm:p-8 shadow-xl border border-amber-500/30 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 max-w-2xl space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-mono font-bold">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            MÓDULO OFICIAL DE SIMULADOS
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/15 text-amber-300 border border-amber-400/40 text-xs font-mono font-bold tracking-wider uppercase">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            MÓDULO OFICIAL TÁTICO
           </div>
-          <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white">
-            Simulados LDA²
+          <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white uppercase">
+            SIMULADOS <span className="text-amber-400">PAPA FOX TREINO</span>
           </h2>
-          <p className="text-xs sm:text-sm text-emerald-100/80 leading-relaxed">
-            Realize provas com controle de tempo, gabaritos detalhados, relatórios completos de desempenho e estatísticas integradas.
+          <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed">
+            Realize provas táticas com controle estrito de tempo, gabaritos detalhados, relatórios completos de desempenho ponderado e estatísticas integradas.
           </p>
         </div>
       </div>
 
       {/* Abas de Navegação Interna */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-3">
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setActiveTab('disponiveis')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 ${
               activeTab === 'disponiveis'
-                ? 'bg-emerald-900 text-white shadow-xs'
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 shadow-md font-extrabold'
+                : 'bg-zinc-900 text-zinc-400 hover:text-amber-300 hover:bg-zinc-850 border border-zinc-800'
             }`}
           >
             <BookOpen className="w-4 h-4" />
@@ -254,8 +255,8 @@ export const SimuladosDashboard: React.FC = () => {
             onClick={() => setActiveTab('estatisticas')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 ${
               activeTab === 'estatisticas'
-                ? 'bg-emerald-900 text-white shadow-xs'
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 shadow-md font-extrabold'
+                : 'bg-zinc-900 text-zinc-400 hover:text-amber-300 hover:bg-zinc-850 border border-zinc-800'
             }`}
           >
             <BarChart3 className="w-4 h-4" />
@@ -267,10 +268,10 @@ export const SimuladosDashboard: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('novo')}
-            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 shadow-xs ${
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 shadow-md ${
               activeTab === 'novo'
-                ? 'bg-emerald-900 text-white'
-                : 'bg-emerald-700 hover:bg-emerald-800 text-white'
+                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 font-black'
+                : 'bg-zinc-900 hover:bg-zinc-800 text-amber-400 border border-amber-500/40 hover:border-amber-400'
             }`}
           >
             <PlusCircle className="w-4 h-4" />
@@ -283,12 +284,12 @@ export const SimuladosDashboard: React.FC = () => {
       {activeTab === 'disponiveis' && (
         <div className="space-y-4">
           {simulados.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center max-w-lg mx-auto">
-              <BookOpen className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-              <h3 className="text-base font-bold text-slate-900 mb-1">
+            <div className="bg-zinc-900/90 rounded-2xl border border-zinc-800 p-12 text-center max-w-lg mx-auto shadow-md">
+              <BookOpen className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-zinc-200 mb-1">
                 Nenhum simulado cadastrado
               </h3>
-              <p className="text-xs text-slate-500 mb-4">
+              <p className="text-xs text-zinc-400 mb-4">
                 {isAdmin
                   ? 'Clique no botão "Importar / Criar Simulado" para colar suas questões com matéria e peso.'
                   : 'Nenhum simulado foi disponibilizado até o momento. Aguarde o cadastro pelo administrador.'}
@@ -297,7 +298,7 @@ export const SimuladosDashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setActiveTab('novo')}
-                  className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg cursor-pointer"
+                  className="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 text-xs font-black rounded-xl shadow-md cursor-pointer hover:from-amber-400 hover:to-yellow-400 transition-all"
                 >
                   Cadastrar Primeiro Simulado
                 </button>
@@ -312,12 +313,12 @@ export const SimuladosDashboard: React.FC = () => {
                 return (
                   <div
                     key={sim.id}
-                    className="bg-white rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-shadow p-5 flex flex-col justify-between space-y-4 relative"
+                    className="bg-zinc-900/90 rounded-2xl border border-amber-500/30 hover:border-amber-500/60 shadow-md hover:shadow-xl transition-all p-5 flex flex-col justify-between space-y-4 relative group"
                   >
                     <div>
                       {/* Topo do Card */}
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                        <span className="text-[10px] font-mono font-bold uppercase px-2.5 py-0.5 rounded-lg bg-zinc-950 text-amber-300 border border-amber-500/30">
                           {sim.totalQuestoes} Questões
                         </span>
 
@@ -325,7 +326,7 @@ export const SimuladosDashboard: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleDeleteSimulado(sim.id)}
-                            className="text-slate-400 hover:text-rose-600 p-1 transition-colors cursor-pointer"
+                            className="text-zinc-500 hover:text-rose-400 p-1 transition-colors cursor-pointer"
                             title="Excluir Simulado"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -333,24 +334,24 @@ export const SimuladosDashboard: React.FC = () => {
                         )}
                       </div>
 
-                      <h3 className="text-base font-extrabold text-slate-900 tracking-tight leading-snug">
+                      <h3 className="text-base font-extrabold text-zinc-100 tracking-tight leading-snug group-hover:text-amber-300 transition-colors">
                         {sim.titulo}
                       </h3>
 
                       {sim.descricao && (
-                        <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                        <p className="text-xs text-zinc-400 mt-1 line-clamp-2 leading-relaxed">
                           {sim.descricao}
                         </p>
                       )}
 
                       {/* Metadados: Pesos e Duração */}
-                      <div className="flex flex-wrap items-center gap-3 pt-3 text-xs text-slate-600 border-t border-slate-100 mt-3">
-                        <span className="flex items-center gap-1 font-semibold text-slate-800">
-                          <Scale className="w-3.5 h-3.5 text-amber-600" />
+                      <div className="flex flex-wrap items-center gap-3 pt-3 text-xs text-zinc-300 border-t border-zinc-800 mt-3">
+                        <span className="flex items-center gap-1 font-semibold text-amber-400">
+                          <Scale className="w-3.5 h-3.5 text-amber-400" />
                           {sim.pesoTotal} pts totais
                         </span>
-                        <span className="flex items-center gap-1 text-slate-500">
-                          <Clock className="w-3.5 h-3.5" />
+                        <span className="flex items-center gap-1 text-zinc-400">
+                          <Clock className="w-3.5 h-3.5 text-zinc-500" />
                           {sim.duracaoMinutos && sim.duracaoMinutos > 0
                             ? `${sim.duracaoMinutos} min`
                             : 'Sem limite'}
@@ -362,7 +363,7 @@ export const SimuladosDashboard: React.FC = () => {
                         {sim.materias.map((mat) => (
                           <span
                             key={mat}
-                            className="text-[10px] px-2 py-0.5 rounded font-medium bg-slate-100 text-slate-700"
+                            className="text-[10px] px-2 py-0.5 rounded font-medium bg-zinc-950 text-zinc-300 border border-zinc-800"
                           >
                             {mat}
                           </span>
@@ -371,15 +372,15 @@ export const SimuladosDashboard: React.FC = () => {
                     </div>
 
                     {/* Rodapé e Ação de Iniciar */}
-                    <div className="pt-3 border-t border-slate-100 space-y-2">
+                    <div className="pt-3 border-t border-zinc-800 space-y-2">
                       {lastAttempt && (
-                        <div className="flex items-center justify-between text-xs bg-slate-50 p-2 rounded-lg border border-slate-200">
-                          <span className="text-slate-500">Última Nota:</span>
+                        <div className="flex items-center justify-between text-xs bg-zinc-950 p-2 rounded-xl border border-zinc-800">
+                          <span className="text-zinc-400">Última Nota:</span>
                           <span
                             className={`font-black ${
                               lastAttempt.aproveitamentoPercentual >= 70
-                                ? 'text-emerald-700'
-                                : 'text-amber-700'
+                                ? 'text-amber-400'
+                                : 'text-amber-600'
                             }`}
                           >
                             {lastAttempt.aproveitamentoPercentual}% ({lastAttempt.pontosObtidos}/{lastAttempt.pontosPossiveis} pts)
@@ -390,7 +391,7 @@ export const SimuladosDashboard: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setCurrentExam(sim)}
-                        className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-xs inline-flex items-center justify-center gap-2"
+                        className="w-full py-2.5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md inline-flex items-center justify-center gap-2 hover:scale-[1.01]"
                       >
                         <Play className="w-3.5 h-3.5 fill-current" />
                         {lastAttempt ? 'Refazer Simulado' : 'Iniciar Simulado'}
@@ -415,17 +416,17 @@ export const SimuladosDashboard: React.FC = () => {
             onCancel={() => setActiveTab('disponiveis')}
           />
         ) : (
-          <div className="bg-white rounded-2xl border border-rose-200 p-8 text-center max-w-md mx-auto my-6 shadow-xs">
-            <h3 className="text-base font-bold text-slate-900 mb-2">
+          <div className="bg-zinc-900 border border-rose-500/40 rounded-2xl p-8 text-center max-w-md mx-auto my-6 shadow-xl">
+            <h3 className="text-base font-bold text-zinc-100 mb-2">
               Acesso Exclusivo ao Administrador
             </h3>
-            <p className="text-xs text-slate-600 mb-4">
+            <p className="text-xs text-zinc-400 mb-4">
               Apenas o administrador (<strong>gcmdantas.pm@gmail.com</strong>) tem permissão para importar ou cadastrar simulados.
             </p>
             <button
               type="button"
               onClick={() => setActiveTab('disponiveis')}
-              className="px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl"
+              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-amber-500/30 text-xs font-bold rounded-xl cursor-pointer"
             >
               Voltar aos Simulados
             </button>

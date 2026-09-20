@@ -182,19 +182,19 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
   const unansweredCount = totalQuestions - totalAnswered;
 
   return (
-    <div className="bg-slate-50 min-h-screen text-slate-900 pb-16">
+    <div className="bg-zinc-950 min-h-screen text-zinc-100 pb-16 font-sans">
       {/* Barra Superior Fixa do Simulado */}
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-xs">
+      <header className="sticky top-0 z-30 bg-zinc-900/95 border-b border-amber-500/30 backdrop-blur-md shadow-md">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
-              Q
+            <span className="w-8 h-8 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 flex items-center justify-center font-black text-xs shadow-md">
+              PF
             </span>
             <div>
-              <h1 className="text-sm font-extrabold text-slate-900 truncate max-w-[200px] sm:max-w-md">
+              <h1 className="text-sm font-extrabold text-zinc-100 truncate max-w-[200px] sm:max-w-md">
                 {simulado.titulo}
               </h1>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-zinc-400">
                 Questão <strong>{currentIndex + 1}</strong> de <strong>{totalQuestions}</strong> ({totalAnswered} respondidas)
               </p>
             </div>
@@ -203,13 +203,13 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
           {/* Cronômetro */}
           <div className="flex items-center gap-2 sm:gap-4">
             <div
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono font-bold text-xs sm:text-sm border ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono font-bold text-xs sm:text-sm border ${
                 totalMinutes > 0 && secondsRemaining < 300
-                  ? 'bg-rose-50 border-rose-200 text-rose-700 animate-pulse'
-                  : 'bg-slate-100 border-slate-200 text-slate-800'
+                  ? 'bg-rose-950/60 border-rose-500/80 text-rose-400 animate-pulse'
+                  : 'bg-zinc-950 border-zinc-800 text-amber-400'
               }`}
             >
-              <Clock className="w-4 h-4 text-slate-500" />
+              <Clock className="w-4 h-4 text-amber-400" />
               <span>
                 {totalMinutes > 0
                   ? formatTimer(secondsRemaining)
@@ -220,7 +220,7 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
             <button
               type="button"
               onClick={() => setShowConfirmModal(true)}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-xs inline-flex items-center gap-1.5"
+              className="px-4 py-2 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 text-xs font-black rounded-xl transition-all cursor-pointer shadow-md inline-flex items-center gap-1.5"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span className="hidden sm:inline">Finalizar Prova</span>
@@ -229,19 +229,19 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
         </div>
 
         {/* Grade de Navegação Rápida entre Questões */}
-        <div className="max-w-7xl mx-auto px-4 py-2 border-t border-slate-100 overflow-x-auto flex items-center gap-1.5 scrollbar-thin">
+        <div className="max-w-7xl mx-auto px-4 py-2 border-t border-zinc-800 overflow-x-auto flex items-center gap-1.5 scrollbar-thin">
           {simulado.questoes.map((q, idx) => {
             const isAnswered = !!answers[q.id];
             const isFlagged = flaggedForReview.has(q.id);
             const isCurrent = idx === currentIndex;
 
-            let btnStyle = 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50';
+            let btnStyle = 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:bg-zinc-800 hover:text-zinc-200';
             if (isCurrent) {
-              btnStyle = 'ring-2 ring-blue-600 bg-blue-50 text-blue-900 border-blue-400 font-black';
+              btnStyle = 'ring-2 ring-amber-400 bg-amber-400/20 text-amber-300 border-amber-400 font-black';
             } else if (isFlagged) {
-              btnStyle = 'bg-amber-100 text-amber-900 border-amber-300 font-bold';
+              btnStyle = 'bg-rose-950/60 text-rose-300 border-rose-500/50 font-bold';
             } else if (isAnswered) {
-              btnStyle = 'bg-emerald-100 text-emerald-900 border-emerald-300 font-bold';
+              btnStyle = 'bg-zinc-800 text-amber-400 border-amber-500/40 font-bold';
             }
 
             return (
@@ -249,12 +249,12 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
                 key={q.id}
                 type="button"
                 onClick={() => setCurrentIndex(idx)}
-                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md text-xs flex items-center justify-center border transition-all cursor-pointer shrink-0 relative ${btnStyle}`}
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg text-xs flex items-center justify-center border transition-all cursor-pointer shrink-0 relative ${btnStyle}`}
                 title={`Questão ${idx + 1} - ${q.materia} (${isAnswered ? 'Respondida' : 'Em branco'})`}
               >
                 {idx + 1}
                 {isFlagged && (
-                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-500" />
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rose-500" />
                 )}
               </button>
             );
@@ -264,18 +264,18 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
 
       {/* Corpo da Questão Atual */}
       <main className="max-w-4xl mx-auto px-4 pt-6">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-8 space-y-6">
+        <div className="bg-zinc-900/95 rounded-2xl border border-amber-500/30 shadow-xl p-5 sm:p-8 space-y-6">
           {/* Topo do Card: Matéria e Peso em Destaque */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-4">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2.5 py-1 rounded-md bg-slate-900 text-white font-extrabold text-xs uppercase tracking-wider">
+              <span className="px-2.5 py-1 rounded-lg bg-zinc-950 text-amber-400 border border-amber-500/40 font-black text-xs uppercase tracking-wider">
                 Questão {currentIndex + 1}
               </span>
-              <span className="px-3 py-1 rounded-md bg-blue-50 text-blue-800 border border-blue-200 font-bold text-xs sm:text-sm">
+              <span className="px-3 py-1 rounded-lg bg-zinc-800 text-zinc-200 border border-zinc-700 font-bold text-xs sm:text-sm">
                 Matéria: {currentQ.materia}
               </span>
-              <span className="px-2.5 py-1 rounded-md bg-amber-50 text-amber-800 border border-amber-200 font-bold text-xs flex items-center gap-1">
-                <Scale className="w-3.5 h-3.5 text-amber-600" />
+              <span className="px-2.5 py-1 rounded-lg bg-zinc-950 text-amber-400 border border-amber-500/30 font-bold text-xs flex items-center gap-1">
+                <Scale className="w-3.5 h-3.5 text-amber-400" />
                 Peso {currentQ.peso} {currentQ.peso === 1 ? 'ponto' : 'pontos'}
               </span>
             </div>
@@ -284,13 +284,13 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
             <button
               type="button"
               onClick={() => handleToggleFlag(currentQ.id)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
                 flaggedForReview.has(currentQ.id)
-                  ? 'bg-amber-100 border-amber-300 text-amber-900'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  ? 'bg-rose-950/60 border-rose-500/60 text-rose-300 font-bold'
+                  : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-amber-300'
               }`}
             >
-              <Flag className="w-3.5 h-3.5 text-amber-600" />
+              <Flag className="w-3.5 h-3.5 text-amber-400" />
               <span>
                 {flaggedForReview.has(currentQ.id) ? 'Marcada para Revisão' : 'Marcar para Revisão'}
               </span>
@@ -298,7 +298,7 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
           </div>
 
           {/* Enunciado da Questão */}
-          <div className="text-slate-900 text-sm sm:text-base leading-relaxed text-justify font-normal whitespace-pre-line select-text">
+          <div className="text-zinc-100 text-sm sm:text-base leading-relaxed text-justify font-normal whitespace-pre-line select-text">
             {currentQ.enunciado}
           </div>
 
@@ -315,15 +315,15 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
                   onClick={() => handleSelectAnswer(letter)}
                   className={`w-full text-left p-3.5 sm:p-4 rounded-xl border transition-all cursor-pointer flex items-start gap-3.5 ${
                     isSelected
-                      ? 'bg-blue-50/80 border-blue-600 text-blue-950 font-medium shadow-xs ring-2 ring-blue-500/20'
-                      : 'bg-slate-50/60 hover:bg-slate-100 border-slate-200 text-slate-800'
+                      ? 'bg-zinc-800 border-amber-400 text-zinc-100 font-medium shadow-md ring-1 ring-amber-400/30'
+                      : 'bg-zinc-950/70 hover:bg-zinc-850 hover:border-zinc-700 border-zinc-800 text-zinc-300'
                   }`}
                 >
                   <span
                     className={`w-7 h-7 rounded-lg flex items-center justify-center font-extrabold text-xs shrink-0 transition-colors ${
                       isSelected
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-white text-slate-700 border border-slate-300'
+                        ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950'
+                        : 'bg-zinc-900 text-zinc-300 border border-zinc-700'
                     }`}
                   >
                     {letter}
@@ -348,7 +348,7 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
                     return next;
                   });
                 }}
-                className="text-xs text-slate-400 hover:text-slate-600 inline-flex items-center gap-1 cursor-pointer"
+                className="text-xs text-zinc-500 hover:text-amber-400 inline-flex items-center gap-1 cursor-pointer transition-colors"
               >
                 <RotateCcw className="w-3 h-3" />
                 Limpar resposta desta questão
@@ -357,18 +357,18 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
           )}
 
           {/* Botões de Navegação Anterior / Próxima */}
-          <div className="flex items-center justify-between pt-6 border-t border-slate-100">
+          <div className="flex items-center justify-between pt-6 border-t border-zinc-800">
             <button
               type="button"
               disabled={currentIndex === 0}
               onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1"
+              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-zinc-300 text-xs font-bold rounded-xl transition-colors cursor-pointer inline-flex items-center gap-1"
             >
               <ChevronLeft className="w-4 h-4" />
               Anterior
             </button>
 
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-zinc-400">
               {currentIndex + 1} de {totalQuestions}
             </span>
 
@@ -376,7 +376,7 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
               <button
                 type="button"
                 onClick={() => setCurrentIndex((prev) => Math.min(totalQuestions - 1, prev + 1))}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1"
+                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 text-xs font-black rounded-xl transition-all cursor-pointer inline-flex items-center gap-1 shadow-md"
               >
                 Próxima
                 <ChevronRight className="w-4 h-4" />
@@ -385,7 +385,7 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowConfirmModal(true)}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1"
+                className="px-5 py-2 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 text-xs font-black rounded-xl transition-all cursor-pointer inline-flex items-center gap-1 shadow-md"
               >
                 Finalizar Prova
                 <CheckCircle2 className="w-4 h-4" />
@@ -397,52 +397,52 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
 
       {/* Modal de Confirmação de Finalização */}
       {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
-            <div className="flex items-center gap-3 text-amber-600">
-              <div className="w-10 h-10 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+          <div className="bg-zinc-900 rounded-2xl border border-amber-500/40 shadow-2xl max-w-md w-full p-6 space-y-4 text-zinc-100">
+            <div className="flex items-center gap-3 text-amber-400">
+              <div className="w-10 h-10 rounded-full bg-amber-400/10 border border-amber-400/30 flex items-center justify-center">
                 <AlertTriangle className="w-5 h-5" />
               </div>
-              <h3 className="text-base font-bold text-slate-900">
+              <h3 className="text-base font-bold text-zinc-100">
                 Confirmar Finalização do Simulado
               </h3>
             </div>
 
-            <div className="text-xs text-slate-600 space-y-2 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div className="text-xs text-zinc-300 space-y-2 leading-relaxed bg-zinc-950 p-4 rounded-xl border border-zinc-800">
               <p>
-                Total de questões: <strong>{totalQuestions}</strong>
+                Total de questões: <strong className="text-zinc-100">{totalQuestions}</strong>
               </p>
-              <p className="text-emerald-700 font-semibold">
+              <p className="text-amber-400 font-semibold">
                 Respondidas: <strong>{totalAnswered}</strong>
               </p>
               {unansweredCount > 0 && (
-                <p className="text-rose-600 font-semibold">
+                <p className="text-rose-400 font-semibold">
                   Atenção: <strong>{unansweredCount}</strong> questão(ões) ainda estão em branco!
                 </p>
               )}
               {flaggedForReview.size > 0 && (
-                <p className="text-amber-700">
+                <p className="text-amber-300">
                   Marcadas para revisão: <strong>{flaggedForReview.size}</strong>
                 </p>
               )}
             </div>
 
-            <p className="text-xs text-slate-500">
-              Ao confirmar, sua pontuação ponderada pelos pesos das questões será calculada e gravada nas suas estatísticas.
+            <p className="text-xs text-zinc-400">
+              Ao confirmar, sua pontuação ponderada pelos pesos das questões será calculada e gravada nas suas estatísticas táticas.
             </p>
 
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setShowConfirmModal(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg cursor-pointer transition-colors"
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold rounded-xl cursor-pointer transition-colors"
               >
                 Voltar à Prova
               </button>
               <button
                 type="button"
                 onClick={handleFinalizeExam}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors shadow-xs"
+                className="px-5 py-2 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 text-xs font-black rounded-xl cursor-pointer transition-all shadow-md"
               >
                 Sim, Finalizar Agora
               </button>

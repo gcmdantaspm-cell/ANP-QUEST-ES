@@ -36,40 +36,40 @@ export const SimuladoResultModal: React.FC<SimuladoResultModalProps> = ({
   const isApproved = attempt.aproveitamentoPercentual >= 70;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-3xl w-full my-8 overflow-hidden animate-in fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs overflow-y-auto font-sans">
+      <div className="bg-zinc-900 rounded-2xl border border-amber-500/40 shadow-2xl max-w-3xl w-full my-8 overflow-hidden animate-in fade-in text-zinc-100">
         {/* Cabeçalho do Resultado */}
         <div
           className={`p-6 sm:p-8 text-white ${
             isApproved
-              ? 'bg-gradient-to-r from-emerald-800 via-emerald-700 to-teal-800'
-              : 'bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-950'
+              ? 'bg-gradient-to-r from-zinc-950 via-zinc-900 to-amber-950 border-b border-amber-500/40'
+              : 'bg-gradient-to-r from-zinc-950 via-zinc-900 to-rose-950 border-b border-rose-500/40'
           }`}
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-xs border border-white/20 flex items-center justify-center">
-                <Award className="w-8 h-8 text-white" />
+              <div className="w-14 h-14 rounded-2xl bg-zinc-950 border border-amber-500/40 flex items-center justify-center shadow-lg">
+                <Award className="w-8 h-8 text-amber-400" />
               </div>
               <div>
-                <span className="text-xs uppercase tracking-widest font-mono text-white/80">
+                <span className="text-xs uppercase tracking-widest font-mono text-amber-300 font-bold">
                   Relatório Oficial de Desempenho
                 </span>
-                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase">
                   {simulado.titulo}
                 </h2>
-                <p className="text-xs text-white/80">
+                <p className="text-xs text-zinc-300">
                   Pontuação ponderada calculada com base no peso individual de cada questão
                 </p>
               </div>
             </div>
 
             {/* Aproveitamento em Destaque */}
-            <div className="text-right sm:border-l sm:border-white/20 sm:pl-6">
-              <div className="text-3xl sm:text-4xl font-black tracking-tight text-white">
+            <div className="text-right sm:border-l sm:border-zinc-700 sm:pl-6">
+              <div className="text-3xl sm:text-4xl font-black tracking-tight text-amber-400">
                 {attempt.aproveitamentoPercentual}%
               </div>
-              <p className="text-xs text-white/80 font-medium">
+              <p className="text-xs text-zinc-400 font-medium">
                 {attempt.pontosObtidos} de {attempt.pontosPossiveis} pontos
               </p>
             </div>
@@ -77,14 +77,14 @@ export const SimuladoResultModal: React.FC<SimuladoResultModalProps> = ({
         </div>
 
         {/* Abas: Resumo Executivo vs. Gabarito Comentado Completo */}
-        <div className="flex border-b border-slate-200 bg-slate-50 px-6 pt-3 gap-2">
+        <div className="flex border-b border-zinc-800 bg-zinc-950 px-6 pt-3 gap-2">
           <button
             type="button"
             onClick={() => setActiveTab('resumo')}
             className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
               activeTab === 'resumo'
-                ? 'border-blue-600 text-blue-700 bg-white rounded-t-lg'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+                ? 'border-amber-400 text-amber-400 bg-zinc-900 rounded-t-xl font-black'
+                : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
             Resumo & Disciplinas
@@ -94,8 +94,8 @@ export const SimuladoResultModal: React.FC<SimuladoResultModalProps> = ({
             onClick={() => setActiveTab('gabarito')}
             className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
               activeTab === 'gabarito'
-                ? 'border-blue-600 text-blue-700 bg-white rounded-t-lg'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+                ? 'border-amber-400 text-amber-400 bg-zinc-900 rounded-t-xl font-black'
+                : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
             Revisão das Questões ({simulado.questoes.length})
@@ -108,42 +108,42 @@ export const SimuladoResultModal: React.FC<SimuladoResultModalProps> = ({
             <>
               {/* Cards de Métricas Principais */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                  <div className="flex items-center justify-center gap-1 text-emerald-600 text-xs font-bold mb-1">
+                <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 text-center">
+                  <div className="flex items-center justify-center gap-1 text-amber-400 text-xs font-bold mb-1">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     Acertos
                   </div>
-                  <div className="text-xl font-black text-slate-900">
+                  <div className="text-xl font-black text-zinc-100">
                     {attempt.acertos}
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                  <div className="flex items-center justify-center gap-1 text-rose-600 text-xs font-bold mb-1">
+                <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 text-center">
+                  <div className="flex items-center justify-center gap-1 text-rose-400 text-xs font-bold mb-1">
                     <XCircle className="w-3.5 h-3.5" />
                     Erros
                   </div>
-                  <div className="text-xl font-black text-slate-900">
+                  <div className="text-xl font-black text-zinc-100">
                     {attempt.erros}
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                  <div className="flex items-center justify-center gap-1 text-slate-500 text-xs font-bold mb-1">
+                <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 text-center">
+                  <div className="flex items-center justify-center gap-1 text-zinc-400 text-xs font-bold mb-1">
                     <HelpCircle className="w-3.5 h-3.5" />
                     Em Branco
                   </div>
-                  <div className="text-xl font-black text-slate-900">
+                  <div className="text-xl font-black text-zinc-100">
                     {attempt.emBranco}
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                  <div className="flex items-center justify-center gap-1 text-blue-600 text-xs font-bold mb-1">
+                <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 text-center">
+                  <div className="flex items-center justify-center gap-1 text-amber-400 text-xs font-bold mb-1">
                     <Clock className="w-3.5 h-3.5" />
                     Tempo Gasto
                   </div>
-                  <div className="text-xl font-black text-slate-900">
+                  <div className="text-xl font-black text-zinc-100">
                     {durMin}m {durSec}s
                   </div>
                 </div>
@@ -151,12 +151,12 @@ export const SimuladoResultModal: React.FC<SimuladoResultModalProps> = ({
 
               {/* Tabela de Desempenho por Disciplina (Matéria) */}
               <div>
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
+                <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3">
                   Desempenho Ponderado por Matéria
                 </h4>
-                <div className="overflow-hidden border border-slate-200 rounded-xl">
+                <div className="overflow-hidden border border-zinc-800 rounded-xl bg-zinc-950">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                    <thead className="bg-zinc-900 text-zinc-300 font-bold border-b border-zinc-800">
                       <tr>
                         <th className="py-2.5 px-3.5">Matéria</th>
                         <th className="py-2.5 px-3.5 text-center">Questões</th>
@@ -164,26 +164,26 @@ export const SimuladoResultModal: React.FC<SimuladoResultModalProps> = ({
                         <th className="py-2.5 px-3.5 text-center">Aproveitamento</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-zinc-900">
                       {Object.values(attempt.desempenhoPorMateria).map((mat) => (
-                        <tr key={mat.materia} className="hover:bg-slate-50">
-                          <td className="py-2.5 px-3.5 font-bold text-slate-900">
+                        <tr key={mat.materia} className="hover:bg-zinc-900/50">
+                          <td className="py-2.5 px-3.5 font-bold text-zinc-200">
                             {mat.materia}
                           </td>
-                          <td className="py-2.5 px-3.5 text-center text-slate-600">
-                            <span className="text-emerald-700 font-semibold">{mat.acertos}</span> / {mat.totalQuestoes}
+                          <td className="py-2.5 px-3.5 text-center text-zinc-400">
+                            <span className="text-amber-400 font-semibold">{mat.acertos}</span> / {mat.totalQuestoes}
                           </td>
-                          <td className="py-2.5 px-3.5 text-center font-bold text-slate-800">
-                            {mat.pontosObtidos} <span className="text-slate-400 font-normal">/ {mat.pontosPossiveis} pts</span>
+                          <td className="py-2.5 px-3.5 text-center font-bold text-zinc-200">
+                            {mat.pontosObtidos} <span className="text-zinc-500 font-normal">/ {mat.pontosPossiveis} pts</span>
                           </td>
                           <td className="py-2.5 px-3.5 text-center">
                             <span
                               className={`inline-block px-2 py-0.5 rounded font-black text-[11px] ${
                                 mat.taxaAcerto >= 70
-                                  ? 'bg-emerald-100 text-emerald-800'
+                                  ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
                                   : mat.taxaAcerto >= 50
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-rose-100 text-rose-800'
+                                  ? 'bg-yellow-500/10 text-yellow-300 border border-yellow-500/30'
+                                  : 'bg-rose-950/60 text-rose-300 border border-rose-500/30'
                               }`}
                             >
                               {mat.taxaAcerto}%
@@ -209,49 +209,49 @@ export const SimuladoResultModal: React.FC<SimuladoResultModalProps> = ({
                     key={q.id}
                     className={`p-4 sm:p-5 rounded-xl border text-xs space-y-3 ${
                       isCorrect
-                        ? 'bg-emerald-50/40 border-emerald-200'
+                        ? 'bg-zinc-950 border-amber-500/40'
                         : isBlank
-                        ? 'bg-slate-50 border-slate-200'
-                        : 'bg-rose-50/40 border-rose-200'
+                        ? 'bg-zinc-950 border-zinc-800'
+                        : 'bg-zinc-950 border-rose-500/40'
                     }`}
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 pb-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-2.5">
                       <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
+                        <span className="font-extrabold text-amber-400 bg-zinc-900 px-2 py-0.5 rounded border border-amber-500/30">
                           Questão #{idx + 1}
                         </span>
-                        <span className="font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded">
+                        <span className="font-bold text-zinc-300 bg-zinc-800 px-2 py-0.5 rounded">
                           {q.materia}
                         </span>
-                        <span className="font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded flex items-center gap-1">
-                          <Scale className="w-3 h-3" />
+                        <span className="font-bold text-amber-400 bg-zinc-900 px-2 py-0.5 rounded flex items-center gap-1 border border-zinc-800">
+                          <Scale className="w-3 h-3 text-amber-400" />
                           Peso {q.peso}
                         </span>
                       </div>
 
                       <div className="flex items-center gap-2">
                         {isCorrect ? (
-                          <span className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span className="inline-flex items-center gap-1 font-bold text-amber-300 bg-amber-400/20 px-2 py-0.5 rounded border border-amber-400/30">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
                             Acertou (+{q.peso} pts)
                           </span>
                         ) : isBlank ? (
-                          <span className="inline-flex items-center gap-1 font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded">
+                          <span className="inline-flex items-center gap-1 font-bold text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded">
                             Em branco (0 pts)
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded">
-                            <XCircle className="w-3.5 h-3.5" />
+                          <span className="inline-flex items-center gap-1 font-bold text-rose-300 bg-rose-950/60 px-2 py-0.5 rounded border border-rose-500/40">
+                            <XCircle className="w-3.5 h-3.5 text-rose-400" />
                             Errou (0 pts)
                           </span>
                         )}
-                        <span className="font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-300">
+                        <span className="font-bold text-zinc-200 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-700">
                           Gabarito Oficial: {q.alternativa_correta}
                         </span>
                       </div>
                     </div>
 
-                    <p className="text-slate-800 font-medium whitespace-pre-line leading-relaxed">
+                    <p className="text-zinc-200 font-normal whitespace-pre-line leading-relaxed text-justify">
                       {q.enunciado}
                     </p>
 
@@ -262,22 +262,22 @@ export const SimuladoResultModal: React.FC<SimuladoResultModalProps> = ({
                         const isUserSelected = userChoice === letter;
                         const isTheCorrectOne = q.alternativa_correta.toUpperCase() === letter;
 
-                        let style = 'bg-white border-slate-200 text-slate-700';
+                        let style = 'bg-zinc-900 border-zinc-800 text-zinc-300';
                         if (isTheCorrectOne) {
-                          style = 'bg-emerald-100 border-emerald-400 text-emerald-950 font-bold';
+                          style = 'bg-amber-950/30 border-amber-500/60 text-amber-300 font-bold';
                         } else if (isUserSelected && !isTheCorrectOne) {
-                          style = 'bg-rose-100 border-rose-300 text-rose-950 font-medium line-through';
+                          style = 'bg-rose-950/30 border-rose-500/50 text-rose-300 font-medium line-through';
                         }
 
                         return (
                           <div
                             key={letter}
-                            className={`p-2 rounded-lg border text-[11px] flex items-start gap-2 ${style}`}
+                            className={`p-2.5 rounded-xl border text-[11px] flex items-start gap-2 ${style}`}
                           >
-                            <span className="font-bold shrink-0">{letter})</span>
+                            <span className="font-bold shrink-0 text-amber-400">{letter})</span>
                             <span className="leading-relaxed">{alt.texto}</span>
                             {isUserSelected && (
-                              <span className="ml-auto font-bold text-[10px] text-blue-700 uppercase">
+                              <span className="ml-auto font-bold text-[10px] text-amber-400 uppercase">
                                 Sua Resposta
                               </span>
                             )}
@@ -288,21 +288,21 @@ export const SimuladoResultModal: React.FC<SimuladoResultModalProps> = ({
 
                     {/* Comentário e Dica */}
                     {q.gabarito_comentado && (
-                      <div className="p-3 bg-white/80 rounded-lg border border-slate-200 text-[11px] text-slate-700 space-y-1">
-                        <strong className="text-blue-900 block font-bold">
+                      <div className="p-3.5 bg-zinc-900 rounded-xl border border-zinc-800 text-[11px] text-zinc-300 space-y-1">
+                        <strong className="text-amber-400 block font-bold">
                           Resolução Comentada:
                         </strong>
-                        <p className="whitespace-pre-line leading-relaxed">
+                        <p className="whitespace-pre-line leading-relaxed text-justify">
                           {q.gabarito_comentado}
                         </p>
                       </div>
                     )}
 
                     {q.dica_macete && (
-                      <div className="p-2.5 bg-amber-50 rounded-lg border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2">
-                        <Lightbulb className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="p-2.5 bg-zinc-900 rounded-xl border border-amber-500/30 text-[11px] text-zinc-200 flex items-start gap-2">
+                        <Lightbulb className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                         <div>
-                          <strong>Dica / Macete:</strong> {q.dica_macete}
+                          <strong className="text-amber-400">Dica / Macete:</strong> {q.dica_macete}
                         </div>
                       </div>
                     )}
@@ -314,11 +314,11 @@ export const SimuladoResultModal: React.FC<SimuladoResultModalProps> = ({
         </div>
 
         {/* Rodapé de Ações */}
-        <div className="bg-slate-100 p-4 px-6 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div className="bg-zinc-950 p-4 px-6 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-3">
           <button
             type="button"
             onClick={onRetake}
-            className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold rounded-lg cursor-pointer inline-flex items-center gap-1.5"
+            className="px-4 py-2 bg-zinc-900 hover:bg-zinc-850 text-zinc-300 border border-zinc-700 text-xs font-bold rounded-xl cursor-pointer inline-flex items-center gap-1.5 transition-colors"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Refazer Simulado
@@ -328,7 +328,7 @@ export const SimuladoResultModal: React.FC<SimuladoResultModalProps> = ({
             <button
               type="button"
               onClick={onGoToStats}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors inline-flex items-center gap-1.5 shadow-xs"
+              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-amber-500/30 text-xs font-bold rounded-xl cursor-pointer transition-colors inline-flex items-center gap-1.5"
             >
               <BarChart3 className="w-3.5 h-3.5" />
               Ver Gráficos & Estatísticas
@@ -336,7 +336,7 @@ export const SimuladoResultModal: React.FC<SimuladoResultModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors"
+              className="px-5 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 text-xs font-black rounded-xl cursor-pointer transition-all shadow-md"
             >
               Concluir
             </button>

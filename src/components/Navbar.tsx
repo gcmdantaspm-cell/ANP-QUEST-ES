@@ -86,13 +86,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`}
               >
                 <FileCheck2 className="w-4 h-4" />
-                <span>Simulados</span>
+                <span>SIMULADOS PAPA FOX TREINO</span>
               </button>
             </nav>
           </div>
 
           {/* Ações da direita */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Botão de Paletas de Cores & Design */}
+            <button
+              id="btn-nav-theme-selector"
+              type="button"
+              onClick={() => setIsThemeSelectorOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border bg-zinc-900 text-amber-300 border-amber-500/30 hover:bg-zinc-800 hover:border-amber-400 shadow-xs"
+              title="Ajustar e Selecionar Paleta de Cores e Estilo do Sistema"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Paleta &amp; Cores</span>
+            </button>
+
             {/* Botão do Painel Admin (Apenas para o Administrador exclusivo) */}
             {isAdmin && (
               <button
@@ -195,7 +207,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : 'bg-zinc-900 text-zinc-300'
             }`}
           >
-            Simulados
+            SIMULADOS PAPA FOX TREINO
           </button>
         </div>
       </div>

@@ -169,29 +169,56 @@ export function smartFormatEnunciado(rawText: string): string {
 }
 
 /**
- * Formata o gabarito comentado para ficar justificado, espaçado e fácil de ler.
+ * Formata o gabarito comentado para ficar justificado, espaçado e fácil de ler,
+ * removendo repetições do enunciado e destacando as alternativas e os erros/acertos de cada uma.
  */
 export function smartFormatComentario(rawText: string): string {
   if (!rawText) return '';
 
   let text = rawText.replace(/\r\n/g, '\n').trim();
 
-  // Remover prefixos repetidos se houver
+  // 1. Remover prefixos de cabeçalho repetidos se houver
   text = text.replace(
-    /^(?:gabarito\s+comentado|coment[áa]rio|resolu[çc][ãa]o|justificativa|explica[çc][ãa]o):\s*/i,
+    /^(?:gabarito\s+comentado|coment[áa]rio|resolu[çc][ãa]o|justificativa|explica[çc][ãa]o|an[áa]lise(?:\s+das\s+alternativas)?)(?:\s*[\-–—:]+\s*(?:quest[ãa]o\s*\d+|q\d+))?[:\-–—\s]*/i,
     ''
   );
 
-  // Separar itens comentados em parágrafos distintos
-  // Ex: "Item I: Errado porque... Item II: Certo..." -> quebra linhas
+  // 2. Remover repetição do tipo "Alternativa X." ou "Gabarito: Alternativa X" no início se logo em seguida já vem a análise
+  text = text.replace(/^(?:gabarito(?:\s+oficial)?|resposta(?:\s+correta)?|alternativa\s+correta|op[çc][ãa]o\s+correta)?\s*[:\-–—]?\s*(?:alternativa|letra|op[çc][ãa]o)?\s*[a-eA-E][.:\-–—)]\s*/i, '');
+
+  // 3. Se o texto começar com enunciado repetido antes de listar as alternativas comentadas:
+  // Detecta se existe marcador de alternativas como "\nItem I:", "\nAlternativa a:", "\na)", "\nA.", etc.
+  // e remove qualquer texto introdutório de enunciado repetido que venha antes se contiver palavras como "julgue", "assinale", "considerando", etc.
+  const firstAltOrItemMarker = text.search(/(?:^|\n)\s*(?:(?:alternativa|op[çc][ãa]o|item|assertiva)\s+[a-eA-E0-9IVX]+|[a-eA-E]\s*[\)\].\-–—:]|[IVXLCDM]{1,6}\.\s+)/i);
+  if (firstAltOrItemMarker > 0) {
+    const introPart = text.substring(0, firstAltOrItemMarker).trim();
+    // Se a introdução parece ser repetição de enunciado (ex: tem mais de 40 caracteres e comandos de prova)
+    if (
+      introPart.length > 30 &&
+      /(?:julgue|assinale|considerando|equipe|pol[íi]cia|conforme|diante|a\s+respeito|est[ãa]o\s+corret)/i.test(introPart)
+    ) {
+      text = text.substring(firstAltOrItemMarker).trim();
+    }
+  }
+
+  // 4. Separar alternativas e itens comentados em parágrafos distintos e bem espaçados
+  // Ex: "Alternativa a) Incorreta... Alternativa b) Correta..." ou "a) Errado:... b) Certo:..."
   text = text.replace(
-    /(?<=[\w.?!])\s+(Item\s+[A-Z0-9IVX]+[:\-–]|Assertiva\s+[A-Z0-9IVX]+[:\-–]|Alternativa\s+[A-E][:\-–]|[IVXLCDM]{1,6}\.\s+)/gi,
+    /(?<=[\w.?!;])\s+(?:(?=(?:alternativa|op[çc][ãa]o|item|assertiva)\s+[a-eA-E0-9IVX]+[:\-–—.]?|[a-eA-E]\s*[\)\].\-–—:]|[IVXLCDM]{1,6}\.\s+[A-Z\u00C0-\u00DC]))/gi,
+    '\n\n'
+  );
+
+  // Também separar itens romanos comentados (Item I, Item II, I., II.)
+  text = text.replace(
+    /(?<=[\w.?!;])\s+(Item\s+[A-Z0-9IVX]+[:\-–—]|Assertiva\s+[A-Z0-9IVX]+[:\-–—]|Alternativa\s+[A-Ea-e][:\-–—.]?|[IVXLCDM]{1,6}\.\s+)/gi,
     '\n\n$1'
   );
 
+  // 5. Limpar múltiplos espaços consecutivos e limitar quebras a no máximo duas (\n\n)
   text = text
     .split('\n')
     .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+    .filter((line, idx, arr) => !(line === '' && arr[idx - 1] === ''))
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -366,8 +393,10 @@ export function parseRawQuestionText(
   }
 
   let textBeforeComentario = textBeforeDica;
+  // Reconhece formatos como:
+  // "Gabarito Comentado — Questão 1: Alternativa a." ou "Gabarito Comentado - Questão 1: Alternativa a." ou "Gabarito Comentado: B"
   const comentMatch = textBeforeDica.match(
-    /(?:gabarito\s+comentado|resolu[çc][ãa]o\s+comentada|coment[áa]rio\s+da\s+quest[ãa]o|coment[áa]rio|resolu[çc][ãa]o|explica[çc][ãa]o|justificativa):\s*([\s\S]+?)$/i
+    /(?:gabarito\s+comentado(?:\s*[\-–—:]+\s*(?:quest[ãa]o\s*\d+|q\d+))?|resolu[çc][ãa]o\s+comentada|coment[áa]rio\s+da\s+quest[ãa]o|coment[áa]rio|resolu[çc][ãa]o|explica[çc][ãa]o|justificativa)\s*[:\-–—]\s*([\s\S]+?)$/i
   );
   if (comentMatch) {
     comentario = comentMatch[1].trim();
@@ -385,11 +414,23 @@ export function parseRawQuestionText(
     textBeforeGabarito = textBeforeComentario.replace(gabRegex, '\n').trim();
   }
 
-  // Se o comentário começou com a letra do gabarito: "Gabarito Comentado: B - Explicação..."
-  if (!gabarito && comentario) {
-    const comLetraMatch = comentario.match(/^(?:letra\s*|alternativa\s*)?([A-Ea-e])\b[.:\-–]?\s*/i);
-    if (comLetraMatch) {
-      gabarito = comLetraMatch[1].toUpperCase();
+  // Se o comentário começou com a letra do gabarito ou indicação de alternativa:
+  // Ex: "Alternativa a." ou "Alternativa a - ..." ou "Letra B" ou "B - ..." ou "a) Incorreta..."
+  if (comentario) {
+    // 1. Padrão inicial: "Alternativa a." ou "Letra a" ou "Gabarito A" ou "A." ou "a)"
+    const comLetraMatch = comentario.match(/^(?:alternativa|letra|gabarito|resposta(?:\s+correta)?|op[çc][ãa]o)?\s*([A-Ea-e])\b[.:\-–—)]?\s*/i);
+    if (comLetraMatch && comLetraMatch[1]) {
+      if (!gabarito) {
+        gabarito = comLetraMatch[1].toUpperCase();
+      }
+    }
+
+    // 2. Se o comentário listar as alternativas comentadas como "a) Incorreta... b) Correta...", extrair a correta
+    if (!gabarito) {
+      const corretaInComentMatch = comentario.match(/(?:^|\n)\s*([a-eA-E])\s*[\)\].\-–—:]\s*(?:corret[ao]|verdadeir[ao])/i);
+      if (corretaInComentMatch && corretaInComentMatch[1]) {
+        gabarito = corretaInComentMatch[1].toUpperCase();
+      }
     }
   }
 
@@ -547,14 +588,22 @@ export function parseBatchRawQuestions(
   }
 
   // 2. Divisão por quebra e nova questão explícita
+  // Importante: NÃO deve dar split quando o "Questão X" for precedido de "Gabarito Comentado — Questão X"
   if (splits.length === 0) {
-    const qSplitRegex = /(?:\n\s*\n|\n(?=(?:quest[ãa]o\s*\d+|\(?\s*modelo\s*[12])))(?=(?:quest[ãa]o\s*\d+|simulado\s*\d+|item\s*\d+|\(?\s*modelo\s*[12]|(?:\d+\s*[\.\-–]\s+(?=(?:\(?(?:modelo|m[óo]dulo|[A-Z\u00C0-\u00DC]))))))/gi;
+    const qSplitRegex = /(?:\n\s*\n|\n)(?=(?<!gabarito\s+comentado\s*[\-–—:]*\s*)(?:quest[ãa]o\s*\d+|simulado\s*\d+|item\s*\d+|\(?\s*modelo\s*[12]|(?:\d+\s*[\.\-–]\s+(?=(?:\(?(?:modelo|m[óo]dulo|[A-Z\u00C0-\u00DC]))))))/gi;
     const rawSplits = questionsText.split(qSplitRegex);
     const filtered = rawSplits.map((c) => c.trim()).filter((c) => c.length > 20);
     if (filtered.length > 1) {
       splits = filtered;
     } else {
-      splits = [questionsText.trim()];
+      // Tentar divisão por "Questão X" no início de linha
+      const altSplit = questionsText.split(/(?:^|\n)(?=(?:quest[ãa]o\s*\d+)\b)/gi);
+      const altFiltered = altSplit.map((c) => c.trim()).filter((c) => c.length > 20);
+      if (altFiltered.length > 1) {
+        splits = altFiltered;
+      } else {
+        splits = [questionsText.trim()];
+      }
     }
   }
 
