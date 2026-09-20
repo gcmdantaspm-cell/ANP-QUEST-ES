@@ -11,19 +11,19 @@ export const ThemeSelectorModal: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full overflow-hidden">
         {/* Topo do Modal */}
-        <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
+        <div className="bg-zinc-950 text-white p-5 flex items-center justify-between border-b border-amber-500/20">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-600/30 border border-blue-400/40 flex items-center justify-center">
-              <Palette className="w-5 h-5 text-blue-300" />
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center">
+              <Palette className="w-5 h-5 text-amber-400" />
             </div>
             <div>
               <h2 className="text-base font-bold tracking-tight text-white flex items-center gap-2">
                 Identidade Visual & Paleta de Cores
-                <span className="text-[10px] uppercase font-mono px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded border border-blue-400/30">
-                  LDA² Questões
+                <span className="text-[10px] uppercase font-mono px-2 py-0.5 bg-amber-400/20 text-amber-300 rounded border border-amber-400/30">
+                  PAPA FOX
                 </span>
               </h2>
-              <p className="text-xs text-slate-300">
+              <p className="text-xs text-zinc-400">
                 Selecione o design profissional que melhor se adapta ao seu estilo de estudo
               </p>
             </div>
@@ -31,7 +31,7 @@ export const ThemeSelectorModal: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsThemeSelectorOpen(false)}
-            className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+            className="text-zinc-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>

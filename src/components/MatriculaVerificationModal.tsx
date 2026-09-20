@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { EagleShieldLogo } from './EagleShieldLogo';
 import {
   ShieldCheck,
   AlertCircle,
@@ -45,46 +46,46 @@ export const MatriculaVerificationModal: React.FC = () => {
   return (
     <div
       id="modal-matricula-verification"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fadeIn"
     >
-      <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
-        {/* Cabeçalho */}
-        <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 p-6 text-white text-center relative">
-          <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-white/20 shadow-inner">
-            <IdCard className="w-8 h-8 text-blue-100" />
+      <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-amber-500/30 overflow-hidden">
+        {/* Cabeçalho Preto & Ouro com Brasão da Águia */}
+        <div className="bg-gradient-to-b from-zinc-950 via-zinc-900 to-black p-6 text-white text-center relative border-b border-amber-500/20">
+          <div className="flex items-center justify-center mx-auto mb-3 drop-shadow-[0_0_12px_rgba(234,179,8,0.5)]">
+            <EagleShieldLogo size={52} />
           </div>
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight">
-            Vincular Matrícula Institucional
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase">
+            PAPA FOX <span className="text-amber-400">QUESTÕES</span>
           </h2>
-          <p className="text-xs sm:text-sm text-blue-100 mt-1 max-w-md mx-auto">
-            Para liberar o seu acesso à resolução de questões e simulados, informe o seu número de matrícula autorizado.
+          <p className="text-xs sm:text-sm text-zinc-300 mt-1 max-w-md mx-auto">
+            Vincule sua matrícula institucional autorizada para desbloquear o acesso aos cadernos de questões e simulados.
           </p>
         </div>
 
         {/* Corpo do formulário */}
         <div className="p-6 sm:p-8 space-y-6">
           {/* Card da Conta Google Conectada */}
-          <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3">
+          <div className="p-3.5 bg-zinc-50 rounded-2xl border border-zinc-200 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 overflow-hidden">
               {user.photoURL ? (
                 <img
                   src={user.photoURL}
                   alt={user.displayName || 'Avatar'}
-                  className="w-10 h-10 rounded-full border border-slate-200 object-cover shrink-0"
+                  className="w-10 h-10 rounded-full border-2 border-amber-400/60 object-cover shrink-0"
                 />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold shrink-0">
+                <div className="w-10 h-10 rounded-full bg-zinc-900 text-amber-300 border border-amber-400/40 flex items-center justify-center font-bold shrink-0">
                   {user.displayName?.[0] || 'U'}
                 </div>
               )}
               <div className="min-w-0">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
                   Conta Google Conectada
                 </span>
-                <p className="text-xs sm:text-sm font-bold text-slate-800 truncate">
+                <p className="text-xs sm:text-sm font-bold text-zinc-800 truncate">
                   {user.displayName || 'Aluno'}
                 </p>
-                <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                <p className="text-xs text-zinc-500 truncate">{user.email}</p>
               </div>
             </div>
 
@@ -92,7 +93,7 @@ export const MatriculaVerificationModal: React.FC = () => {
               id="btn-switch-account"
               type="button"
               onClick={logout}
-              className="text-xs text-slate-500 hover:text-rose-600 font-semibold p-2 hover:bg-slate-200/60 rounded-xl transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+              className="text-xs text-zinc-500 hover:text-rose-600 font-semibold p-2 hover:bg-zinc-200/60 rounded-xl transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
               title="Entrar com outra conta Google"
             >
               <LogOut className="w-3.5 h-3.5" />
@@ -116,7 +117,7 @@ export const MatriculaVerificationModal: React.FC = () => {
             <div>
               <label
                 htmlFor="input-student-matricula"
-                className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5"
+                className="block text-xs font-bold text-zinc-800 uppercase tracking-wider mb-1.5"
               >
                 Número de Matrícula
               </label>
@@ -133,9 +134,9 @@ export const MatriculaVerificationModal: React.FC = () => {
                   autoFocus
                   required
                   disabled={submitting}
-                  className="w-full text-base font-mono font-bold tracking-wider px-4 py-3 bg-slate-50 border-2 border-slate-300 rounded-2xl focus:border-blue-600 focus:bg-white focus:outline-hidden transition-all text-slate-900"
+                  className="w-full text-base font-mono font-bold tracking-wider px-4 py-3 bg-zinc-50 border-2 border-zinc-300 rounded-2xl focus:border-amber-500 focus:bg-white focus:ring-2 focus:ring-amber-400/20 focus:outline-hidden transition-all text-zinc-900"
                 />
-                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-400">
                   <Lock className="w-5 h-5" />
                 </div>
               </div>
@@ -157,18 +158,18 @@ export const MatriculaVerificationModal: React.FC = () => {
               id="btn-confirm-matricula"
               type="submit"
               disabled={submitting || !matriculaInput.trim()}
-              className="w-full py-3.5 px-6 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-sm rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3.5 px-6 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 disabled:opacity-50 text-zinc-950 font-extrabold text-sm rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               {submitting ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />
                   <span>Validando Matrícula no Sistema...</span>
                 </>
               ) : (
                 <>
-                  <ShieldCheck className="w-4 h-4" />
+                  <ShieldCheck className="w-4 h-4 stroke-[2.5]" />
                   <span>Validar e Acessar o Sistema</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-4 h-4 stroke-[2.5]" />
                 </>
               )}
             </button>
@@ -176,7 +177,7 @@ export const MatriculaVerificationModal: React.FC = () => {
 
           {/* Rodapé do Modal */}
           <div className="text-center pt-2">
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-zinc-400">
               Não possui ou esqueceu seu número de matrícula? Entre em contato com a administração/coordenação do curso para autorização prévia.
             </p>
           </div>

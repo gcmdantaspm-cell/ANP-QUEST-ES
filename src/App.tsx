@@ -11,6 +11,7 @@ import { StudentProgressDashboard } from './components/StudentProgressDashboard'
 import { MatriculaVerificationModal } from './components/MatriculaVerificationModal';
 import { SimuladosDashboard } from './components/SimuladosDashboard';
 import { ThemeSelectorModal } from './components/ThemeSelectorModal';
+import { EagleShieldLogo } from './components/EagleShieldLogo';
 import { db } from './firebase/config';
 import { collection, onSnapshot } from 'firebase/firestore';
 import {
@@ -191,7 +192,7 @@ function MainApp() {
   }, [filters]);
 
   return (
-    <div className={`min-h-screen ${theme.bodyBg} text-slate-900 flex flex-col font-sans transition-colors duration-200`}>
+    <div className={`min-h-screen ${theme.bodyBg} text-zinc-100 flex flex-col font-sans transition-colors duration-200`}>
       {/* Barra de Navegação Superior */}
       <Navbar
         isAdminOpen={isAdminOpen}
@@ -232,14 +233,14 @@ function MainApp() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                     Caderno de Questões
                   </h1>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-bold">
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-zinc-800 text-amber-300 font-bold border border-amber-500/30">
                     {firestoreQuestions.length} questões
                   </span>
                 </div>
-                <p className="text-xs sm:text-sm text-slate-500">
+                <p className="text-xs sm:text-sm text-zinc-400">
                   Pratique com resolução comentada, etiquetas em destaque e macetes didáticos
                 </p>
               </div>
@@ -344,18 +345,16 @@ function MainApp() {
         )}
       </main>
 
-      {/* Rodapé Institucional LDA² Questões */}
-      <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500 mt-12">
+      {/* Rodapé Institucional PAPA FOX QUESTÕES */}
+      <footer className="bg-zinc-950 border-t border-amber-500/20 py-6 text-center text-xs text-zinc-400 mt-12">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="w-5 h-5 rounded bg-slate-900 text-white flex items-center justify-center font-black text-[10px]">
-              LDA²
-            </span>
-            <span className="font-bold text-slate-800">
-              LDA² Questões &bull; Sistema Oficial de Questões & Simulados
+            <EagleShieldLogo size={24} />
+            <span className="font-extrabold text-white tracking-wider uppercase">
+              PAPA FOX <span className="text-amber-400">QUESTÕES</span> &bull; Sistema Oficial Tático
             </span>
           </div>
-          <p>
+          <p className="text-zinc-400">
             Plataforma desenvolvida para alta performance em concursos. Suporte a pesos ponderados e estudo offline.
           </p>
         </div>

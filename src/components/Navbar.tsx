@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { EagleShieldLogo } from './EagleShieldLogo';
 import {
   GraduationCap,
   Shield,
@@ -33,42 +34,42 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { theme, setIsThemeSelectorOpen } = useTheme();
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
+    <header className="bg-zinc-950 border-b border-amber-500/30 sticky top-0 z-40 shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo e Nome da Aplicação LDA² Questões */}
+          {/* Logo com Águia no Escudo e Nome PAPA FOX QUESTÕES */}
           <div className="flex items-center gap-6">
             <div
               onClick={() => onSelectNavSection('questoes')}
               className="flex items-center gap-3 cursor-pointer group select-none"
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-950 via-emerald-900 to-teal-950 text-white flex items-center justify-center font-black text-sm tracking-tighter shadow-xs group-hover:scale-105 transition-transform border border-emerald-800/60">
-                <span>LDA²</span>
+              <div className="w-10 h-10 flex items-center justify-center group-hover:scale-105 transition-transform drop-shadow-[0_0_8px_rgba(234,179,8,0.4)]">
+                <EagleShieldLogo size={40} />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-black text-slate-900 text-base sm:text-lg tracking-tight">
-                    LDA² Questões
+                  <span className="font-black text-white text-base sm:text-lg tracking-wider uppercase">
+                    PAPA FOX <span className="text-amber-400">QUESTÕES</span>
                   </span>
-                  <span className="text-[10px] font-extrabold tracking-widest px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 uppercase border border-emerald-200">
-                    Oficial
+                  <span className="text-[10px] font-extrabold tracking-widest px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 uppercase border border-amber-400/40">
+                    Tático
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500 hidden sm:block">
-                  Plataforma de Questões &bull; Esmeralda Nobre & Jurídico
+                <p className="text-[11px] text-zinc-400 hidden sm:block">
+                  Plataforma de Elite &bull; Preparação de Alto Desempenho
                 </p>
               </div>
             </div>
 
             {/* Abas Principais de Navegação: Questões e Simulados */}
-            <nav className="hidden md:flex items-center gap-1.5 border-l border-slate-200 pl-6">
+            <nav className="hidden md:flex items-center gap-2 border-l border-zinc-800 pl-6">
               <button
                 type="button"
                 onClick={() => onSelectNavSection('questoes')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-2 ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-2 ${
                   activeNavSection === 'questoes'
-                    ? 'bg-emerald-900 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 shadow-md font-extrabold'
+                    : 'text-zinc-400 hover:text-amber-300 hover:bg-zinc-900'
                 }`}
               >
                 <BookOpen className="w-4 h-4" />
@@ -78,10 +79,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={() => onSelectNavSection('simulados')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-2 ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-2 ${
                   activeNavSection === 'simulados'
-                    ? 'bg-emerald-900 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 shadow-md font-extrabold'
+                    : 'text-zinc-400 hover:text-amber-300 hover:bg-zinc-900'
                 }`}
               >
                 <FileCheck2 className="w-4 h-4" />
@@ -100,35 +101,35 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={onToggleAdmin}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
                   isAdminOpen
-                    ? 'bg-emerald-900 text-white border-emerald-950 shadow-xs'
-                    : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                    ? 'bg-amber-400 text-zinc-950 border-amber-300 shadow-md'
+                    : 'bg-zinc-900 text-amber-300 border-amber-500/30 hover:bg-zinc-800 hover:border-amber-400'
                 }`}
                 title="Acessar o Painel de Criação e Gestão de Questões"
               >
-                <Shield className="w-3.5 h-3.5" />
+                <Shield className="w-3.5 h-3.5 text-amber-400" />
                 <span>{isAdminOpen ? 'Fechar Admin' : 'Painel Admin'}</span>
               </button>
             )}
 
             {/* Perfil do Usuário / Login Google */}
             {loading ? (
-              <div className="w-8 h-8 rounded-full bg-slate-100 animate-pulse" />
+              <div className="w-8 h-8 rounded-full bg-zinc-800 animate-pulse" />
             ) : user ? (
               <div className="flex items-center gap-2">
                 {/* Badge de Aluno ou Admin */}
                 <div className="hidden md:flex flex-col items-end text-right">
-                  <span className="text-xs font-semibold text-slate-800 truncate max-w-[140px]">
+                  <span className="text-xs font-semibold text-zinc-200 truncate max-w-[140px]">
                     {user.displayName || user.email?.split('@')[0]}
                   </span>
                   <div className="flex items-center gap-1.5">
                     {userMatricula && (
-                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-900 text-amber-300 border border-amber-400/30">
                         Matrícula: {userMatricula}
                       </span>
                     )}
                     <span
                       className={`text-[10px] font-bold uppercase tracking-wider ${
-                        isAdmin ? 'text-purple-700' : 'text-blue-600'
+                        isAdmin ? 'text-amber-400' : 'text-yellow-500'
                       }`}
                     >
                       {isAdmin ? 'Administrador' : 'Aluno'}
@@ -140,10 +141,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <img
                     src={user.photoURL}
                     alt="Avatar"
-                    className="w-8 h-8 rounded-full border border-slate-200 object-cover"
+                    className="w-8 h-8 rounded-full border-2 border-amber-400/50 object-cover"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs">
+                  <div className="w-8 h-8 rounded-full bg-zinc-800 border border-amber-400/40 text-amber-300 flex items-center justify-center font-bold text-xs">
                     <UserIcon className="w-4 h-4" />
                   </div>
                 )}
@@ -153,7 +154,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   type="button"
                   onClick={logout}
                   title="Sair da conta"
-                  className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer rounded-lg hover:bg-slate-100"
+                  className="p-1.5 text-zinc-400 hover:text-amber-400 transition-colors cursor-pointer rounded-lg hover:bg-zinc-900"
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
@@ -163,9 +164,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="btn-nav-login"
                 type="button"
                 onClick={loginWithGoogle}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 text-xs sm:text-sm font-extrabold rounded-xl shadow-md transition-all cursor-pointer"
               >
-                <LogIn className="w-3.5 h-3.5" />
+                <LogIn className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>Entrar</span>
               </button>
             )}
@@ -173,14 +174,14 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Navegação Mobile em abas: Questões e Simulados */}
-        <div className="flex md:hidden border-t border-slate-100 py-2 gap-2">
+        <div className="flex md:hidden border-t border-zinc-900 py-2 gap-2">
           <button
             type="button"
             onClick={() => onSelectNavSection('questoes')}
             className={`flex-1 py-2 rounded-lg text-xs font-bold text-center transition-colors ${
               activeNavSection === 'questoes'
-                ? 'bg-slate-900 text-white'
-                : 'bg-slate-100 text-slate-700'
+                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 font-extrabold'
+                : 'bg-zinc-900 text-zinc-300'
             }`}
           >
             Questões
@@ -190,8 +191,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() => onSelectNavSection('simulados')}
             className={`flex-1 py-2 rounded-lg text-xs font-bold text-center transition-colors flex items-center justify-center gap-1 ${
               activeNavSection === 'simulados'
-                ? 'bg-slate-900 text-white'
-                : 'bg-slate-100 text-slate-700'
+                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 font-extrabold'
+                : 'bg-zinc-900 text-zinc-300'
             }`}
           >
             Simulados

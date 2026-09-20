@@ -1,1 +1,31 @@
 @import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #0b0c0e;
+    color: #f4f4f5;
+  }
+}
+
+/* Efeitos Metálicos Ouro Papa Fox */
+.gold-gradient-text {
+  background: linear-gradient(135deg, #FFF176 0%, #F5B041 35%, #D4AF37 70%, #AA7A1E 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gold-gradient-bg {
+  background: linear-gradient(135deg, #FFF176 0%, #F5B041 35%, #D4AF37 70%, #AA7A1E 100%);
+}
+
+.gold-gradient-border {
+  border-image: linear-gradient(135deg, #FFF176, #D4AF37, #AA7A1E) 1;
+}
+
+.gold-glow {
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.25);
+}
+
+.gold-glow-hover:hover {
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.4);
+}

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-export type ThemeId = 'navy' | 'emerald' | 'sapphire' | 'graphite';
+export type ThemeId = 'papafox' | 'navy' | 'emerald' | 'sapphire';
 
 export interface ThemeConfig {
   id: ThemeId;
@@ -23,24 +23,24 @@ export interface ThemeConfig {
 }
 
 export const THEMES: Record<ThemeId, ThemeConfig> = {
-  navy: {
-    id: 'navy',
-    name: 'Executivo Navy & Slate',
-    tagline: 'Padrão corporativo e governamental de alta sobriedade',
-    primaryClass: 'bg-slate-900',
-    primaryHoverClass: 'hover:bg-slate-800',
-    primaryBgLight: 'bg-slate-50',
-    primaryText: 'text-slate-900',
-    badgeBg: 'bg-slate-100',
-    badgeText: 'text-slate-800',
-    accentBorder: 'border-slate-800',
-    navGradient: 'from-slate-900 via-slate-800 to-blue-950',
-    brandAccent: '#2563eb',
-    hexPrimary: '#0f172a',
-    hexSecondary: '#2563eb',
-    hexAccent: '#38bdf8',
-    bodyBg: 'bg-[#f8fafc]',
-    cardBorder: 'border-slate-200',
+  papafox: {
+    id: 'papafox',
+    name: 'Papa Fox Tático (Preto & Ouro)',
+    tagline: 'Design tático de elite com tons pretos, dourado metálico e amarelo vibrante',
+    primaryClass: 'bg-zinc-950',
+    primaryHoverClass: 'hover:bg-zinc-900',
+    primaryBgLight: 'bg-amber-500/10',
+    primaryText: 'text-amber-400',
+    badgeBg: 'bg-amber-400/20',
+    badgeText: 'text-amber-300',
+    accentBorder: 'border-amber-500/40',
+    navGradient: 'from-black via-zinc-950 to-zinc-900',
+    brandAccent: '#EAB308',
+    hexPrimary: '#09090b',
+    hexSecondary: '#EAB308',
+    hexAccent: '#FACC15',
+    bodyBg: 'bg-[#0c0d0e]',
+    cardBorder: 'border-amber-500/30',
   },
   emerald: {
     id: 'emerald',
@@ -61,6 +61,25 @@ export const THEMES: Record<ThemeId, ThemeConfig> = {
     bodyBg: 'bg-[#f7faf8]',
     cardBorder: 'border-emerald-100',
   },
+  navy: {
+    id: 'navy',
+    name: 'Executivo Navy & Slate',
+    tagline: 'Padrão corporativo e governamental de alta sobriedade',
+    primaryClass: 'bg-slate-900',
+    primaryHoverClass: 'hover:bg-slate-800',
+    primaryBgLight: 'bg-slate-50',
+    primaryText: 'text-slate-900',
+    badgeBg: 'bg-slate-100',
+    badgeText: 'text-slate-800',
+    accentBorder: 'border-slate-800',
+    navGradient: 'from-slate-900 via-slate-800 to-blue-950',
+    brandAccent: '#2563eb',
+    hexPrimary: '#0f172a',
+    hexSecondary: '#2563eb',
+    hexAccent: '#38bdf8',
+    bodyBg: 'bg-[#f8fafc]',
+    cardBorder: 'border-slate-200',
+  },
   sapphire: {
     id: 'sapphire',
     name: 'Safira Tech & Alta Performance',
@@ -80,25 +99,6 @@ export const THEMES: Record<ThemeId, ThemeConfig> = {
     bodyBg: 'bg-[#f4f7fc]',
     cardBorder: 'border-blue-100',
   },
-  graphite: {
-    id: 'graphite',
-    name: 'Grafite & Ouro Nobre',
-    tagline: 'Elegância minimalista suíça com acentos dourados',
-    primaryClass: 'bg-zinc-900',
-    primaryHoverClass: 'hover:bg-zinc-800',
-    primaryBgLight: 'bg-amber-50/60',
-    primaryText: 'text-zinc-900',
-    badgeBg: 'bg-amber-100/70',
-    badgeText: 'text-amber-900',
-    accentBorder: 'border-amber-600',
-    navGradient: 'from-zinc-950 via-zinc-900 to-neutral-900',
-    brandAccent: '#d97706',
-    hexPrimary: '#18181b',
-    hexSecondary: '#d97706',
-    hexAccent: '#f59e0b',
-    bodyBg: 'bg-[#fafaf9]',
-    cardBorder: 'border-zinc-200',
-  },
 };
 
 interface ThemeContextValue {
@@ -114,12 +114,12 @@ const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [themeId, setThemeIdState] = useState<ThemeId>(() => {
     try {
-      const saved = localStorage.getItem('lda2_theme') as ThemeId;
-      if (saved && THEMES[saved]) return saved;
+      const saved = localStorage.getItem('papafox_theme') || localStorage.getItem('lda2_theme');
+      if (saved && THEMES[saved as ThemeId]) return saved as ThemeId;
     } catch {
       // fallback
     }
-    return 'emerald';
+    return 'papafox';
   });
 
   const [isThemeSelectorOpen, setIsThemeSelectorOpen] = useState(false);
@@ -128,14 +128,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (THEMES[id]) {
       setThemeIdState(id);
       try {
-        localStorage.setItem('lda2_theme', id);
+        localStorage.setItem('papafox_theme', id);
       } catch (e) {
         console.error(e);
       }
     }
   };
 
-  const theme = THEMES[themeId] || THEMES.emerald;
+  const theme = THEMES[themeId] || THEMES.papafox;
 
   return (
     <ThemeContext.Provider

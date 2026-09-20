@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAuth, ADMIN_EMAIL, isUserAdminEmail } from '../context/AuthContext';
 import { Question, AlternativeItem } from '../types/question';
 import {
@@ -53,13 +53,65 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Abas: 'lote', 'gerenciar' ou 'matriculas'
   const [activeTab, setActiveTab] = useState<'lote' | 'gerenciar' | 'matriculas'>('lote');
 
-  // Metadados solicitados pelo usuário padronizados: Matéria IPO-2, Capítulo vazio, Subtópico vazio, Tema vazio
+  // Metadados solicitados pelo usuário padronizados: Matéria IPO-2, Módulo vazio/em branco, Capítulo vazio, Subtópico vazio, Tema vazio
   const [nomeMateria, setNomeMateria] = useState('IPO-2');
-  const [moduloMateria, setModuloMateria] = useState('IPO-2');
+  const [moduloMateria, setModuloMateria] = useState('');
   const [capituloMateria, setCapituloMateria] = useState('');
   const [subtopico, setSubtopico] = useState('');
   const [tema, setTema] = useState('');
   const [pesoQuestao, setPesoQuestao] = useState<number>(1);
+
+  // Extrair capítulos existentes no banco de dados para a matéria selecionada (ou geral)
+  const existingCapitulos = useMemo(() => {
+    return Array.from(
+      new Set(
+        existingQuestions
+          .filter((q) => !nomeMateria || q.modulo?.toLowerCase().includes(nomeMateria.toLowerCase()) || q.modulo === nomeMateria)
+          .map((q) => q.capitulo)
+          .filter((c): c is string => Boolean(c && c.trim()))
+      )
+    ).sort();
+  }, [existingQuestions, nomeMateria]);
+
+  // Ao selecionar um capítulo existente, buscar sugestões de subtópicos e temas relacionados
+  const relatedSubtopicos = useMemo(() => {
+    if (!capituloMateria) return [];
+    return Array.from(
+      new Set(
+        existingQuestions
+          .filter((q) => q.capitulo === capituloMateria)
+          .map((q) => q.subtopico)
+          .filter((s): s is string => Boolean(s && s.trim()))
+      )
+    ).sort();
+  }, [existingQuestions, capituloMateria]);
+
+  const relatedTemas = useMemo(() => {
+    if (!capituloMateria) return [];
+    return Array.from(
+      new Set(
+        existingQuestions
+          .filter((q) => q.capitulo === capituloMateria && (!subtopico || q.subtopico === subtopico))
+          .map((q) => q.tema_subtopico)
+          .filter((t): t is string => Boolean(t && t.trim()))
+      )
+    ).sort();
+  }, [existingQuestions, capituloMateria, subtopico]);
+
+  const handleSelectExistingCapitulo = (cap: string) => {
+    setCapituloMateria(cap);
+    if (!cap) {
+      setSubtopico('');
+      setTema('');
+      return;
+    }
+    // Auto-preencher subtópico e tema se houver correlação direta
+    const matchedQ = existingQuestions.find((q) => q.capitulo === cap && q.subtopico);
+    if (matchedQ) {
+      if (matchedQ.subtopico && !subtopico) setSubtopico(matchedQ.subtopico);
+      if (matchedQ.tema_subtopico && !tema) setTema(matchedQ.tema_subtopico);
+    }
+  };
 
   // Seleção múltipla para exclusão no banco de dados
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<Set<string>>(new Set());
@@ -460,21 +512,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   return (
     <div id="admin-panel" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 mb-8">
       {/* Cabeçalho do Painel Admin */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-amber-500/20 mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-xl bg-zinc-950 text-amber-400 border border-amber-500/30 flex items-center justify-center font-bold">
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-slate-900">
+              <h2 className="text-lg font-bold text-zinc-950">
                 Organizador Automático &amp; Painel Admin
               </h2>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-900 border border-amber-400/40">
                 Acesso Exclusivo
               </span>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-zinc-500">
               Administrador: <strong>{user.email}</strong>
             </p>
           </div>
@@ -486,39 +538,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             id="tab-lote"
             type="button"
             onClick={() => setActiveTab('lote')}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
               activeTab === 'lote'
-                ? 'bg-purple-600 text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                ? 'bg-zinc-950 text-amber-400 border border-amber-500/40 shadow-xs'
+                : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
             }`}
           >
-            <Sparkles className="w-4 h-4" />
+            <Sparkles className="w-4 h-4 text-amber-400" />
             Organizar &amp; Inserir Questões
           </button>
           <button
             id="tab-gerenciar"
             type="button"
             onClick={() => setActiveTab('gerenciar')}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
               activeTab === 'gerenciar'
-                ? 'bg-purple-600 text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                ? 'bg-zinc-950 text-amber-400 border border-amber-500/40 shadow-xs'
+                : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
             }`}
           >
-            <FileEdit className="w-4 h-4" />
+            <FileEdit className="w-4 h-4 text-amber-400" />
             Banco de Questões ({existingQuestions.length})
           </button>
           <button
             id="tab-matriculas"
             type="button"
             onClick={() => setActiveTab('matriculas')}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
               activeTab === 'matriculas'
-                ? 'bg-purple-600 text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                ? 'bg-zinc-950 text-amber-400 border border-amber-500/40 shadow-xs'
+                : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
             }`}
           >
-            <IdCard className="w-4 h-4" />
+            <IdCard className="w-4 h-4 text-amber-400" />
             Matrículas Autorizadas
           </button>
         </div>
@@ -551,7 +603,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 type="button"
                 onClick={() => {
                   setNomeMateria('IPO-2');
-                  setModuloMateria('IPO-2');
+                  setModuloMateria('');
                   setCapituloMateria('');
                   setSubtopico('');
                   setTema('');
@@ -559,13 +611,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 }}
                 className="text-[11px] px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-800 font-semibold rounded-md transition-colors cursor-pointer self-start sm:self-auto"
               >
-                Restaurar Padrão (IPO-2 / Vazio / Peso 1)
+                Restaurar Padrão (Matéria IPO-2 / Módulo, Cap, Sub, Tema em Branco)
               </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-emerald-950 mb-1">
                   Matéria *
                 </label>
                 <input
@@ -574,64 +626,142 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   value={nomeMateria}
                   onChange={(e) => setNomeMateria(e.target.value)}
                   placeholder="IPO-2"
-                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 font-medium"
+                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700 font-semibold text-slate-800"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Módulo *
+                  Módulo (Em branco)
                 </label>
                 <input
                   id="input-modulo-materia"
                   type="text"
                   value={moduloMateria}
                   onChange={(e) => setModuloMateria(e.target.value)}
-                  placeholder="IPO-2"
-                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 font-medium"
+                  placeholder="(Em branco)"
+                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Capítulo (Vazio)
-                </label>
-                <input
-                  id="input-capitulo-materia"
-                  type="text"
-                  value={capituloMateria}
-                  onChange={(e) => setCapituloMateria(e.target.value)}
-                  placeholder="(Vazio)"
-                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Capítulo (Em branco)
+                  </label>
+                </div>
+                {existingCapitulos.length > 0 ? (
+                  <div className="space-y-1">
+                    <select
+                      id="select-existing-capitulo"
+                      value={capituloMateria}
+                      onChange={(e) => handleSelectExistingCapitulo(e.target.value)}
+                      className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700 font-medium text-slate-800"
+                    >
+                      <option value="">(Selecionar Capítulo Criado...)</option>
+                      {existingCapitulos.map((cap) => (
+                        <option key={cap} value={cap}>
+                          {cap}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      id="input-capitulo-materia"
+                      type="text"
+                      value={capituloMateria}
+                      onChange={(e) => setCapituloMateria(e.target.value)}
+                      placeholder="Ou digite novo capítulo..."
+                      className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-200 rounded-md focus:ring-2 focus:ring-emerald-700 text-slate-700"
+                    />
+                  </div>
+                ) : (
+                  <input
+                    id="input-capitulo-materia"
+                    type="text"
+                    value={capituloMateria}
+                    onChange={(e) => setCapituloMateria(e.target.value)}
+                    placeholder="(Em branco)"
+                    className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700"
+                  />
+                )}
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Subtópico (Vazio)
+                  Subtópico (Em branco)
                 </label>
-                <input
-                  id="input-subtopico"
-                  type="text"
-                  value={subtopico}
-                  onChange={(e) => setSubtopico(e.target.value)}
-                  placeholder="(Vazio)"
-                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500"
-                />
+                {relatedSubtopicos.length > 0 ? (
+                  <div className="space-y-1">
+                    <select
+                      value={subtopico}
+                      onChange={(e) => setSubtopico(e.target.value)}
+                      className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700 font-medium text-slate-800"
+                    >
+                      <option value="">(Selecionar Subtópico...)</option>
+                      {relatedSubtopicos.map((sub) => (
+                        <option key={sub} value={sub}>
+                          {sub}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      id="input-subtopico"
+                      type="text"
+                      value={subtopico}
+                      onChange={(e) => setSubtopico(e.target.value)}
+                      placeholder="Ou digite novo subtópico..."
+                      className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-200 rounded-md focus:ring-2 focus:ring-emerald-700 text-slate-700"
+                    />
+                  </div>
+                ) : (
+                  <input
+                    id="input-subtopico"
+                    type="text"
+                    value={subtopico}
+                    onChange={(e) => setSubtopico(e.target.value)}
+                    placeholder="(Em branco)"
+                    className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700"
+                  />
+                )}
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Tema (Vazio)
+                  Tema (Em branco)
                 </label>
-                <input
-                  id="input-tema"
-                  type="text"
-                  value={tema}
-                  onChange={(e) => setTema(e.target.value)}
-                  placeholder="(Vazio)"
-                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500"
-                />
+                {relatedTemas.length > 0 ? (
+                  <div className="space-y-1">
+                    <select
+                      value={tema}
+                      onChange={(e) => setTema(e.target.value)}
+                      className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700 font-medium text-slate-800"
+                    >
+                      <option value="">(Selecionar Tema...)</option>
+                      {relatedTemas.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      id="input-tema"
+                      type="text"
+                      value={tema}
+                      onChange={(e) => setTema(e.target.value)}
+                      placeholder="Ou digite novo tema..."
+                      className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-200 rounded-md focus:ring-2 focus:ring-emerald-700 text-slate-700"
+                    />
+                  </div>
+                ) : (
+                  <input
+                    id="input-tema"
+                    type="text"
+                    value={tema}
+                    onChange={(e) => setTema(e.target.value)}
+                    placeholder="(Em branco)"
+                    className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700"
+                  />
+                )}
               </div>
 
               <div>
@@ -646,7 +776,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   value={pesoQuestao}
                   onChange={(e) => setPesoQuestao(Math.max(0.1, Number(e.target.value) || 1))}
                   placeholder="1"
-                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 font-bold text-purple-900"
+                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700 font-bold text-emerald-950"
                 />
               </div>
             </div>
