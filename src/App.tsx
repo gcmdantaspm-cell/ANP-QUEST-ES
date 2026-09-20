@@ -14,6 +14,7 @@ import { ThemeSelectorModal } from './components/ThemeSelectorModal';
 import { EagleShieldLogo } from './components/EagleShieldLogo';
 import { db } from './firebase/config';
 import { collection, onSnapshot } from 'firebase/firestore';
+import { getQuestionMateria, getQuestionModulo } from './utils/parser';
 import {
   BookOpen,
   Sparkles,
@@ -43,6 +44,7 @@ function MainApp() {
 
   // Filtros selecionados
   const [filters, setFilters] = useState<FilterOptions>({
+    materia: '',
     modulo: '',
     capitulo: '',
     subtopico: '',
@@ -145,8 +147,13 @@ function MainApp() {
         return false;
       }
 
+      // Filtro de Matéria
+      if (filters.materia && getQuestionMateria(q) !== filters.materia) {
+        return false;
+      }
+
       // Filtro de Módulo
-      if (filters.modulo && q.modulo !== filters.modulo) {
+      if (filters.modulo && getQuestionModulo(q) !== filters.modulo) {
         return false;
       }
 
@@ -169,10 +176,11 @@ function MainApp() {
       if (filters.busca.trim()) {
         const term = filters.busca.toLowerCase();
         const matchEnunciado = q.enunciado.toLowerCase().includes(term);
-        const matchModulo = q.modulo.toLowerCase().includes(term);
+        const matchMateria = getQuestionMateria(q).toLowerCase().includes(term);
+        const matchModulo = getQuestionModulo(q).toLowerCase().includes(term);
         const matchCapitulo = q.capitulo.toLowerCase().includes(term);
         const matchGabarito = q.gabarito_comentado?.toLowerCase().includes(term);
-        if (!matchEnunciado && !matchModulo && !matchCapitulo && !matchGabarito) {
+        if (!matchEnunciado && !matchMateria && !matchModulo && !matchCapitulo && !matchGabarito) {
           return false;
         }
       }
@@ -183,12 +191,13 @@ function MainApp() {
 
   const currentFilterLabel = useMemo(() => {
     const parts = [
+      filters.materia,
       filters.modulo,
       filters.capitulo,
       filters.subtopico,
       filters.tema_subtopico,
     ].filter(Boolean);
-    return parts.length > 0 ? parts.join(' > ') : 'Todas as Disciplinas';
+    return parts.length > 0 ? parts.join(' > ') : 'Todas as Matérias';
   }, [filters]);
 
   return (
@@ -312,6 +321,7 @@ function MainApp() {
                   type="button"
                   onClick={() =>
                     setFilters({
+                      materia: '',
                       modulo: '',
                       capitulo: '',
                       subtopico: '',

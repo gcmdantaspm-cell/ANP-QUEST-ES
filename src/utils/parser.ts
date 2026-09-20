@@ -1,6 +1,7 @@
 import { Question, AlternativeItem } from '../types/question';
 
 export interface ParsedQuestionResult {
+  materia?: string;
   modulo?: string;
   capitulo?: string;
   subtopico?: string;
@@ -60,28 +61,61 @@ export function sanitizeEtiquetaField(field?: string): string {
 }
 
 /**
- * Retorna os segmentos hierárquicos estruturados (Módulo, Capítulo, Subtópico, Tema)
+ * Extrai a matéria de uma questão com suporte a compatibilidade regressiva.
+ */
+export function getQuestionMateria(q: { materia?: string; modulo?: string }): string {
+  if (q.materia && q.materia.trim()) {
+    return q.materia.trim();
+  }
+  if (q.modulo && q.modulo.trim()) {
+    // Se o modulo é algo como "IPO-2" ou "Direito Penal" e não tem a palavra "Módulo", é a matéria
+    if (!/^\s*m[óo]dulo\b/i.test(q.modulo)) {
+      return q.modulo.trim();
+    }
+  }
+  return 'IPO-2';
+}
+
+/**
+ * Extrai o módulo de uma questão com suporte a compatibilidade regressiva.
+ */
+export function getQuestionModulo(q: { materia?: string; modulo?: string }): string {
+  if (q.modulo && q.modulo.trim()) {
+    // Se modulo é idêntico à matéria e não tem "Módulo" explícito, não duplicar
+    if (q.materia && q.modulo.trim().toLowerCase() === q.materia.trim().toLowerCase() && !/^\s*m[óo]dulo\b/i.test(q.modulo)) {
+      return '';
+    }
+    return q.modulo.trim();
+  }
+  return '';
+}
+
+/**
+ * Retorna os segmentos hierárquicos estruturados (Matéria, Módulo, Capítulo, Subtópico, Tema)
  * para exibição em cores diferenciadas na questão.
  */
 export interface HierarchySegment {
-  type: 'modulo' | 'capitulo' | 'subtopico' | 'tema';
+  type: 'materia' | 'modulo' | 'capitulo' | 'subtopico' | 'tema';
   label: string;
   value: string;
 }
 
 export function getHierarchySegments(q: {
+  materia?: string;
   modulo?: string;
   capitulo?: string;
   subtopico?: string;
   tema_subtopico?: string;
 }): HierarchySegment[] {
   const segments: HierarchySegment[] = [];
-  const mod = sanitizeEtiquetaField(q.modulo);
+  const mat = sanitizeEtiquetaField(getQuestionMateria(q));
+  const mod = sanitizeEtiquetaField(getQuestionModulo(q));
   const cap = sanitizeEtiquetaField(q.capitulo);
   const sub = sanitizeEtiquetaField(q.subtopico);
   const tema = sanitizeEtiquetaField(q.tema_subtopico);
 
-  if (mod) segments.push({ type: 'modulo', label: 'Módulo', value: mod });
+  if (mat) segments.push({ type: 'materia', label: 'Matéria', value: mat });
+  if (mod && mod !== mat) segments.push({ type: 'modulo', label: 'Módulo', value: mod });
   if (cap) segments.push({ type: 'capitulo', label: 'Capítulo', value: cap });
   if (sub) segments.push({ type: 'subtopico', label: 'Subtópico', value: sub });
   if (tema) segments.push({ type: 'tema', label: 'Tema', value: tema });
@@ -90,21 +124,24 @@ export function getHierarchySegments(q: {
 }
 
 /**
- * Formata a etiqueta destacada das questões: Módulo - Capítulo - Subtópicos e Temas quando houver
+ * Formata a etiqueta destacada das questões: Matéria - Módulo - Capítulo - Subtópicos e Temas quando houver
  */
 export function formatEtiqueta(q: {
+  materia?: string;
   modulo?: string;
   capitulo?: string;
   subtopico?: string;
   tema_subtopico?: string;
 }): string {
   const parts: string[] = [];
-  const mod = sanitizeEtiquetaField(q.modulo);
+  const mat = sanitizeEtiquetaField(getQuestionMateria(q));
+  const mod = sanitizeEtiquetaField(getQuestionModulo(q));
   const cap = sanitizeEtiquetaField(q.capitulo);
   const sub = sanitizeEtiquetaField(q.subtopico);
   const tema = sanitizeEtiquetaField(q.tema_subtopico);
 
-  if (mod) parts.push(mod);
+  if (mat) parts.push(mat);
+  if (mod && mod !== mat) parts.push(mod);
   if (cap) parts.push(cap);
   if (sub) parts.push(sub);
   if (tema) parts.push(tema);
@@ -382,7 +419,12 @@ export function parseRawQuestionText(
   rawText: string,
   context?: HierarchyContext
 ): ParsedQuestionResult {
-  let modulo = context?.modulo || context?.materia || '';
+  let materia = context?.materia || '';
+  let modulo = context?.modulo || '';
+  if (!materia && modulo && !/^\s*m[óo]dulo\b/i.test(modulo)) {
+    materia = modulo;
+    modulo = '';
+  }
   let capitulo = context?.capitulo || '';
   let subtopico = context?.subtopico || '';
   let tema_subtopico = context?.tema_subtopico || '';
@@ -403,10 +445,14 @@ export function parseRawQuestionText(
   const inlineTagMatch = cleanedRaw.match(/^\s*\(([^)]*m[óo]dulo[^)]*)\)\s*/i);
   if (inlineTagMatch) {
     const tagContent = inlineTagMatch[1];
+    const matM = tagContent.match(/(?:mat[ée]ria|disciplina)[\s\-–—:]*([^:\-–—\n]+)/i);
     const modM = tagContent.match(/m[óo]dulo[\s\-–—:]*([^:\-–—\n]+)/i);
     const capM = tagContent.match(/cap[íi]tulo[\s\-–—:]*([^:\-–—\n\[]+)/i);
     const subM = tagContent.match(/\[([^\]]+)\]|subt[óo]pico[\s\-–—:]*([^:\-–—\n]+)/i);
 
+    if (matM && !materia) {
+      materia = matM[1].trim().replace(/^[\-–—:]+/, '').trim();
+    }
     if (modM && !modulo) {
       const rawModVal = modM[1].trim().replace(/^[\-–—:]+/, '').trim();
       modulo = /^m[óo]dulo/i.test(rawModVal) ? rawModVal : `Módulo ${rawModVal}`;
@@ -429,13 +475,16 @@ export function parseRawQuestionText(
   // Padrões de hierarquia no cabeçalho do texto bruto
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
-    const modMatch = line.match(/^(?:m[óo]dulo|disciplina|mat[ée]ria|nome da mat[ée]ria):\s*(.+)$/i);
+    const matMatch = line.match(/^(?:mat[ée]ria|disciplina|nome da mat[ée]ria):\s*(.+)$/i);
+    const modMatch = line.match(/^(?:m[óo]dulo):\s*(.+)$/i);
     const capMatch = line.match(/^(?:cap[íi]tulo|assunto|t[óo]pico|cap[íi]tulo da mat[ée]ria):\s*(.+)$/i);
     const subMatch = line.match(/^(?:subt[óo]pico|subassunto):\s*(.+)$/i);
     const temaMatch = line.match(/^(?:tema|tema_subt[óo]pico|subtema):\s*(.+)$/i);
     const pesoMatch = line.match(/^(?:peso|pontos?|valor(?:\s+em\s+pontos)?):\s*(\d+(?:[.,]\d+)?)/i);
 
-    if (modMatch) {
+    if (matMatch) {
+      materia = matMatch[1].trim();
+    } else if (modMatch) {
       modulo = modMatch[1].trim();
     } else if (capMatch) {
       capitulo = capMatch[1].trim();
@@ -587,6 +636,7 @@ export function parseRawQuestionText(
   }
 
   return {
+    materia: sanitizeEtiquetaField(materia),
     modulo: sanitizeEtiquetaField(modulo),
     capitulo: sanitizeEtiquetaField(capitulo),
     subtopico: sanitizeEtiquetaField(subtopico),

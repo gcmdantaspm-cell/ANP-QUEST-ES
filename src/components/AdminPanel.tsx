@@ -7,6 +7,8 @@ import {
   ParsedQuestionResult,
   SAMPLE_QUESTIONS_RAW,
   formatEtiqueta,
+  getQuestionMateria,
+  getQuestionModulo,
 } from '../utils/parser';
 import { db, handleFirestoreError, OperationType } from '../firebase/config';
 import {
@@ -61,56 +63,108 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [tema, setTema] = useState('');
   const [pesoQuestao, setPesoQuestao] = useState<number>(1);
 
-  // Extrair capítulos existentes no banco de dados para a matéria selecionada (ou geral)
-  const existingCapitulos = useMemo(() => {
-    return Array.from(
-      new Set(
-        existingQuestions
-          .filter((q) => !nomeMateria || q.modulo?.toLowerCase().includes(nomeMateria.toLowerCase()) || q.modulo === nomeMateria)
-          .map((q) => q.capitulo)
-          .filter((c): c is string => Boolean(c && c.trim()))
-      )
-    ).sort();
+  // 1. Matérias existentes já cadastradas no banco de dados
+  const existingMaterias = useMemo(() => {
+    const set = new Set<string>();
+    existingQuestions.forEach((q) => {
+      const m = getQuestionMateria(q);
+      if (m && m.trim()) set.add(m.trim());
+    });
+    if (!set.has('IPO-2')) {
+      set.add('IPO-2');
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [existingQuestions]);
+
+  // 2. Módulos existentes já cadastrados (filtrados pela matéria selecionada ou todos)
+  const existingModulos = useMemo(() => {
+    const filtered = existingQuestions.filter((q) => {
+      if (!nomeMateria) return true;
+      return getQuestionMateria(q).toLowerCase() === nomeMateria.trim().toLowerCase();
+    });
+    const pool = filtered.length > 0 ? filtered : existingQuestions;
+    const set = new Set<string>();
+    pool.forEach((q) => {
+      const mod = getQuestionModulo(q);
+      if (mod && mod.trim()) set.add(mod.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [existingQuestions, nomeMateria]);
 
-  // Ao selecionar um capítulo existente, buscar sugestões de subtópicos e temas relacionados
-  const relatedSubtopicos = useMemo(() => {
-    if (!capituloMateria) return [];
-    return Array.from(
-      new Set(
-        existingQuestions
-          .filter((q) => q.capitulo === capituloMateria)
-          .map((q) => q.subtopico)
-          .filter((s): s is string => Boolean(s && s.trim()))
-      )
-    ).sort();
-  }, [existingQuestions, capituloMateria]);
+  // 3. Capítulos existentes já cadastrados (filtrados por matéria e/ou módulo selecionados)
+  const existingCapitulos = useMemo(() => {
+    const filtered = existingQuestions.filter((q) => {
+      const matchMat = !nomeMateria || getQuestionMateria(q).toLowerCase() === nomeMateria.trim().toLowerCase();
+      const matchMod = !moduloMateria || getQuestionModulo(q).toLowerCase() === moduloMateria.trim().toLowerCase();
+      return matchMat && matchMod;
+    });
+    const pool = filtered.length > 0 ? filtered : existingQuestions;
+    const set = new Set<string>();
+    pool.forEach((q) => {
+      if (q.capitulo && q.capitulo.trim()) {
+        set.add(q.capitulo.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [existingQuestions, nomeMateria, moduloMateria]);
 
+  // 4. Subtópicos existentes já cadastrados (filtrados pelo capítulo selecionado)
+  const relatedSubtopicos = useMemo(() => {
+    const filtered = existingQuestions.filter((q) => {
+      if (capituloMateria) {
+        return q.capitulo?.trim().toLowerCase() === capituloMateria.trim().toLowerCase();
+      }
+      const matchMat = !nomeMateria || getQuestionMateria(q).toLowerCase() === nomeMateria.trim().toLowerCase();
+      const matchMod = !moduloMateria || getQuestionModulo(q).toLowerCase() === moduloMateria.trim().toLowerCase();
+      return matchMat && matchMod;
+    });
+    const pool = filtered.length > 0 ? filtered : existingQuestions;
+    const set = new Set<string>();
+    pool.forEach((q) => {
+      if (q.subtopico && q.subtopico.trim()) {
+        set.add(q.subtopico.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [existingQuestions, capituloMateria, moduloMateria, nomeMateria]);
+
+  // 5. Temas existentes vinculados ao capítulo e subtópico
   const relatedTemas = useMemo(() => {
-    if (!capituloMateria) return [];
-    return Array.from(
-      new Set(
-        existingQuestions
-          .filter((q) => q.capitulo === capituloMateria && (!subtopico || q.subtopico === subtopico))
-          .map((q) => q.tema_subtopico)
-          .filter((t): t is string => Boolean(t && t.trim()))
-      )
-    ).sort();
+    const filtered = existingQuestions.filter((q) => {
+      const matchCap = !capituloMateria || q.capitulo?.trim().toLowerCase() === capituloMateria.trim().toLowerCase();
+      const matchSub = !subtopico || q.subtopico?.trim().toLowerCase() === subtopico.trim().toLowerCase();
+      return matchCap && matchSub;
+    });
+    const set = new Set<string>();
+    filtered.forEach((q) => {
+      if (q.tema_subtopico && q.tema_subtopico.trim()) {
+        set.add(q.tema_subtopico.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [existingQuestions, capituloMateria, subtopico]);
 
   const handleSelectExistingCapitulo = (cap: string) => {
     setCapituloMateria(cap);
-    if (!cap) {
-      setSubtopico('');
-      setTema('');
-      return;
-    }
-    // Auto-preencher subtópico e tema se houver correlação direta
-    const matchedQ = existingQuestions.find((q) => q.capitulo === cap && q.subtopico);
-    if (matchedQ) {
-      if (matchedQ.subtopico && !subtopico) setSubtopico(matchedQ.subtopico);
-      if (matchedQ.tema_subtopico && !tema) setTema(matchedQ.tema_subtopico);
-    }
+  };
+
+  const handleApplyHierarchyToAllExtracted = () => {
+    if (extractedQuestions.length === 0) return;
+    setExtractedQuestions((prev) =>
+      prev.map((q) => ({
+        ...q,
+        materia: nomeMateria.trim() || 'IPO-2',
+        modulo: moduloMateria.trim(),
+        capitulo: capituloMateria.trim(),
+        subtopico: subtopico.trim(),
+        tema_subtopico: tema.trim(),
+        peso: Number(pesoQuestao) > 0 ? Number(pesoQuestao) : 1,
+      }))
+    );
+    setSaveSuccessMsg(
+      `Hierarquia (${nomeMateria || 'Geral'}${moduloMateria ? ' > ' + moduloMateria : ''}${capituloMateria ? ' > ' + capituloMateria : ''}${subtopico ? ' > ' + subtopico : ''}) aplicada com sucesso a todas as ${extractedQuestions.length} questões extraídas!`
+    );
+    setTimeout(() => setSaveSuccessMsg(null), 3500);
   };
 
   // Seleção múltipla para exclusão no banco de dados
@@ -204,7 +258,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     // Contexto hierárquico definido pelo usuário
     const context = {
       materia: nomeMateria.trim() || 'IPO-2',
-      modulo: moduloMateria.trim() || nomeMateria.trim() || 'IPO-2',
+      modulo: moduloMateria.trim() || '',
       capitulo: capituloMateria.trim(),
       subtopico: subtopico.trim(),
       tema_subtopico: tema.trim(),
@@ -299,7 +353,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         const validAlts = q.alternativas.filter((a) => a.texto.trim().length > 0);
 
         const questionPayload = {
-          modulo: (q.modulo || moduloMateria || nomeMateria || 'IPO-2').trim(),
+          materia: (q.materia || nomeMateria || 'IPO-2').trim(),
+          modulo: (q.modulo || moduloMateria || '').trim(),
           capitulo: (q.capitulo || capituloMateria || '').trim(),
           subtopico: (q.subtopico || subtopico || '').trim(),
           tema_subtopico: (q.tema_subtopico || tema || '').trim(),
@@ -592,13 +647,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       {activeTab === 'lote' ? (
         <div className="space-y-6">
-          {/* Seção 1: Configuração Hierárquica Solicitada */}
+          {/* Seção 1: Configuração Hierárquica com Dropdowns de itens já subidos */}
           <div className="p-4 sm:p-5 bg-gradient-to-br from-slate-50 to-purple-50/30 rounded-2xl border border-slate-200">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Layers className="w-4 h-4 text-purple-600" />
-                1. Configuração Padrão dos Campos (IPO-2)
-              </h3>
+              <div>
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-purple-600" />
+                  1. Filtros e Hierarquia de Importação (Módulos, Capítulos e Subtópicos já subidos)
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Selecione itens existentes no Dropdown ou digite novos títulos. Para o tópico 2.2, basta selecionar o Capítulo 2 no Dropdown e digitar 2.2 no Subtópico.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => {
@@ -609,163 +669,193 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   setTema('');
                   setPesoQuestao(1);
                 }}
-                className="text-[11px] px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-800 font-semibold rounded-md transition-colors cursor-pointer self-start sm:self-auto"
+                className="text-[11px] px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-800 font-semibold rounded-md transition-colors cursor-pointer self-start sm:self-auto shrink-0"
               >
-                Restaurar Padrão (Matéria IPO-2 / Módulo, Cap, Sub, Tema em Branco)
+                Restaurar Padrão (IPO-2)
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-sky-950 mb-1">
-                  Matéria *
-                </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {/* 1. Matéria */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-sky-950">
+                    1. Matéria *
+                  </label>
+                  {existingMaterias.length > 0 && (
+                    <span className="text-[10px] font-semibold text-sky-800 bg-sky-100 px-1.5 py-0.2 rounded">
+                      {existingMaterias.length} na base
+                    </span>
+                  )}
+                </div>
+                <select
+                  id="select-existing-materia"
+                  value={existingMaterias.includes(nomeMateria) ? nomeMateria : ''}
+                  onChange={(e) => {
+                    if (e.target.value) setNomeMateria(e.target.value);
+                  }}
+                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs cursor-pointer"
+                >
+                  <option value="">(Selecionar Matéria Cadastrada...)</option>
+                  {existingMaterias.map((mat) => (
+                    <option key={mat} value={mat}>
+                      {mat}
+                    </option>
+                  ))}
+                </select>
                 <input
                   id="input-nome-materia"
                   type="text"
                   value={nomeMateria}
                   onChange={(e) => setNomeMateria(e.target.value)}
-                  placeholder="IPO-2"
-                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-semibold text-slate-900 placeholder-slate-400 shadow-2xs"
+                  placeholder="Ou digite nova matéria..."
+                  className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-sky-500 font-semibold text-slate-900 placeholder-slate-400"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Módulo (Em branco)
-                </label>
+              {/* 2. Módulo */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    2. Módulo
+                  </label>
+                  {existingModulos.length > 0 && (
+                    <span className="text-[10px] font-semibold text-indigo-800 bg-indigo-100 px-1.5 py-0.2 rounded">
+                      {existingModulos.length} na base
+                    </span>
+                  )}
+                </div>
+                <select
+                  id="select-existing-modulo"
+                  value={existingModulos.includes(moduloMateria) ? moduloMateria : ''}
+                  onChange={(e) => setModuloMateria(e.target.value)}
+                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs cursor-pointer"
+                >
+                  <option value="">(Selecionar Módulo Cadastrado...)</option>
+                  {existingModulos.map((mod) => (
+                    <option key={mod} value={mod}>
+                      {mod}
+                    </option>
+                  ))}
+                </select>
                 <input
                   id="input-modulo-materia"
                   type="text"
                   value={moduloMateria}
                   onChange={(e) => setModuloMateria(e.target.value)}
-                  placeholder="(Em branco)"
-                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 placeholder-slate-400 shadow-2xs"
+                  placeholder="(Em branco ou novo módulo...)"
+                  className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-sky-500 text-slate-900 placeholder-slate-400"
                 />
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
+              {/* 3. Capítulo */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
                   <label className="block text-xs font-semibold text-slate-700">
-                    Capítulo (Em branco)
+                    3. Capítulo
                   </label>
+                  {existingCapitulos.length > 0 && (
+                    <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded">
+                      {existingCapitulos.length} na base
+                    </span>
+                  )}
                 </div>
-                {existingCapitulos.length > 0 ? (
-                  <div className="space-y-1">
-                    <select
-                      id="select-existing-capitulo"
-                      value={capituloMateria}
-                      onChange={(e) => handleSelectExistingCapitulo(e.target.value)}
-                      className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs"
-                    >
-                      <option value="">(Selecionar Capítulo Criado...)</option>
-                      {existingCapitulos.map((cap) => (
-                        <option key={cap} value={cap}>
-                          {cap}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      id="input-capitulo-materia"
-                      type="text"
-                      value={capituloMateria}
-                      onChange={(e) => setCapituloMateria(e.target.value)}
-                      placeholder="Ou digite novo capítulo..."
-                      className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-sky-500 text-slate-900 placeholder-slate-400"
-                    />
-                  </div>
-                ) : (
-                  <input
-                    id="input-capitulo-materia"
-                    type="text"
-                    value={capituloMateria}
-                    onChange={(e) => setCapituloMateria(e.target.value)}
-                    placeholder="(Em branco)"
-                    className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 placeholder-slate-400 shadow-2xs"
-                  />
-                )}
+                <select
+                  id="select-existing-capitulo"
+                  value={existingCapitulos.includes(capituloMateria) ? capituloMateria : ''}
+                  onChange={(e) => handleSelectExistingCapitulo(e.target.value)}
+                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs cursor-pointer"
+                >
+                  <option value="">(Selecionar Capítulo Cadastrado...)</option>
+                  {existingCapitulos.map((cap) => (
+                    <option key={cap} value={cap}>
+                      {cap}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  id="input-capitulo-materia"
+                  type="text"
+                  value={capituloMateria}
+                  onChange={(e) => setCapituloMateria(e.target.value)}
+                  placeholder="Ex: Capítulo 2 ou digitar novo..."
+                  className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-sky-500 text-slate-900 placeholder-slate-400"
+                />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Subtópico (Em branco)
-                </label>
-                {relatedSubtopicos.length > 0 ? (
-                  <div className="space-y-1">
-                    <select
-                      value={subtopico}
-                      onChange={(e) => setSubtopico(e.target.value)}
-                      className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs"
-                    >
-                      <option value="">(Selecionar Subtópico...)</option>
-                      {relatedSubtopicos.map((sub) => (
-                        <option key={sub} value={sub}>
-                          {sub}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      id="input-subtopico"
-                      type="text"
-                      value={subtopico}
-                      onChange={(e) => setSubtopico(e.target.value)}
-                      placeholder="Ou digite novo subtópico..."
-                      className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-sky-500 text-slate-900 placeholder-slate-400"
-                    />
-                  </div>
-                ) : (
-                  <input
-                    id="input-subtopico"
-                    type="text"
-                    value={subtopico}
-                    onChange={(e) => setSubtopico(e.target.value)}
-                    placeholder="(Em branco)"
-                    className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 placeholder-slate-400 shadow-2xs"
-                  />
-                )}
+              {/* 4. Subtópico */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    4. Subtópico
+                  </label>
+                  {relatedSubtopicos.length > 0 && (
+                    <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded">
+                      {relatedSubtopicos.length} na base
+                    </span>
+                  )}
+                </div>
+                <select
+                  id="select-existing-subtopico"
+                  value={relatedSubtopicos.includes(subtopico) ? subtopico : ''}
+                  onChange={(e) => setSubtopico(e.target.value)}
+                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs cursor-pointer"
+                >
+                  <option value="">(Selecionar Subtópico Cadastrado...)</option>
+                  {relatedSubtopicos.map((sub) => (
+                    <option key={sub} value={sub}>
+                      {sub}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  id="input-subtopico"
+                  type="text"
+                  value={subtopico}
+                  onChange={(e) => setSubtopico(e.target.value)}
+                  placeholder="Ex: 2.2 ou digitar novo..."
+                  className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-sky-500 text-slate-900 placeholder-slate-400"
+                />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Tema (Em branco)
-                </label>
-                {relatedTemas.length > 0 ? (
-                  <div className="space-y-1">
-                    <select
-                      value={tema}
-                      onChange={(e) => setTema(e.target.value)}
-                      className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs"
-                    >
-                      <option value="">(Selecionar Tema...)</option>
-                      {relatedTemas.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      id="input-tema"
-                      type="text"
-                      value={tema}
-                      onChange={(e) => setTema(e.target.value)}
-                      placeholder="Ou digite novo tema..."
-                      className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-sky-500 text-slate-900 placeholder-slate-400"
-                    />
-                  </div>
-                ) : (
-                  <input
-                    id="input-tema"
-                    type="text"
-                    value={tema}
-                    onChange={(e) => setTema(e.target.value)}
-                    placeholder="(Em branco)"
-                    className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 placeholder-slate-400 shadow-2xs"
-                  />
-                )}
+              {/* 5. Tema / Detalhe */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    5. Tema / Detalhe
+                  </label>
+                  {relatedTemas.length > 0 && (
+                    <span className="text-[10px] font-semibold text-purple-800 bg-purple-100 px-1.5 py-0.2 rounded">
+                      {relatedTemas.length} na base
+                    </span>
+                  )}
+                </div>
+                <select
+                  id="select-existing-tema"
+                  value={relatedTemas.includes(tema) ? tema : ''}
+                  onChange={(e) => setTema(e.target.value)}
+                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs cursor-pointer"
+                >
+                  <option value="">(Selecionar Tema Cadastrado...)</option>
+                  {relatedTemas.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  id="input-tema"
+                  type="text"
+                  value={tema}
+                  onChange={(e) => setTema(e.target.value)}
+                  placeholder="(Em branco ou novo tema...)"
+                  className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-sky-500 text-slate-900 placeholder-slate-400"
+                />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+              {/* 6. Peso */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700">
                   Peso (Pontos) *
                 </label>
                 <input
@@ -776,9 +866,69 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   value={pesoQuestao}
                   onChange={(e) => setPesoQuestao(Math.max(0.1, Number(e.target.value) || 1))}
                   placeholder="1"
-                  className="w-full text-xs sm:text-sm p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-bold text-sky-950 placeholder-slate-400 shadow-2xs"
+                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-bold text-sky-950 placeholder-slate-400 shadow-2xs"
                 />
+                <span className="block text-[10px] text-slate-400">
+                  Padrão: 1 ponto por acerto
+                </span>
               </div>
+            </div>
+
+            {/* Barra de Destino & Aplicação Rápida da Hierarquia */}
+            <div className="mt-3 pt-3 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+              <div className="flex flex-wrap items-center gap-1.5 text-slate-700">
+                <span className="font-bold text-slate-500 uppercase text-[10px] tracking-wider">
+                  Destino das Questões:
+                </span>
+                <span className="px-2 py-0.5 rounded bg-sky-700 text-white font-bold text-[11px]">
+                  Matéria: {nomeMateria || 'IPO-2'}
+                </span>
+                {moduloMateria ? (
+                  <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-900 border border-indigo-200 font-semibold text-[11px]">
+                    Módulo: {moduloMateria}
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200 text-[11px]">
+                    Módulo: (Geral)
+                  </span>
+                )}
+                {capituloMateria ? (
+                  <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200 font-semibold text-[11px]">
+                    Capítulo: {capituloMateria}
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200 text-[11px]">
+                    Capítulo: (Em branco)
+                  </span>
+                )}
+                {subtopico ? (
+                  <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-200 font-semibold text-[11px]">
+                    Subtópico: {subtopico}
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200 text-[11px]">
+                    Subtópico: (Em branco)
+                  </span>
+                )}
+                {tema && (
+                  <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-900 border border-purple-200 font-semibold text-[11px]">
+                    Tema: {tema}
+                  </span>
+                )}
+              </div>
+
+              {extractedQuestions.length > 0 && (
+                <button
+                  id="btn-aplicar-hierarquia-lote"
+                  type="button"
+                  onClick={handleApplyHierarchyToAllExtracted}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-bold rounded-lg shadow-xs transition-colors cursor-pointer self-start sm:self-auto shrink-0"
+                  title="Atualizar Matéria, Módulo, Capítulo e Subtópico de todas as questões extraídas no lote"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Aplicar Hierarquia Acima ao Lote Extraído ({extractedQuestions.length})
+                </button>
+              )}
             </div>
           </div>
 
@@ -1032,9 +1182,14 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                               }
                               return (
                                 <>
-                                  {q.modulo && (
-                                    <span className="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
-                                      {q.modulo}
+                                  {(q.materia || nomeMateria) && (
+                                    <span className="font-bold text-sky-800 bg-sky-100 border border-sky-300 px-2 py-0.5 rounded text-xs">
+                                      {q.materia || nomeMateria}
+                                    </span>
+                                  )}
+                                  {(q.modulo || moduloMateria) && (
+                                    <span className="font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded text-xs">
+                                      {q.modulo || moduloMateria}
                                     </span>
                                   )}
                                   {q.capitulo && (

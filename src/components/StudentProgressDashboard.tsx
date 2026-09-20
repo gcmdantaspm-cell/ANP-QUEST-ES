@@ -13,6 +13,7 @@ import {
   Legend,
 } from 'recharts';
 import { Question } from '../types/question';
+import { getQuestionMateria } from '../utils/parser';
 import {
   PieChart as PieIcon,
   CheckCircle2,
@@ -71,7 +72,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
 
     Object.entries(userAnswers).forEach(([qId, ans]) => {
       const question = questionMap.get(qId);
-      const modulo = ans.modulo || question?.modulo || 'Outras Disciplinas';
+      const modulo = ans.modulo || (question ? getQuestionMateria(question) : 'Outras Disciplinas');
 
       if (!disciplinasMap[modulo]) {
         disciplinasMap[modulo] = { acertos: 0, erros: 0, total: 0 };
@@ -97,7 +98,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
   const listaDisciplinas = useMemo(() => {
     const set = new Set<string>();
     questions.forEach((q) => {
-      if (q.modulo) set.add(q.modulo);
+      set.add(getQuestionMateria(q));
     });
     return Array.from(set).sort();
   }, [questions]);

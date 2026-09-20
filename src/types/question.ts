@@ -6,6 +6,7 @@ export interface AlternativeItem {
 export interface Question {
   id?: string;
   // Hierarquia
+  materia?: string;
   modulo: string;
   capitulo: string;
   subtopico?: string;
@@ -34,6 +35,7 @@ export interface CommentItem {
 }
 
 export interface FilterOptions {
+  materia: string;
   modulo: string;
   capitulo: string;
   subtopico: string;

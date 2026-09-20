@@ -1,6 +1,7 @@
 import React from 'react';
 import { FilterOptions, Question } from '../types/question';
 import { Filter, Search, X, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
+import { getQuestionMateria, getQuestionModulo } from '../utils/parser';
 
 interface HierarchyFilterProps {
   questions: Question[];
@@ -17,49 +18,76 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
   filteredCount,
   totalCount,
 }) => {
-  // Extrair opções únicas para cada nível da hierarquia
-  const modulos = Array.from(
-    new Set(questions.map((q) => q.modulo).filter(Boolean))
-  ).sort();
+  // 1. Lista de Matérias únicas
+  const materias = Array.from(
+    new Set(questions.map((q) => getQuestionMateria(q)).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-  // Capítulos do módulo selecionado (ou de todos)
+  // 2. Módulos da matéria selecionada (ou de todas)
+  const modulos = Array.from(
+    new Set(
+      questions
+        .filter((q) => !filters.materia || getQuestionMateria(q) === filters.materia)
+        .map((q) => getQuestionModulo(q))
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+  // 3. Capítulos da matéria e módulo selecionados
   const capitulos = Array.from(
     new Set(
       questions
-        .filter((q) => !filters.modulo || q.modulo === filters.modulo)
+        .filter(
+          (q) =>
+            (!filters.materia || getQuestionMateria(q) === filters.materia) &&
+            (!filters.modulo || getQuestionModulo(q) === filters.modulo)
+        )
         .map((q) => q.capitulo)
         .filter(Boolean)
     )
-  ).sort();
+  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-  // Subtópicos do capítulo selecionado
+  // 4. Subtópicos do capítulo selecionado
   const subtopicos = Array.from(
     new Set(
       questions
         .filter(
           (q) =>
-            (!filters.modulo || q.modulo === filters.modulo) &&
+            (!filters.materia || getQuestionMateria(q) === filters.materia) &&
+            (!filters.modulo || getQuestionModulo(q) === filters.modulo) &&
             (!filters.capitulo || q.capitulo === filters.capitulo)
         )
         .map((q) => q.subtopico)
         .filter((s): s is string => Boolean(s))
     )
-  ).sort();
+  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-  // Temas do subtópico selecionado
+  // 5. Temas do subtópico selecionado
   const temas = Array.from(
     new Set(
       questions
         .filter(
           (q) =>
-            (!filters.modulo || q.modulo === filters.modulo) &&
+            (!filters.materia || getQuestionMateria(q) === filters.materia) &&
+            (!filters.modulo || getQuestionModulo(q) === filters.modulo) &&
             (!filters.capitulo || q.capitulo === filters.capitulo) &&
             (!filters.subtopico || q.subtopico === filters.subtopico)
         )
         .map((q) => q.tema_subtopico)
         .filter((t): t is string => Boolean(t))
     )
-  ).sort();
+  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+  const handleMateriaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    onChangeFilters({
+      ...filters,
+      materia: e.target.value,
+      modulo: '',
+      capitulo: '',
+      subtopico: '',
+      tema_subtopico: '',
+    });
+  };
 
   const handleModuloChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onChangeFilters({
@@ -111,6 +139,7 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
 
   const handleResetFilters = () => {
     onChangeFilters({
+      materia: '',
       modulo: '',
       capitulo: '',
       subtopico: '',
@@ -121,7 +150,8 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
   };
 
   const hasActiveFilters = Boolean(
-    filters.modulo ||
+    filters.materia ||
+      filters.modulo ||
       filters.capitulo ||
       filters.subtopico ||
       filters.tema_subtopico ||
@@ -147,7 +177,7 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
               </span>
             </h3>
             <p className="text-xs text-zinc-400">
-              Matéria / Módulo &gt; Capítulo &gt; Subtópico &gt; Tema
+              Matéria &gt; Módulo &gt; Capítulo &gt; Subtópico &gt; Tema
             </p>
           </div>
         </div>
@@ -170,9 +200,9 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
         </div>
       </div>
 
-      {/* Grid de Seleção Hierárquica em Cascata */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        {/* Nível 1: Matéria / Módulo */}
+      {/* Grid de Seleção Hierárquica em Cascata com Matéria e Módulo Separados */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+        {/* Nível 1: Matéria */}
         <div>
           <label
             htmlFor="filter-materia"
@@ -182,11 +212,37 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
           </label>
           <select
             id="filter-materia"
-            value={filters.modulo}
-            onChange={handleModuloChange}
+            value={filters.materia}
+            onChange={handleMateriaChange}
             className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 font-medium transition-colors"
           >
             <option value="">Todas as Matérias</option>
+            {materias.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Nível 2: Módulo */}
+        <div>
+          <label
+            htmlFor="filter-modulo"
+            className="block text-xs font-bold text-indigo-400 mb-1 uppercase tracking-wider"
+          >
+            2. Módulo
+          </label>
+          <select
+            id="filter-modulo"
+            value={filters.modulo}
+            onChange={handleModuloChange}
+            disabled={modulos.length === 0}
+            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
+          >
+            <option value="">
+              {modulos.length === 0 ? '(Sem módulos específicos)' : '(Todos os Módulos)'}
+            </option>
             {modulos.map((m) => (
               <option key={m} value={m}>
                 {m}
@@ -195,13 +251,13 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
           </select>
         </div>
 
-        {/* Nível 2: Capítulo */}
+        {/* Nível 3: Capítulo */}
         <div>
           <label
             htmlFor="filter-capitulo"
             className="block text-xs font-bold text-zinc-300 mb-1 uppercase tracking-wider"
           >
-            2. Capítulo
+            3. Capítulo
           </label>
           <select
             id="filter-capitulo"
@@ -219,13 +275,13 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
           </select>
         </div>
 
-        {/* Nível 3: Subtópico */}
+        {/* Nível 4: Subtópico */}
         <div>
           <label
             htmlFor="filter-subtopico"
             className="block text-xs font-bold text-zinc-400 mb-1 uppercase tracking-wider"
           >
-            3. Subtópico (Opcional)
+            4. Subtópico (Opcional)
           </label>
           <select
             id="filter-subtopico"
@@ -243,13 +299,13 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
           </select>
         </div>
 
-        {/* Nível 4: Tema do Subtópico */}
+        {/* Nível 5: Tema do Subtópico */}
         <div>
           <label
             htmlFor="filter-tema"
             className="block text-xs font-bold text-zinc-400 mb-1 uppercase tracking-wider"
           >
-            4. Tema / Detalhe (Opcional)
+            5. Tema / Detalhe (Opcional)
           </label>
           <select
             id="filter-tema"

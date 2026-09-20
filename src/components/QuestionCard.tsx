@@ -173,9 +173,10 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
       <div className="flex-1 w-full space-y-3">
         {/* BLOCO PRINCIPAL COM FUNDO AZUL CLARO (#dce9ea) CONFORME A IMAGEM */}
         <div className="bg-[#dce9ea] border border-[#c6dcde] rounded-2xl p-5 sm:p-7 shadow-xs text-slate-900">
-          {/* CABEÇALHO FORMATADO: Questão X - (Módulo - Capítulo - Subtópico - Tema) */}
+          {/* CABEÇALHO FORMATADO: Questão X - (Matéria > Módulo > Capítulo > Subtópico > Tema) */}
           {(() => {
             const segments = getHierarchySegments({
+              materia: question.materia,
               modulo: question.modulo,
               capitulo: question.capitulo,
               subtopico: question.subtopico,
@@ -197,9 +198,12 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                     <div className="inline-flex flex-wrap items-center gap-1.5">
                       {segments.map((seg, sIdx) => {
                         let badgeClass = '';
-                        if (seg.type === 'modulo') {
+                        if (seg.type === 'materia') {
                           badgeClass =
-                            'bg-white text-sky-900 border-sky-300 font-bold';
+                            'bg-sky-700 text-white border-sky-800 font-bold';
+                        } else if (seg.type === 'modulo') {
+                          badgeClass =
+                            'bg-white text-indigo-900 border-indigo-300 font-bold';
                         } else if (seg.type === 'capitulo') {
                           badgeClass =
                             'bg-white/80 text-slate-800 border-[#bed3d6] font-semibold';
