@@ -112,7 +112,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         className="w-full sm:w-36 shrink-0 bg-[#d4e4e6] rounded-2xl border border-[#bed3d6] p-3.5 text-xs shadow-xs space-y-2.5 text-slate-800"
       >
         <div className="font-extrabold text-slate-900 text-sm sm:text-base tracking-tight flex items-center justify-between">
-          <span>Questão {index + 1}</span>
+          <span>Questão {question.numero_questao || index + 1}</span>
           <span className="w-2 h-2 rounded-full bg-sky-600" />
         </div>
 
@@ -187,7 +187,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               <div className="mb-4 pb-3 border-b border-[#cadbdc] flex flex-wrap items-center gap-1.5 sm:gap-2">
                 <span className="font-extrabold text-slate-900 text-sm sm:text-base tracking-tight flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-sky-600 inline-block shadow-2xs" />
-                  Questão {index + 1}
+                  Questão {question.numero_questao || index + 1}
                 </span>
 
                 {segments.length > 0 && (

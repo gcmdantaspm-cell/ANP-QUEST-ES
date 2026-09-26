@@ -2,6 +2,7 @@ import { AlternativeItem } from './question';
 
 export interface SimuladoQuestion {
   id: string;
+  numero_questao?: number;
   materia: string; // Apenas a matéria é obrigatória
   peso: number; // Peso da questão (ex: 1, 2, 3...)
   enunciado: string;

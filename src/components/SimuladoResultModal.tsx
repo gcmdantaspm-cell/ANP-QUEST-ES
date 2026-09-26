@@ -218,7 +218,7 @@ export const SimuladoResultModal: React.FC<SimuladoResultModalProps> = ({
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-2.5">
                       <div className="flex items-center gap-2">
                         <span className="font-extrabold text-sky-400 bg-zinc-900 px-2 py-0.5 rounded border border-sky-500/30">
-                          Questão #{idx + 1}
+                          Questão #{q.numero_questao || idx + 1}
                         </span>
                         <span className="font-bold text-zinc-300 bg-zinc-800 px-2 py-0.5 rounded">
                           {q.materia}

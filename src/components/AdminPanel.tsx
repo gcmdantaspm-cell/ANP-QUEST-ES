@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth, ADMIN_EMAIL, isUserAdminEmail } from '../context/AuthContext';
 import { Question, AlternativeItem } from '../types/question';
 import {
@@ -6,6 +6,7 @@ import {
   parseBatchRawQuestions,
   ParsedQuestionResult,
   SAMPLE_QUESTIONS_RAW,
+  SAMPLE_BLOCO_462,
   formatEtiqueta,
   getQuestionMateria,
   getQuestionModulo,
@@ -36,6 +37,15 @@ import {
   AlertCircle,
   X,
   IdCard,
+  ChevronDown,
+  ChevronUp,
+  BarChart3,
+  Tag,
+  Filter,
+  Check,
+  Edit3,
+  SlidersHorizontal,
+  FolderTree,
 } from 'lucide-react';
 import { MatriculaManager } from './MatriculaManager';
 
@@ -245,15 +255,58 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     );
   }
 
+  // Controle de Organização Automática ao Colar ou Digitar
+  const [autoOrganizeEnabled, setAutoOrganizeEnabled] = useState(true);
+
+  // Estados de visualização e filtros dos cartões
+  const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
+  const [hierarchyFilter, setHierarchyFilter] = useState<{
+    type: 'materia' | 'modulo' | 'capitulo' | 'subtopico' | 'tema';
+    value: string;
+  } | null>(null);
+  const [activeBreakdownTab, setActiveBreakdownTab] = useState<
+    'all' | 'materia' | 'modulo' | 'capitulo' | 'subtopico' | 'tema'
+  >('all');
+
+  // Modo de visualização do Banco de Questões (Aba Gerenciar): 'cards' (Cartões Hierárquicos) ou 'lista' (Lista Simples)
+  const [gerenciarViewMode, setGerenciarViewMode] = useState<'cards' | 'lista'>('cards');
+  const [gerenciarCollapsedCards, setGerenciarCollapsedCards] = useState<Set<string>>(new Set());
+  const [gerenciarHierarchyFilter, setGerenciarHierarchyFilter] = useState<{
+    type: 'materia' | 'modulo' | 'capitulo' | 'subtopico' | 'tema';
+    value: string;
+  } | null>(null);
+
+  // Modal para edição de hierarquia de um cartão em massa
+  const [cardHierarchyModal, setCardHierarchyModal] = useState<{
+    cardKey: string;
+    materia: string;
+    modulo: string;
+    capitulo: string;
+    subtopico: string;
+    tema: string;
+    indices: number[];
+  } | null>(null);
+
   // Executar organização automática no texto bruto
-  const handleOrganizarAutomaticamente = () => {
-    if (!rawText.trim()) {
-      setErrorMessage('Por favor, cole o texto das questões no campo abaixo.');
+  const handleOrganizarAutomaticamente = (
+    textOverride?: string,
+    commentsOverride?: string,
+    silent = false
+  ) => {
+    const textToProcess = (typeof textOverride === 'string' ? textOverride : rawText).trim();
+    if (!textToProcess) {
+      if (!silent) {
+        setErrorMessage('Por favor, cole o texto das questões no campo abaixo.');
+      }
       return;
     }
 
-    setErrorMessage(null);
-    setSaveSuccessMsg(null);
+    if (!silent) {
+      setErrorMessage(null);
+      setSaveSuccessMsg(null);
+    }
+
+    const commentsToProcess = typeof commentsOverride === 'string' ? commentsOverride : rawCommentsText;
 
     // Contexto hierárquico definido pelo usuário
     const context = {
@@ -265,14 +318,307 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       peso: Number(pesoQuestao) > 0 ? Number(pesoQuestao) : 1,
     };
 
-    const parsedList = parseBatchRawQuestions(rawText, rawCommentsText, context);
+    const parsedList = parseBatchRawQuestions(textToProcess, commentsToProcess, context, existingQuestions);
 
     if (parsedList.length === 0) {
-      setErrorMessage('Não foi possível identificar questões no texto colado. Verifique o formato.');
+      if (!silent) {
+        setErrorMessage('Não foi possível identificar questões no texto colado. Verifique o formato.');
+      }
       return;
     }
 
     setExtractedQuestions(parsedList);
+
+    // Sincronizar os campos do painel de importação com a hierarquia detectada no texto (ex: Capítulo 4, Tópico 4.6, Tema 4.6.2)
+    if (parsedList.length > 0) {
+      const first = parsedList[0];
+      if (first.capitulo) setCapituloMateria(first.capitulo);
+      if (first.subtopico) setSubtopico(first.subtopico);
+      if (first.tema_subtopico) setTema(first.tema_subtopico);
+      if (first.modulo) setModuloMateria(first.modulo);
+      if (first.materia) setNomeMateria(first.materia);
+
+      const partsCount = new Set(
+        parsedList.map((q) => `${q.materia}|${q.modulo}|${q.capitulo}|${q.subtopico}|${q.tema_subtopico}`)
+      ).size;
+
+      setSaveSuccessMsg(
+        `⚡ ${parsedList.length} questão(ões) organizadas e separadas em ${partsCount} cartão(ões) por Matéria, Módulo, Capítulo, Subtópico e Tema!`
+      );
+      setTimeout(() => setSaveSuccessMsg(null), 4500);
+    }
+  };
+
+  // Monitorar alterações no texto para auto-organizar com debounce
+  useEffect(() => {
+    if (!autoOrganizeEnabled || !rawText.trim() || rawText.trim().length < 15) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      // Se houver indícios de questões (alternativas A-E, Certo/Errado, ou marcadores de questões 1, 2, 3...)
+      if (/(?:[a-eA-E][\)\].\-–—]|certo|errado|gabarito|\b\d+\s*[\.\)\-–—:]|quest[ãa]o\s*\d+)/i.test(rawText)) {
+        handleOrganizarAutomaticamente(rawText, rawCommentsText, true);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [rawText, rawCommentsText, autoOrganizeEnabled]);
+
+  // Capturar evento de Colar (Paste) para processamento instantâneo
+  const handlePasteQuestions = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = e.clipboardData.getData('text');
+    if (pasted && pasted.trim().length > 15) {
+      setRawText(pasted);
+      setTimeout(() => {
+        handleOrganizarAutomaticamente(pasted, rawCommentsText, false);
+      }, 50);
+    }
+  };
+
+  // Estatísticas e contagens detalhadas da hierarquia do lote extraído
+  const hierarchyBreakdown = useMemo(() => {
+    const materiasMap = new Map<string, number>();
+    const modulosMap = new Map<string, number>();
+    const capitulosMap = new Map<string, number>();
+    const subtopicosMap = new Map<string, number>();
+    const temasMap = new Map<string, number>();
+
+    extractedQuestions.forEach((q) => {
+      const mat = q.materia || nomeMateria || 'IPO-2';
+      const mod = q.modulo || moduloMateria || '(Geral)';
+      const cap = q.capitulo || capituloMateria || '(Geral)';
+      const sub = q.subtopico || subtopico || '(Sem subtópico)';
+      const tm = q.tema_subtopico || tema || '(Sem tema)';
+
+      materiasMap.set(mat, (materiasMap.get(mat) || 0) + 1);
+      modulosMap.set(mod, (modulosMap.get(mod) || 0) + 1);
+      capitulosMap.set(cap, (capitulosMap.get(cap) || 0) + 1);
+      subtopicosMap.set(sub, (subtopicosMap.get(sub) || 0) + 1);
+      temasMap.set(tm, (temasMap.get(tm) || 0) + 1);
+    });
+
+    return {
+      totalQuestoes: extractedQuestions.length,
+      materias: Array.from(materiasMap.entries()).map(([name, count]) => ({ name, count })),
+      modulos: Array.from(modulosMap.entries()).map(([name, count]) => ({ name, count })),
+      capitulos: Array.from(capitulosMap.entries()).map(([name, count]) => ({ name, count })),
+      subtopicos: Array.from(subtopicosMap.entries()).map(([name, count]) => ({ name, count })),
+      temas: Array.from(temasMap.entries()).map(([name, count]) => ({ name, count })),
+    };
+  }, [extractedQuestions, nomeMateria, moduloMateria, capituloMateria, subtopico, tema]);
+
+  // Estatísticas e contagens da hierarquia de todo o banco salvo no Firestore
+  const existingHierarchyBreakdown = useMemo(() => {
+    const materiasMap = new Map<string, number>();
+    const modulosMap = new Map<string, number>();
+    const capitulosMap = new Map<string, number>();
+    const subtopicosMap = new Map<string, number>();
+    const temasMap = new Map<string, number>();
+
+    existingQuestions.forEach((q) => {
+      const mat = getQuestionMateria(q) || 'IPO-2';
+      const mod = getQuestionModulo(q) || '(Geral)';
+      const cap = q.capitulo || '(Geral)';
+      const sub = q.subtopico || '(Sem subtópico)';
+      const tm = q.tema_subtopico || '(Sem tema)';
+
+      materiasMap.set(mat, (materiasMap.get(mat) || 0) + 1);
+      modulosMap.set(mod, (modulosMap.get(mod) || 0) + 1);
+      capitulosMap.set(cap, (capitulosMap.get(cap) || 0) + 1);
+      subtopicosMap.set(sub, (subtopicosMap.get(sub) || 0) + 1);
+      temasMap.set(tm, (temasMap.get(tm) || 0) + 1);
+    });
+
+    return {
+      totalQuestoes: existingQuestions.length,
+      materias: Array.from(materiasMap.entries()).map(([name, count]) => ({ name, count })),
+      modulos: Array.from(modulosMap.entries()).map(([name, count]) => ({ name, count })),
+      capitulos: Array.from(capitulosMap.entries()).map(([name, count]) => ({ name, count })),
+      subtopicos: Array.from(subtopicosMap.entries()).map(([name, count]) => ({ name, count })),
+      temas: Array.from(temasMap.entries()).map(([name, count]) => ({ name, count })),
+    };
+  }, [existingQuestions]);
+
+  // Separação das questões extraídas em cartões por matéria, módulo, capítulo, subtópico e tema
+  const extractedParts = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        key: string;
+        capitulo: string;
+        subtopico: string;
+        tema: string;
+        modulo?: string;
+        materia?: string;
+        isCapituloExisting: boolean;
+        isSubtopicoExisting: boolean;
+        isTemaExisting: boolean;
+        isModuloExisting: boolean;
+        items: { question: ParsedQuestionResult; index: number }[];
+      }
+    >();
+
+    extractedQuestions.forEach((q, idx) => {
+      const cap = q.capitulo || capituloMateria || '';
+      const sub = q.subtopico || subtopico || '';
+      const tm = q.tema_subtopico || tema || '';
+      const mod = q.modulo || moduloMateria || '';
+      const mat = q.materia || nomeMateria || 'IPO-2';
+
+      const key = `${mat}___${mod}___${cap}___${sub}___${tm}`;
+
+      if (!map.has(key)) {
+        const isCapExisting = existingQuestions.some(
+          (eq) => eq.capitulo && eq.capitulo.trim().toLowerCase() === cap.trim().toLowerCase()
+        );
+        const isSubExisting = existingQuestions.some(
+          (eq) => eq.subtopico && eq.subtopico.trim().toLowerCase() === sub.trim().toLowerCase()
+        );
+        const isTemaExisting = existingQuestions.some(
+          (eq) => eq.tema_subtopico && eq.tema_subtopico.trim().toLowerCase() === tm.trim().toLowerCase()
+        );
+        const isModExisting = existingQuestions.some(
+          (eq) => getQuestionModulo(eq).toLowerCase() === mod.trim().toLowerCase()
+        );
+
+        map.set(key, {
+          key,
+          capitulo: cap,
+          subtopico: sub,
+          tema: tm,
+          modulo: mod,
+          materia: mat,
+          isCapituloExisting: isCapExisting,
+          isSubtopicoExisting: isSubExisting,
+          isTemaExisting: isTemaExisting,
+          isModuloExisting: isModExisting,
+          items: [],
+        });
+      }
+
+      map.get(key)!.items.push({ question: q, index: idx });
+    });
+
+    return Array.from(map.values());
+  }, [extractedQuestions, existingQuestions, capituloMateria, subtopico, tema, moduloMateria, nomeMateria]);
+
+  // Separação das questões do banco (Firestore) em cartões hierárquicos
+  const existingCards = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        key: string;
+        capitulo: string;
+        subtopico: string;
+        tema: string;
+        modulo: string;
+        materia: string;
+        questions: Question[];
+      }
+    >();
+
+    existingQuestions.forEach((q) => {
+      const mat = getQuestionMateria(q) || 'IPO-2';
+      const mod = getQuestionModulo(q) || '(Geral)';
+      const cap = q.capitulo || '(Geral)';
+      const sub = q.subtopico || '(Sem subtópico)';
+      const tm = q.tema_subtopico || '(Sem tema)';
+
+      const key = `${mat}___${mod}___${cap}___${sub}___${tm}`;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          materia: mat,
+          modulo: mod,
+          capitulo: cap,
+          subtopico: sub,
+          tema: tm,
+          questions: [],
+        });
+      }
+
+      map.get(key)!.questions.push(q);
+    });
+
+    return Array.from(map.values());
+  }, [existingQuestions]);
+
+  // Alternar recolher/expandir de um cartão
+  const handleToggleCollapseCard = (cardKey: string) => {
+    setCollapsedCards((prev) => {
+      const next = new Set(prev);
+      if (next.has(cardKey)) next.delete(cardKey);
+      else next.add(cardKey);
+      return next;
+    });
+  };
+
+  // Alternar recolher/expandir de um cartão no banco existente
+  const handleToggleCollapseExistingCard = (cardKey: string) => {
+    setGerenciarCollapsedCards((prev) => {
+      const next = new Set(prev);
+      if (next.has(cardKey)) next.delete(cardKey);
+      else next.add(cardKey);
+      return next;
+    });
+  };
+
+  // Selecionar ou desmarcar todas as questões de um cartão específico no lote extraído
+  const handleToggleSelectCardQuestions = (indices: number[]) => {
+    const allSelected = indices.every((i) => selectedExtractedIndices.has(i));
+    setSelectedExtractedIndices((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        indices.forEach((i) => next.delete(i));
+      } else {
+        indices.forEach((i) => next.add(i));
+      }
+      return next;
+    });
+  };
+
+  // Excluir todas as questões de um cartão do lote
+  const handleDeleteCardQuestions = (indices: number[]) => {
+    const idxSet = new Set(indices);
+    setExtractedQuestions((prev) => prev.filter((_, i) => !idxSet.has(i)));
+    setSelectedExtractedIndices((prev) => {
+      const next = new Set<number>();
+      prev.forEach((i) => {
+        if (!idxSet.has(i)) {
+          const shift = indices.filter((rem) => rem < i).length;
+          next.add(i - shift);
+        }
+      });
+      return next;
+    });
+    setSaveSuccessMsg(`${indices.length} questão(ões) deste cartão foram removidas do lote.`);
+    setTimeout(() => setSaveSuccessMsg(null), 3000);
+  };
+
+  // Salvar hierarquia atualizada em massa para todas as questões de um cartão
+  const handleApplyCardHierarchyModal = () => {
+    if (!cardHierarchyModal) return;
+    const { indices, materia, modulo, capitulo, subtopico, tema } = cardHierarchyModal;
+    const idxSet = new Set(indices);
+
+    setExtractedQuestions((prev) =>
+      prev.map((q, i) => {
+        if (!idxSet.has(i)) return q;
+        return {
+          ...q,
+          materia: materia.trim() || 'IPO-2',
+          modulo: modulo.trim(),
+          capitulo: capitulo.trim(),
+          subtopico: subtopico.trim(),
+          tema_subtopico: tema.trim(),
+        };
+      })
+    );
+
+    setSaveSuccessMsg(`Hierarquia atualizada com sucesso para as ${indices.length} questão(ões) deste cartão!`);
+    setTimeout(() => setSaveSuccessMsg(null), 3000);
+    setCardHierarchyModal(null);
   };
 
   // Atualizar campo de uma questão extraída antes de salvar
@@ -359,6 +705,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           subtopico: (q.subtopico || subtopico || '').trim(),
           tema_subtopico: (q.tema_subtopico || tema || '').trim(),
           peso: q.peso !== undefined && Number(q.peso) > 0 ? Number(q.peso) : (Number(pesoQuestao) || 1),
+          numero_questao: q.numero_questao || count + 1,
           enunciado: q.enunciado.trim(),
           alternativas: validAlts.map((a) => ({
             letra: a.letra.toUpperCase(),
@@ -945,25 +1292,60 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   2. Cole o Texto das Questões
                 </label>
 
-                {rawText && (
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setRawText('')}
-                    className="text-slate-500 hover:text-rose-600 text-xs font-medium cursor-pointer"
+                    onClick={() => {
+                      setRawText(SAMPLE_BLOCO_462);
+                      setRawCommentsText('');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-sky-100 hover:bg-sky-200 text-sky-900 border border-sky-300 text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-2xs"
+                    title="Carregar exemplo com as 6 questões do Bloco 4.6.2 (Auto Circunstanciado)"
                   >
-                    Limpar Questões
+                    <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                    Carregar Exemplo: Bloco 4.6.2 (Auto Circunstanciado - 6 Questões)
                   </button>
-                )}
+
+                  {rawText && (
+                    <button
+                      type="button"
+                      onClick={() => setRawText('')}
+                      className="text-slate-500 hover:text-rose-600 text-xs font-medium cursor-pointer"
+                    >
+                      Limpar Questões
+                    </button>
+                  )}
+                </div>
               </div>
 
               <p className="text-xs text-slate-500 leading-relaxed">
                 Cole aqui as questões (enunciados, assertivas I, II, III, alternativas a., b., c., d., e.). Se o gabarito e comentários já estiverem no mesmo texto, o sistema os extrairá automaticamente.
               </p>
 
+              {/* Banner de Organização Automática Instantânea */}
+              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-950">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <span>
+                    <strong>Importação Automática Ativa:</strong> Ao colar o texto das questões, os módulos, capítulos, subtópico e tema (subtópico do subtópico) são detectados e separados em cartões imediatamente com a contagem de cada um.
+                  </span>
+                </div>
+                <label className="flex items-center gap-1.5 cursor-pointer font-bold text-indigo-800 text-[11px] shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={autoOrganizeEnabled}
+                    onChange={(e) => setAutoOrganizeEnabled(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  Auto-Organizar ao Colar
+                </label>
+              </div>
+
               <textarea
                 id="input-raw-questions-text"
                 value={rawText}
                 onChange={(e) => setRawText(e.target.value)}
+                onPaste={handlePasteQuestions}
                 placeholder={`Cole aqui o texto das questões. Exemplo:
 
 Módulo: Direito Constitucional
@@ -1040,7 +1422,7 @@ Comentário: Apenas a alternativa B atende ao comando...`}
               <button
                 id="btn-organizar-automaticamente"
                 type="button"
-                onClick={handleOrganizarAutomaticamente}
+                onClick={() => handleOrganizarAutomaticamente()}
                 disabled={!rawText.trim()}
                 className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs sm:text-sm font-black rounded-xl shadow-md transition-all cursor-pointer"
               >
@@ -1142,11 +1524,546 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                 </div>
               </div>
 
-              {/* Cards das Questões Extraídas */}
-              <div className="space-y-4">
-                {extractedQuestions.map((q, idx) => {
-                  const isSelected = selectedExtractedIndices.has(idx);
-                  return (
+              {/* Painel de Resumo e Lista de Quantidades da Hierarquia */}
+              <div className="p-4 sm:p-5 bg-gradient-to-br from-indigo-50/70 via-sky-50/60 to-purple-50/70 border-2 border-indigo-200 rounded-2xl shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-100 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                      <BarChart3 className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                        Distribuição e Contagem da Hierarquia
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-600 text-white">
+                          {extractedQuestions.length} questões no lote
+                        </span>
+                      </h4>
+                      <p className="text-xs text-slate-600">
+                        Quantidade de questões separadas em cartões por Matéria, Módulo, Capítulo, Subtópico e Tema (subtópico do subtópico)
+                      </p>
+                    </div>
+                  </div>
+
+                  {hierarchyFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setHierarchyFilter(null)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-100 hover:bg-rose-200 text-rose-800 text-xs font-bold rounded-lg transition-colors cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Limpar Filtro ({hierarchyFilter.type}: {hierarchyFilter.value})
+                    </button>
+                  )}
+                </div>
+
+                {/* Cards de Métricas da Hierarquia */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 text-center">
+                  <div className="p-2.5 bg-white/90 border border-sky-200 rounded-xl shadow-2xs">
+                    <span className="block text-[10px] font-bold text-sky-800 uppercase tracking-wider">Matérias</span>
+                    <span className="text-lg font-black text-sky-950">{hierarchyBreakdown.materias.length}</span>
+                  </div>
+                  <div className="p-2.5 bg-white/90 border border-indigo-200 rounded-xl shadow-2xs">
+                    <span className="block text-[10px] font-bold text-indigo-800 uppercase tracking-wider">Módulos</span>
+                    <span className="text-lg font-black text-indigo-950">{hierarchyBreakdown.modulos.length}</span>
+                  </div>
+                  <div className="p-2.5 bg-white/90 border border-amber-200 rounded-xl shadow-2xs">
+                    <span className="block text-[10px] font-bold text-amber-800 uppercase tracking-wider">Capítulos</span>
+                    <span className="text-lg font-black text-amber-950">{hierarchyBreakdown.capitulos.length}</span>
+                  </div>
+                  <div className="p-2.5 bg-white/90 border border-emerald-200 rounded-xl shadow-2xs">
+                    <span className="block text-[10px] font-bold text-emerald-800 uppercase tracking-wider">Subtópicos</span>
+                    <span className="text-lg font-black text-emerald-950">{hierarchyBreakdown.subtopicos.length}</span>
+                  </div>
+                  <div className="p-2.5 bg-white/90 border border-purple-200 rounded-xl shadow-2xs">
+                    <span className="block text-[10px] font-bold text-purple-800 uppercase tracking-wider">Temas</span>
+                    <span className="text-lg font-black text-purple-950">{hierarchyBreakdown.temas.length}</span>
+                  </div>
+                  <div className="p-2.5 bg-gradient-to-br from-indigo-900 to-slate-900 text-white rounded-xl shadow-2xs">
+                    <span className="block text-[10px] font-bold text-sky-300 uppercase tracking-wider">Cartões</span>
+                    <span className="text-lg font-black text-white">{extractedParts.length}</span>
+                  </div>
+                </div>
+
+                {/* Abas e Listagem Detalhada de Quantidades */}
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs border-b border-indigo-100 pb-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveBreakdownTab('all')}
+                      className={`px-3 py-1 rounded-lg font-bold transition-colors cursor-pointer ${
+                        activeBreakdownTab === 'all'
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-white/80 text-slate-700 hover:bg-white'
+                      }`}
+                    >
+                      Todas as Listas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveBreakdownTab('materia')}
+                      className={`px-3 py-1 rounded-lg font-bold transition-colors cursor-pointer ${
+                        activeBreakdownTab === 'materia'
+                          ? 'bg-sky-600 text-white shadow-2xs'
+                          : 'bg-white/80 text-slate-700 hover:bg-white'
+                      }`}
+                    >
+                      Matérias ({hierarchyBreakdown.materias.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveBreakdownTab('modulo')}
+                      className={`px-3 py-1 rounded-lg font-bold transition-colors cursor-pointer ${
+                        activeBreakdownTab === 'modulo'
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-white/80 text-slate-700 hover:bg-white'
+                      }`}
+                    >
+                      Módulos ({hierarchyBreakdown.modulos.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveBreakdownTab('capitulo')}
+                      className={`px-3 py-1 rounded-lg font-bold transition-colors cursor-pointer ${
+                        activeBreakdownTab === 'capitulo'
+                          ? 'bg-amber-600 text-white shadow-2xs'
+                          : 'bg-white/80 text-slate-700 hover:bg-white'
+                      }`}
+                    >
+                      Capítulos ({hierarchyBreakdown.capitulos.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveBreakdownTab('subtopico')}
+                      className={`px-3 py-1 rounded-lg font-bold transition-colors cursor-pointer ${
+                        activeBreakdownTab === 'subtopico'
+                          ? 'bg-emerald-600 text-white shadow-2xs'
+                          : 'bg-white/80 text-slate-700 hover:bg-white'
+                      }`}
+                    >
+                      Subtópicos ({hierarchyBreakdown.subtopicos.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveBreakdownTab('tema')}
+                      className={`px-3 py-1 rounded-lg font-bold transition-colors cursor-pointer ${
+                        activeBreakdownTab === 'tema'
+                          ? 'bg-purple-600 text-white shadow-2xs'
+                          : 'bg-white/80 text-slate-700 hover:bg-white'
+                      }`}
+                    >
+                      Temas / Subtópicos do Subtópico ({hierarchyBreakdown.temas.length})
+                    </button>
+                  </div>
+
+                  {/* Conteúdo das Listas com Quantidades */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+                    {/* 1. Lista de Matérias */}
+                    {(activeBreakdownTab === 'all' || activeBreakdownTab === 'materia') && (
+                      <div className="bg-white/90 border border-sky-200 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-bold text-sky-950 pb-1 border-b border-sky-100">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-sky-500"></span>
+                            Matérias
+                          </span>
+                          <span className="text-[11px] text-sky-700">Qtd.</span>
+                        </div>
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                          {hierarchyBreakdown.materias.map(({ name, count }) => {
+                            const isFiltered = hierarchyFilter?.type === 'materia' && hierarchyFilter.value === name;
+                            const pct = Math.round((count / extractedQuestions.length) * 100);
+                            return (
+                              <div
+                                key={name}
+                                onClick={() =>
+                                  setHierarchyFilter((prev) =>
+                                    prev?.type === 'materia' && prev.value === name ? null : { type: 'materia', value: name }
+                                  )
+                                }
+                                className={`p-2 rounded-lg border text-xs flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                                  isFiltered
+                                    ? 'bg-sky-100 border-sky-400 font-bold text-sky-950 shadow-xs ring-1 ring-sky-400'
+                                    : 'bg-slate-50 border-slate-200 hover:bg-sky-50 hover:border-sky-300 text-slate-800'
+                                }`}
+                                title="Clique para filtrar os cartões desta matéria"
+                              >
+                                <span className="truncate flex-1 font-semibold">{name}</span>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="text-[10px] text-slate-500">{pct}%</span>
+                                  <span className="px-2 py-0.5 rounded-full bg-sky-600 text-white font-extrabold text-[11px]">
+                                    {count} q.
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 2. Lista de Módulos */}
+                    {(activeBreakdownTab === 'all' || activeBreakdownTab === 'modulo') && (
+                      <div className="bg-white/90 border border-indigo-200 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-bold text-indigo-950 pb-1 border-b border-indigo-100">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                            Módulos
+                          </span>
+                          <span className="text-[11px] text-indigo-700">Qtd.</span>
+                        </div>
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                          {hierarchyBreakdown.modulos.map(({ name, count }) => {
+                            const isFiltered = hierarchyFilter?.type === 'modulo' && hierarchyFilter.value === name;
+                            const pct = Math.round((count / extractedQuestions.length) * 100);
+                            return (
+                              <div
+                                key={name}
+                                onClick={() =>
+                                  setHierarchyFilter((prev) =>
+                                    prev?.type === 'modulo' && prev.value === name ? null : { type: 'modulo', value: name }
+                                  )
+                                }
+                                className={`p-2 rounded-lg border text-xs flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                                  isFiltered
+                                    ? 'bg-indigo-100 border-indigo-400 font-bold text-indigo-950 shadow-xs ring-1 ring-indigo-400'
+                                    : 'bg-slate-50 border-slate-200 hover:bg-indigo-50 hover:border-indigo-300 text-slate-800'
+                                }`}
+                                title="Clique para filtrar os cartões deste módulo"
+                              >
+                                <span className="truncate flex-1 font-semibold">{name}</span>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="text-[10px] text-slate-500">{pct}%</span>
+                                  <span className="px-2 py-0.5 rounded-full bg-indigo-600 text-white font-extrabold text-[11px]">
+                                    {count} q.
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3. Lista de Capítulos */}
+                    {(activeBreakdownTab === 'all' || activeBreakdownTab === 'capitulo') && (
+                      <div className="bg-white/90 border border-amber-200 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-bold text-amber-950 pb-1 border-b border-amber-100">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                            Capítulos
+                          </span>
+                          <span className="text-[11px] text-amber-700">Qtd.</span>
+                        </div>
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                          {hierarchyBreakdown.capitulos.map(({ name, count }) => {
+                            const isFiltered = hierarchyFilter?.type === 'capitulo' && hierarchyFilter.value === name;
+                            const pct = Math.round((count / extractedQuestions.length) * 100);
+                            return (
+                              <div
+                                key={name}
+                                onClick={() =>
+                                  setHierarchyFilter((prev) =>
+                                    prev?.type === 'capitulo' && prev.value === name ? null : { type: 'capitulo', value: name }
+                                  )
+                                }
+                                className={`p-2 rounded-lg border text-xs flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                                  isFiltered
+                                    ? 'bg-amber-100 border-amber-400 font-bold text-amber-950 shadow-xs ring-1 ring-amber-400'
+                                    : 'bg-slate-50 border-slate-200 hover:bg-amber-50 hover:border-amber-300 text-slate-800'
+                                }`}
+                                title="Clique para filtrar os cartões deste capítulo"
+                              >
+                                <span className="truncate flex-1 font-semibold">{name}</span>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="text-[10px] text-slate-500">{pct}%</span>
+                                  <span className="px-2 py-0.5 rounded-full bg-amber-600 text-white font-extrabold text-[11px]">
+                                    {count} q.
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 4. Lista de Subtópicos */}
+                    {(activeBreakdownTab === 'all' || activeBreakdownTab === 'subtopico') && (
+                      <div className="bg-white/90 border border-emerald-200 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-bold text-emerald-950 pb-1 border-b border-emerald-100">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                            Subtópicos
+                          </span>
+                          <span className="text-[11px] text-emerald-700">Qtd.</span>
+                        </div>
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                          {hierarchyBreakdown.subtopicos.map(({ name, count }) => {
+                            const isFiltered = hierarchyFilter?.type === 'subtopico' && hierarchyFilter.value === name;
+                            const pct = Math.round((count / extractedQuestions.length) * 100);
+                            return (
+                              <div
+                                key={name}
+                                onClick={() =>
+                                  setHierarchyFilter((prev) =>
+                                    prev?.type === 'subtopico' && prev.value === name ? null : { type: 'subtopico', value: name }
+                                  )
+                                }
+                                className={`p-2 rounded-lg border text-xs flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                                  isFiltered
+                                    ? 'bg-emerald-100 border-emerald-400 font-bold text-emerald-950 shadow-xs ring-1 ring-emerald-400'
+                                    : 'bg-slate-50 border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 text-slate-800'
+                                }`}
+                                title="Clique para filtrar os cartões deste subtópico"
+                              >
+                                <span className="truncate flex-1 font-semibold">{name}</span>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="text-[10px] text-slate-500">{pct}%</span>
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white font-extrabold text-[11px]">
+                                    {count} q.
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 5. Lista de Temas (Subtópico do Subtópico) */}
+                    {(activeBreakdownTab === 'all' || activeBreakdownTab === 'tema') && (
+                      <div className="bg-white/90 border border-purple-200 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-bold text-purple-950 pb-1 border-b border-purple-100">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
+                            Temas (Subtópico do Subtópico)
+                          </span>
+                          <span className="text-[11px] text-purple-700">Qtd.</span>
+                        </div>
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                          {hierarchyBreakdown.temas.map(({ name, count }) => {
+                            const isFiltered = hierarchyFilter?.type === 'tema' && hierarchyFilter.value === name;
+                            const pct = Math.round((count / extractedQuestions.length) * 100);
+                            return (
+                              <div
+                                key={name}
+                                onClick={() =>
+                                  setHierarchyFilter((prev) =>
+                                    prev?.type === 'tema' && prev.value === name ? null : { type: 'tema', value: name }
+                                  )
+                                }
+                                className={`p-2 rounded-lg border text-xs flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                                  isFiltered
+                                    ? 'bg-purple-100 border-purple-400 font-bold text-purple-950 shadow-xs ring-1 ring-purple-400'
+                                    : 'bg-slate-50 border-slate-200 hover:bg-purple-50 hover:border-purple-300 text-slate-800'
+                                }`}
+                                title="Clique para filtrar os cartões deste tema"
+                              >
+                                <span className="truncate flex-1 font-semibold">{name}</span>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="text-[10px] text-slate-500">{pct}%</span>
+                                  <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white font-extrabold text-[11px]">
+                                    {count} q.
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Cards das Questões Extraídas Separadas por Matéria, Módulo, Capítulo, Subtópico e Tema */}
+              <div className="space-y-6">
+                {extractedParts
+                  .filter((part) => {
+                    if (!hierarchyFilter) return true;
+                    if (hierarchyFilter.type === 'materia') {
+                      return (part.materia || nomeMateria || 'IPO-2').toLowerCase() === hierarchyFilter.value.toLowerCase();
+                    }
+                    if (hierarchyFilter.type === 'modulo') {
+                      return (part.modulo || moduloMateria || '(Geral)').toLowerCase() === hierarchyFilter.value.toLowerCase();
+                    }
+                    if (hierarchyFilter.type === 'capitulo') {
+                      return (part.capitulo || capituloMateria || '(Geral)').toLowerCase() === hierarchyFilter.value.toLowerCase();
+                    }
+                    if (hierarchyFilter.type === 'subtopico') {
+                      return (part.subtopico || subtopico || '(Sem subtópico)').toLowerCase() === hierarchyFilter.value.toLowerCase();
+                    }
+                    if (hierarchyFilter.type === 'tema') {
+                      return (part.tema || tema || '(Sem tema)').toLowerCase() === hierarchyFilter.value.toLowerCase();
+                    }
+                    return true;
+                  })
+                  .map((part, pIdx) => {
+                    const isCollapsed = collapsedCards.has(part.key);
+                    const cardQuestionIndices = part.items.map((it) => it.index);
+                    const allCardSelected = cardQuestionIndices.every((i) => selectedExtractedIndices.has(i));
+
+                    return (
+                  <div
+                    key={part.key || pIdx}
+                    className="bg-white border-2 border-indigo-200/90 rounded-2xl shadow-sm space-y-4 overflow-hidden transition-all"
+                  >
+                    {/* Cabeçalho do Cartão Hierárquico */}
+                    <div className="p-4 bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 text-white flex flex-col md:flex-row md:items-center justify-between gap-3">
+                      <div className="space-y-1.5 flex-1 min-w-0">
+                        {/* Linha 1: Trilha e Contagem */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded bg-sky-400 text-slate-950 font-black text-xs uppercase tracking-wider">
+                            Cartão {pIdx + 1} de {extractedParts.length}
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-full bg-white/20 text-white font-extrabold text-xs border border-white/30">
+                            {part.items.length} questão(ões) vinculada(s)
+                          </span>
+                        </div>
+
+                        {/* Linha 2: Badges Hierárquicos Separados por Matéria, Módulo, Capítulo, Subtópico e Tema */}
+                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-xs">
+                          {/* Matéria */}
+                          <span className="px-2.5 py-1 bg-sky-600 text-white rounded-md font-bold shadow-2xs">
+                            Matéria: {part.materia || 'IPO-2'}
+                          </span>
+
+                          {/* Módulo */}
+                          {part.modulo ? (
+                            <span className="px-2.5 py-1 bg-indigo-600 text-white rounded-md font-bold shadow-2xs flex items-center gap-1">
+                              Módulo: {part.modulo}
+                              {part.isModuloExisting && (
+                                <span className="text-[9px] bg-white/20 text-white px-1 rounded font-extrabold">
+                                  ✓ Base
+                                </span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 bg-white/10 text-white/70 rounded text-[11px]">
+                              Módulo: (Geral)
+                            </span>
+                          )}
+
+                          {/* Capítulo */}
+                          <span className="px-2.5 py-1 bg-amber-600 text-white rounded-md font-bold shadow-2xs flex items-center gap-1">
+                            Capítulo: {part.capitulo || '(Geral)'}
+                            {part.isCapituloExisting ? (
+                              <span className="text-[9px] bg-white/20 text-white px-1 rounded font-extrabold">
+                                ✓ Base
+                              </span>
+                            ) : (
+                              <span className="text-[9px] bg-emerald-400 text-slate-950 px-1 rounded font-extrabold">
+                                + Novo
+                              </span>
+                            )}
+                          </span>
+
+                          {/* Subtópico */}
+                          {part.subtopico && (
+                            <span className="px-2.5 py-1 bg-emerald-600 text-white rounded-md font-bold shadow-2xs flex items-center gap-1">
+                              Subtópico: {part.subtopico}
+                              {part.isSubtopicoExisting ? (
+                                <span className="text-[9px] bg-white/20 text-white px-1 rounded font-extrabold">
+                                  ✓ Base
+                                </span>
+                              ) : (
+                                <span className="text-[9px] bg-teal-300 text-slate-950 px-1 rounded font-extrabold">
+                                  + Novo
+                                </span>
+                              )}
+                            </span>
+                          )}
+
+                          {/* Tema (Subtópico do Subtópico) */}
+                          {part.tema && (
+                            <span className="px-2.5 py-1 bg-purple-600 text-white rounded-md font-bold shadow-2xs flex items-center gap-1">
+                              Tema (Subtópico do Subtópico): {part.tema}
+                              {part.isTemaExisting ? (
+                                <span className="text-[9px] bg-white/20 text-white px-1 rounded font-extrabold">
+                                  ✓ Base
+                                </span>
+                              ) : (
+                                <span className="text-[9px] bg-pink-300 text-slate-950 px-1 rounded font-extrabold">
+                                  + Novo
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Ações Rápidas no Cartão */}
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        {/* Botão Selecionar Todas do Cartão */}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSelectCardQuestions(cardQuestionIndices)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-white/20"
+                          title="Selecionar ou desmarcar todas as questões deste cartão"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          {allCardSelected ? 'Desmarcar Cartão' : 'Marcar Cartão'}
+                        </button>
+
+                        {/* Botão Editar Hierarquia do Cartão em Massa */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCardHierarchyModal({
+                              cardKey: part.key,
+                              materia: part.materia || nomeMateria || 'IPO-2',
+                              modulo: part.modulo || moduloMateria || '',
+                              capitulo: part.capitulo || capituloMateria || '',
+                              subtopico: part.subtopico || subtopico || '',
+                              tema: part.tema || tema || '',
+                              indices: cardQuestionIndices,
+                            })
+                          }
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-indigo-500/40 hover:bg-indigo-500/60 text-indigo-100 rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-indigo-400/40"
+                          title="Alterar matéria, módulo, capítulo, subtópico ou tema de todas as questões deste cartão de uma só vez"
+                        >
+                          <SlidersHorizontal className="w-3.5 h-3.5" />
+                          Editar Cartão
+                        </button>
+
+                        {/* Botão Excluir Questões do Cartão */}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCardQuestions(cardQuestionIndices)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-500/30 hover:bg-rose-500/50 text-rose-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-rose-400/30"
+                          title="Excluir do lote todas as questões deste cartão"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Excluir ({part.items.length})
+                        </button>
+
+                        {/* Botão Recolher/Expandir */}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleCollapseCard(part.key)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-white text-slate-900 hover:bg-slate-100 rounded-lg text-xs font-black shadow-xs transition-colors cursor-pointer"
+                          title={isCollapsed ? 'Expandir questões deste cartão' : 'Recolher questões deste cartão'}
+                        >
+                          {isCollapsed ? (
+                            <>
+                              <ChevronDown className="w-4 h-4 text-indigo-600" />
+                              Ver Questões ({part.items.length})
+                            </>
+                          ) : (
+                            <>
+                              <ChevronUp className="w-4 h-4 text-indigo-600" />
+                              Recolher
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Questões deste Cartão */}
+                    {!isCollapsed && (
+                      <div className="p-4 sm:p-5 pt-0 space-y-4 animate-in fade-in">
+                        {part.items.map(({ question: q, index: idx }) => {
+                          const isSelected = selectedExtractedIndices.has(idx);
+                          return (
                     <div
                       key={idx}
                       className={`p-4 sm:p-5 rounded-2xl border shadow-xs relative space-y-3 transition-colors ${
@@ -1166,7 +2083,7 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                           />
                           <div className="flex flex-wrap items-center gap-1.5 text-xs">
                             <span className="font-bold bg-slate-900 text-white px-2 py-0.5 rounded">
-                              Questão #{idx + 1}
+                              Questão #{q.numero_questao || idx + 1}
                             </span>
                             {(() => {
                               const etq = formatEtiqueta(q);
@@ -1237,19 +2154,26 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                         </button>
                       </div>
 
-                    {/* Enunciado */}
+                    {/* Comando da Questão / Enunciado */}
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                          Enunciado Extraído (Justificado e Espaçado):
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                          <span>Comando da Questão (Enunciado):</span>
+                          <span className="text-[10px] text-slate-500 font-normal">
+                            (Número da questão exibido apenas na etiqueta)
+                          </span>
                         </span>
                         <span className="text-[11px] text-slate-400">
                           {q.enunciado.length} caracteres
                         </span>
                       </div>
-                      <div className="text-xs sm:text-sm text-slate-900 leading-relaxed text-justify whitespace-pre-line font-normal p-3 bg-slate-50/80 border border-slate-200 rounded-xl">
-                        {q.enunciado}
-                      </div>
+                      <textarea
+                        rows={Math.max(2, Math.min(8, Math.ceil(q.enunciado.length / 100)))}
+                        value={q.enunciado}
+                        onChange={(e) => handleUpdateExtractedField(idx, 'enunciado', e.target.value)}
+                        placeholder="Comando da questão (sem o número)..."
+                        className="w-full text-xs sm:text-sm text-slate-900 leading-relaxed text-justify p-3 bg-slate-50/80 border border-slate-200 rounded-xl focus:ring-2 focus:ring-sky-500 focus:bg-white resize-y shadow-2xs font-normal"
+                      />
                     </div>
 
                     {/* Alternativas com Visualização Clara e Editável */}
@@ -1364,6 +2288,11 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                   </div>
                 );
               })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               </div>
             </div>
           )}
@@ -1474,7 +2403,7 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                       <div className="space-y-1 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="text-xs font-bold text-slate-900">
-                            #{idx + 1}
+                            #{q.numero_questao || idx + 1}
                           </span>
                           <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[11px] font-semibold">
                             {q.modulo}

@@ -1,6 +1,7 @@
 import { Question, AlternativeItem } from '../types/question';
 
 export interface ParsedQuestionResult {
+  numero_questao?: number;
   materia?: string;
   modulo?: string;
   capitulo?: string;
@@ -38,6 +39,7 @@ export interface ParsedCommentItem {
 /**
  * Limpa qualquer menção a Modelo 1, Modelo 2, Múltipla Escolha, Julgamento de Itens
  * e remove duplicações de termos ("Módulo Módulo 1", "Capítulo Capítulo 1", "Questão 1", etc.)
+ * e prefixos indesejados como "QUESTÕES INÉDITAS — BLOCO" ou "BLOCO"
  */
 export function sanitizeEtiquetaField(field?: string): string {
   if (!field) return '';
@@ -56,8 +58,441 @@ export function sanitizeEtiquetaField(field?: string): string {
   // Remove "Questão X" acidentalmente embutida dentro de campos de etiqueta
   s = s.replace(/^(?:quest[ãa]o\s*\d*[:.-]?)\s*/i, '');
 
+  // Remove prefixos como "QUESTÕES INÉDITAS — BLOCO", "QUESTÕES INÉDITAS —", "BLOCO "
+  s = s.replace(/^(?:quest(?:[ãa]o|[õo]es)\s+in[ée]dita(?:s)?\s*[\-–—:]*\s*)/i, '');
+  s = s.replace(/^bloco\s+/i, '');
+
   s = s.replace(/^[\s\-–—:.]+/g, '').replace(/[\s\-–—:.]+$/g, '').trim();
   return s;
+}
+
+export interface RawHierarchyMatch {
+  materia?: string;
+  modulo?: string;
+  capitulo?: string;
+  capituloNum?: string;
+  capituloTitle?: string;
+  subtopico?: string;
+  topicoNum?: string;
+  topicoTitle?: string;
+  tema?: string;
+  temaNum?: string;
+  temaTitle?: string;
+}
+
+/**
+ * Detecta cabeçalhos hierárquicos em uma linha:
+ * Ex: QUESTÕES INÉDITAS — BLOCO 4.6.2 (AUTO CIRCUNSTANCIADO)
+ * Ex: BLOCO 4.6.2 (AUTO CIRCUNSTANCIADO)
+ * Ex: BLOCO 4.6 (TERMO DE DECLARAÇÕES)
+ * Ex: BLOCO 2.2
+ * Ex: 4.6.2 (AUTO CIRCUNSTANCIADO)
+ * Ex: # MÓDULO II – FORMALIZAÇÃO DE DADOS DE INTERESSE
+ * Ex: ## CAPÍTULO 4 – PEÇAS DE POLÍCIA JUDICIÁRIA
+ */
+export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch | null {
+  const rawClean = line.trim();
+  if (!rawClean) return null;
+
+  // Linhas que são títulos de seção de questões (ex: "### QUESTÕES DO TÓPICO 1 (EVOLUÇÃO E CONCEITO)") NÃO são hierarquia
+  if (/^[#*=_~-]*\s*quest(?:[ãa]o|[õo]es)\s+d[oa]\s+/i.test(rawClean)) {
+    return null;
+  }
+
+  // Normalizar markdown bold/italic (** e __) para suportar "**MATÉRIA:**", "**MÓDULO:**", etc.
+  const cleanLine = rawClean
+    .replace(/\*\*/g, '')
+    .replace(/__/g, '')
+    .trim();
+
+  // 1. Padrão Composto em linha única (delimitado por |, ;, •, ou >)
+  // Ex: Matéria: Direito Penal | Módulo: 1 | Capítulo: 4 | Subtópico: 4.6 | Tema: 4.6.2 (Auto Circunstanciado)
+  // Ex: Matéria: IPO-2 > Módulo 1 > Capítulo 4 > Subtópico 4.6 > Tema 4.6.2
+  // Ex: [Matéria: IPO-2] [Módulo: 1] [Capítulo: 4] [Subtópico: 4.6] [Tema: 4.6.2]
+  if (/[|;•>]|\[(?:mat[ée]ria|disciplina|m[óo]dulo|cap[íi]tulo|subt[óo]pico|tema)/i.test(cleanLine)) {
+    const res: RawHierarchyMatch = {};
+    let foundAny = false;
+
+    // Matéria / Disciplina
+    const matM = cleanLine.match(/(?:mat[ée]ria|disciplina|nome da mat[ée]ria)\s*[:=-]\s*([^|;•\n\r>\]]+)/i);
+    if (matM) {
+      res.materia = sanitizeEtiquetaField(matM[1].trim());
+      foundAny = true;
+    }
+
+    // Módulo
+    const modM = cleanLine.match(/(?:m[óo]dulo)\s*(?:([0-9]+|[IVXLCDM]+))?\s*[:.\-–—]?\s*([^|;•\n\r>\]]+)?/i);
+    if (modM) {
+      const modNum = modM[1]?.trim();
+      const modTitle = modM[2]?.trim() || '';
+      if (modNum && modTitle && !modTitle.toLowerCase().startsWith('módulo')) {
+        res.modulo = `Módulo ${modNum} – ${modTitle}`;
+      } else if (modNum) {
+        res.modulo = `Módulo ${modNum}`;
+      } else if (modTitle) {
+        res.modulo = sanitizeEtiquetaField(modTitle);
+      }
+      foundAny = true;
+    }
+
+    // Capítulo
+    const capM = cleanLine.match(/(?:cap[íi]tulo|cap\.?)\s*(?:([0-9]+|[IVXLCDM]+))?\s*[:.\-–—]?\s*([^|;•\n\r>\]]+)?/i);
+    if (capM) {
+      const capNum = capM[1]?.trim();
+      const capTitle = capM[2]?.trim() || '';
+      if (capNum) {
+        res.capituloNum = capNum;
+        res.capituloTitle = capTitle || undefined;
+        res.capitulo = capTitle ? `Capítulo ${capNum} – ${capTitle}` : `Capítulo ${capNum}`;
+      } else if (capTitle) {
+        res.capitulo = sanitizeEtiquetaField(capTitle);
+      }
+      foundAny = true;
+    }
+
+    // Subtópico / Tópico
+    const subM = cleanLine.match(/(?:subt[óo]pico|sub-t[óo]pico|t[óo]pico)\s*(?:(\d+(?:\.\d+)*))?\s*[:.\-–—]?\s*([^|;•\n\r>\]]+)?/i);
+    if (subM) {
+      const subNum = subM[1]?.trim();
+      const subTitle = subM[2]?.trim() || '';
+      if (subNum && subTitle) {
+        res.subtopico = `${subNum} (${subTitle})`;
+        res.topicoNum = subNum;
+      } else if (subNum) {
+        res.subtopico = subNum;
+        res.topicoNum = subNum;
+      } else if (subTitle) {
+        res.subtopico = sanitizeEtiquetaField(subTitle);
+      }
+      foundAny = true;
+    }
+
+    // Tema / Subtópico do Subtópico
+    const temaM = cleanLine.match(/(?:tema(?:\s*\((?:subt[óo]pico\s+do\s+subt[óo]pico|detalhe)\))?|subt[óo]pico\s+do\s+subt[óo]pico|subtopico\s+do\s+subtopico|sub-subt[óo]pico)\s*(?:(\d+(?:\.\d+)*))?\s*[:.\-–—]?\s*([^|;•\n\r>\]]+)?/i);
+    if (temaM) {
+      const temaNum = temaM[1]?.trim();
+      const temaTitle = temaM[2]?.trim() || '';
+      if (temaNum && temaTitle) {
+        res.tema = `${temaNum} (${temaTitle})`;
+        res.temaNum = temaNum;
+      } else if (temaNum) {
+        res.tema = temaNum;
+        res.temaNum = temaNum;
+      } else if (temaTitle) {
+        res.tema = sanitizeEtiquetaField(temaTitle);
+      }
+      foundAny = true;
+    }
+
+    if (foundAny) {
+      return res;
+    }
+  }
+
+  // 2. Padrão BLOCO / TÓPICO com numeração pontuada (ex: 4.6.2 ou 2.2 ou 4.6)
+  // Ex: QUESTÕES INÉDITAS — BLOCO 4.6.2 (AUTO CIRCUNSTANCIADO)
+  // Ex: BLOCO 4.6.2 (AUTO CIRCUNSTANCIADO)
+  // Ex: 4.6.2 (AUTO CIRCUNSTANCIADO)
+  // Ex: BLOCO 2.2
+  const blockNumMatch = cleanLine.match(
+    /^(?:[#*=_~-]+\s*)?(?:quest(?:[ãa]o|[õo]es)\s+in[ée]dita(?:s)?\s*[\-–—:]*\s*)?(?:bloco|t[óo]pico|subt[óo]pico)?\s*(\d+(?:\.\d+)+)\s*(?:[\-–—:]|\s)*(\([^\)\n\r]+\)|[^\n\r]*)?$/i
+  );
+
+  if (blockNumMatch) {
+    const numStr = blockNumMatch[1].trim(); // ex: "4.6.2" ou "2.2"
+    let restDesc = (blockNumMatch[2] || '').trim(); // ex: "(AUTO CIRCUNSTANCIADO)" ou "AUTO CIRCUNSTANCIADO"
+
+    // Limpar delimitadores do restDesc
+    let cleanDesc = restDesc.replace(/^[\(\[\{]/, '').replace(/[\)\]\}]$/, '').trim();
+    cleanDesc = cleanDesc.replace(/^[\-–—:]+\s*/, '').trim();
+
+    const parts = numStr.split('.');
+    const capNum = parts[0]; // "4" ou "2"
+    const topNum = parts.length >= 2 ? `${parts[0]}.${parts[1]}` : parts[0]; // "4.6" ou "2.2"
+    const temaNum = numStr; // "4.6.2"
+
+    let tema = '';
+    if (parts.length >= 3) {
+      tema = cleanDesc ? `${numStr} (${cleanDesc})` : numStr;
+    } else if (cleanDesc) {
+      tema = `${numStr} (${cleanDesc})`;
+    }
+
+    return {
+      capituloNum: capNum,
+      topicoNum: topNum,
+      subtopico: topNum,
+      tema: tema || undefined,
+      temaNum: temaNum,
+      temaTitle: cleanDesc || undefined,
+    };
+  }
+
+  // 3. Padrão MATÉRIA / DISCIPLINA isolado
+  // Ex: Matéria: Direito Penal
+  // Ex: Disciplina: IPO-2
+  // Ex: # DIREITO PROCESSUAL PENAL
+  const matMatch = cleanLine.match(/^(?:[#*=_~-]+\s*)?(?:mat[ée]ria|disciplina|nome da mat[ée]ria)\s*[:=-]\s*([^\n\r]+)$/i);
+  if (matMatch) {
+    return {
+      materia: sanitizeEtiquetaField(matMatch[1].trim()),
+    };
+  }
+
+  // 4. Padrão TEMA / SUBTÓPICO DO SUBTÓPICO isolado
+  // Ex: Tema: 4.6.2 (Auto Circunstanciado)
+  // Ex: Tema (subtópico do subtópico): Auto Circunstanciado
+  // Ex: Subtópico do subtópico: Peças Iniciais
+  // Ex: Tema: Inquérito Policial
+  const temaMatch = cleanLine.match(
+    /^(?:[#*=_~-]+\s*)?(?:tema(?:\s*\((?:subt[óo]pico\s+do\s+subt[óo]pico|subtopico\s+do\s+subtopico|detalhe)\))?|subt[óo]pico\s+do\s+subt[óo]pico|subtopico\s+do\s+subtopico|sub-subt[óo]pico)\s*(?:(\d+(?:\.\d+)*))?\s*[:.\-–—]?\s*([^\n\r]+)?$/i
+  );
+  if (temaMatch) {
+    const tNum = temaMatch[1]?.trim();
+    const tTitle = temaMatch[2]?.trim() || '';
+    let val = '';
+    if (tNum && tTitle) {
+      val = `${tNum} (${tTitle.replace(/^[\(\[]/, '').replace(/[\)\]]$/, '')})`;
+    } else if (tNum) {
+      val = tNum;
+    } else if (tTitle) {
+      val = sanitizeEtiquetaField(tTitle);
+    }
+    if (val) {
+      return {
+        tema: val,
+        temaNum: tNum,
+        temaTitle: tTitle || undefined,
+      };
+    }
+  }
+
+  // 5. Padrão SUBTÓPICO / TÓPICO isolado
+  // Ex: Subtópico: 4.6 (Termo de Declarações)
+  // Ex: Subtópico 4.6: Termo de Declarações
+  // Ex: Tópico: 2.2
+  // Ex: Subtópico - Prisão em Flagrante
+  const subMatch = cleanLine.match(
+    /^(?:[#*=_~-]+\s*)?(?:subt[óo]pico|sub-t[óo]pico|t[óo]pico)\s*(?:(\d+(?:\.\d+)*))?\s*[:.\-–—]?\s*([^\n\r]+)?$/i
+  );
+  if (subMatch) {
+    const sNum = subMatch[1]?.trim();
+    const sTitle = subMatch[2]?.trim() || '';
+    let val = '';
+    if (sNum && sTitle) {
+      val = `${sNum} (${sTitle.replace(/^[\(\[]/, '').replace(/[\)\]]$/, '')})`;
+    } else if (sNum) {
+      val = sNum;
+    } else if (sTitle) {
+      val = sanitizeEtiquetaField(sTitle);
+    }
+    if (val) {
+      return {
+        subtopico: val,
+        topicoNum: sNum,
+        topicoTitle: sTitle || undefined,
+      };
+    }
+  }
+
+  // 6. Padrão MÓDULO isolado ou no cabeçalho
+  // Ex: # MÓDULO II – FORMALIZAÇÃO DE DADOS DE INTERESSE
+  // Ex: MÓDULO 2: INVESTIGAÇÃO POLICIAL
+  // Ex: Módulo: Investigação Policial
+  // Ex: Módulo Investigação Policial
+  // Ex: Módulo 1
+  const modMatch = cleanLine.match(
+    /^(?:[#*=_~-]+\s*)?m[óo]dulo(?:\s*([0-9]+|[IVXLCDM]+))?\b(?:\s*[:.\-–—]\s*|\s+)?([^\n\r]+)?/i
+  );
+  if (modMatch) {
+    const modNum = modMatch[1]?.trim();
+    const modTitle = modMatch[2]?.trim() || '';
+    const cleanModTitle = sanitizeEtiquetaField(modTitle);
+
+    let finalMod = '';
+    if (modNum && cleanModTitle) {
+      finalMod = `Módulo ${modNum} – ${cleanModTitle}`;
+    } else if (modNum) {
+      finalMod = `Módulo ${modNum}`;
+    } else if (cleanModTitle) {
+      finalMod = cleanModTitle;
+    } else {
+      finalMod = 'Módulo';
+    }
+
+    return {
+      modulo: finalMod,
+    };
+  }
+
+  // 7. Padrão CAPÍTULO isolado ou no cabeçalho
+  // Ex: ## CAPÍTULO 4 – PEÇAS DE POLÍCIA JUDICIÁRIA
+  // Ex: CAPÍTULO 4: PEÇAS
+  // Ex: Capítulo 4
+  // Ex: Capítulo: Peças de Polícia
+  // Ex: Capítulo Peças de Polícia
+  const capMatch = cleanLine.match(
+    /^(?:[#*=_~-]+\s*)?cap[íi]tulo(?:\s*([0-9]+|[IVXLCDM]+))?\b(?:\s*[:.\-–—]\s*|\s+)?([^\n\r]+)?/i
+  );
+  if (capMatch) {
+    const capNum = capMatch[1]?.trim();
+    const capTitle = capMatch[2]?.trim() || '';
+    const cleanCapTitle = sanitizeEtiquetaField(capTitle);
+
+    let finalCap = '';
+    if (capNum && cleanCapTitle) {
+      finalCap = `Capítulo ${capNum} – ${cleanCapTitle}`;
+    } else if (capNum) {
+      finalCap = `Capítulo ${capNum}`;
+    } else if (cleanCapTitle) {
+      finalCap = cleanCapTitle;
+    } else {
+      finalCap = 'Capítulo';
+    }
+
+    return {
+      capitulo: finalCap,
+      capituloNum: capNum,
+      capituloTitle: cleanCapTitle || undefined,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Vincula e harmoniza a hierarquia detectada com itens já existentes no Firestore.
+ * Caso já exista o Capítulo, Módulo, Tópico ou Tema, aproveita exatamente o item existente.
+ * Caso não exista, cria e formata conforme os parâmetros fornecidos.
+ */
+export function resolveHierarchyWithExisting(
+  detected: RawHierarchyMatch,
+  existingQuestions: Question[] = [],
+  context?: HierarchyContext
+): HierarchyContext {
+  let materia = detected.materia?.trim() || context?.materia?.trim() || 'IPO-2';
+  let modulo = detected.modulo?.trim() || context?.modulo?.trim() || '';
+  let capitulo = context?.capitulo?.trim() || '';
+  let subtopico = context?.subtopico?.trim() || '';
+  let tema = context?.tema_subtopico?.trim() || '';
+
+  // 1. Resolver Matéria com base existente
+  if (materia) {
+    const existingMat = existingQuestions.find(
+      (q) => getQuestionMateria(q).toLowerCase() === materia.toLowerCase()
+    );
+    if (existingMat) {
+      materia = getQuestionMateria(existingMat);
+    }
+  }
+
+  // 2. Resolver Capítulo com base existente
+  const capNum = detected.capituloNum;
+  if (capNum) {
+    // Procurar capítulo existente com o mesmo número (ex: "Capítulo 4", "Capítulo 4 – ...", "4")
+    const matchExistingCap = existingQuestions.find((q) => {
+      if (!q.capitulo) return false;
+      const c = q.capitulo.trim();
+      const numMatch = c.match(/\b0?(\d+)\b/);
+      return numMatch && numMatch[1] === capNum;
+    });
+
+    if (matchExistingCap && matchExistingCap.capitulo) {
+      capitulo = matchExistingCap.capitulo.trim();
+    } else {
+      capitulo = detected.capituloTitle
+        ? `Capítulo ${capNum} – ${detected.capituloTitle}`
+        : `Capítulo ${capNum}`;
+    }
+  } else if (detected.capitulo) {
+    const cleanCap = sanitizeEtiquetaField(detected.capitulo);
+    const matchExistingCap = existingQuestions.find(
+      (q) => q.capitulo && q.capitulo.trim().toLowerCase() === cleanCap.toLowerCase()
+    );
+    capitulo = matchExistingCap?.capitulo?.trim() || cleanCap;
+  }
+
+  // 3. Resolver Módulo com base existente
+  if (detected.modulo) {
+    const cleanMod = sanitizeEtiquetaField(detected.modulo);
+    const modNumMatch = cleanMod.match(/(?:m[óo]dulo\s*)?([0-9]+|[IVXLCDM]+)/i);
+    const modId = modNumMatch ? modNumMatch[1].toLowerCase() : cleanMod.toLowerCase();
+
+    const matchExistingMod = existingQuestions.find((q) => {
+      const m = getQuestionModulo(q);
+      if (!m) return false;
+      const qNumMatch = m.match(/(?:m[óo]dulo\s*)?([0-9]+|[IVXLCDM]+)/i);
+      return qNumMatch && qNumMatch[1].toLowerCase() === modId;
+    });
+
+    modulo = matchExistingMod ? getQuestionModulo(matchExistingMod) : cleanMod;
+  } else if (!modulo && capitulo) {
+    // Se o módulo não veio no texto, verificar se o Capítulo já possui um Módulo associado no banco
+    const sameCapQuestion = existingQuestions.find(
+      (q) =>
+        q.capitulo &&
+        q.capitulo.trim().toLowerCase() === capitulo.toLowerCase() &&
+        getQuestionModulo(q)
+    );
+    if (sameCapQuestion) {
+      modulo = getQuestionModulo(sameCapQuestion);
+    }
+  }
+
+  // 4. Resolver Tópico / Subtópico com base existente
+  const topNum = detected.topicoNum;
+  if (topNum) {
+    // Procurar subtópico existente com o mesmo número (ex: "4.6", "Tópico 4.6", "4.6 - ...")
+    const matchExistingSub = existingQuestions.find((q) => {
+      if (!q.subtopico) return false;
+      const s = q.subtopico.trim();
+      return (
+        s === topNum ||
+        s.startsWith(`${topNum} `) ||
+        s.startsWith(`${topNum}-`) ||
+        s.startsWith(`${topNum}.`) ||
+        new RegExp(`\\b${topNum.replace('.', '\\.')}\\b`).test(s)
+      );
+    });
+
+    if (matchExistingSub && matchExistingSub.subtopico) {
+      subtopico = matchExistingSub.subtopico.trim();
+    } else {
+      subtopico = topNum;
+    }
+  } else if (detected.subtopico) {
+    const cleanSub = sanitizeEtiquetaField(detected.subtopico);
+    const matchExistingSub = existingQuestions.find(
+      (q) => q.subtopico && q.subtopico.trim().toLowerCase() === cleanSub.toLowerCase()
+    );
+    subtopico = matchExistingSub?.subtopico?.trim() || cleanSub;
+  }
+
+  // 5. Resolver Tema com base existente
+  if (detected.tema) {
+    const cleanTema = sanitizeEtiquetaField(detected.tema);
+    const temaNumMatch = cleanTema.match(/(\d+(?:\.\d+)+)/);
+    const temaTargetNum = temaNumMatch ? temaNumMatch[1] : '';
+
+    const matchExistingTema = existingQuestions.find((q) => {
+      if (!q.tema_subtopico) return false;
+      const t = q.tema_subtopico.trim();
+      if (t.toLowerCase() === cleanTema.toLowerCase()) return true;
+      if (temaTargetNum && t.includes(temaTargetNum)) return true;
+      return false;
+    });
+
+    tema = matchExistingTema?.tema_subtopico?.trim() || cleanTema;
+  }
+
+  return {
+    materia,
+    modulo,
+    capitulo,
+    subtopico,
+    tema_subtopico: tema,
+    peso: context?.peso !== undefined ? context.peso : 1,
+  };
 }
 
 /**
@@ -150,13 +585,322 @@ export function formatEtiqueta(q: {
 }
 
 /**
+ * Regex para identificar linhas e títulos de orientação, mudança de assunto ou teoria de transição
+ * que apenas servem para falar que mudou de assunto ou orientar o aluno e NÃO são questões.
+ */
+export const TRANSITION_CONTENT_REGEX = /(?:\n|^)[ \t]*(?:[#*=_~-]+\s*)?(?:(?:mudan[çc]a\s+de\s+(?:assunto|t[óo]pico|tema)|mudou\s+de\s+assunto|novo\s+(?:assunto|t[óo]pico|tema)|outro\s+assunto|orienta[çc][ãa]o(?:[õo]es)?(?:\s+gerais|\s+ao\s+aluno)?|aten[çc][ãa]o|aviso|nota|observa[çc][ãa]o|texto\s+de\s+apoio|texto\s+explicativo|texto\s+te[óo]rico|conte[úu]do(?:[ \t]+program[áa]tico)?|resumo(?:[ \t]+te[óo]rico)?|bloco(?:[ \t]+exclusivo)?\s+de\s+teoria|bloco\s+\d+|t[óo]pico\s+\d+|m[óo]dulo\s+[0-9IVXLCDM]+|cap[íi]tulo\s+[0-9IVXLCDM]+)[\s\-–—:]*)[^\n\r]*(?:\n|$)/i;
+
+/**
+ * Remove qualquer texto de transição, orientação ou mudança de assunto que tenha ficado
+ * no final do bloco de uma questão (após alternativas, gabarito ou comentário).
+ */
+export function trimTrailingTransitionContent(chunk: string): string {
+  if (!chunk) return '';
+  const altOrGabRegex = /(?:^|\n)[ \t]*(?:(?:gabarito|resposta)(?:\s+oficial|\s+correta)?\s*[:=-]|(?:(?:\(?\s*[a-eA-E]\s*[\)\].\-–—:]|\([a-eA-E]\)|\[[a-eA-E]\])[ \t]+)|(?:Certo|Errado)\b)/gi;
+  let lastMatchEnd = -1;
+  let m: RegExpExecArray | null;
+  while ((m = altOrGabRegex.exec(chunk)) !== null) {
+    lastMatchEnd = m.index + m[0].length;
+  }
+
+  if (lastMatchEnd !== -1) {
+    const textAfter = chunk.substring(lastMatchEnd);
+    const comMatch = textAfter.match(/(?:gabarito\s+comentado|resolu[çc][ãa]o|coment[áa]rio|justificativa|explica[çc][ãa]o|dica|macete)\s*[:\-–—]/i);
+    let searchStart = lastMatchEnd;
+    if (comMatch && comMatch.index !== undefined) {
+      searchStart = lastMatchEnd + comMatch.index + comMatch[0].length;
+    }
+
+    const searchArea = chunk.substring(searchStart);
+    const transMatch = searchArea.match(TRANSITION_CONTENT_REGEX);
+    if (transMatch && transMatch.index !== undefined) {
+      return chunk.substring(0, searchStart + transMatch.index).trim();
+    }
+  }
+
+  return chunk.trim();
+}
+
+/**
+ * Remove números marcadores e citações bibliográficas de notas/páginas (ex: [1], [2], [1, 2], [3], [1-3], [i], (1), (2), ¹, ²)
+ * e tags de gabarito coladas no texto ([Gabarito], (Gabarito), [Correto]).
+ */
+export function stripCitationMarkers(text: string): string {
+  if (!text) return '';
+
+  let cleaned = text;
+
+  // 1. Remover tags de gabarito em colchetes ou parênteses: [Gabarito], (Gabarito), [Correta], (Correta), [Gabarito Oficial]
+  cleaned = cleaned.replace(/[\[\(]\s*(?:gabarito(?:\s+oficial)?|corret[ao]|resposta(?:\s+correta)?)\s*[\]\)]/gi, '');
+
+  // 2. Remover números marcadores de citação entre colchetes: [1], [2], [1, 2], [1, 2, 3], [3, 4], [1-3], [i], [ii]
+  cleaned = cleaned.replace(/\[\s*(?:\d+|[iIvVxX]+)(?:\s*[,;\-–—]\s*(?:\d+|[iIvVxX]+))*\s*\]/g, '');
+
+  // 3. Remover números marcadores de citação/nota entre parênteses colados a palavras ou pontuação: (1), (2), (1, 2), (nota 1)
+  cleaned = cleaned.replace(/(?<=[a-zA-Z\u00C0-\u00DC.,;:?!])\s*\(\s*(?:nota\s+)?(?:\d+|[iIvVxX]+)(?:\s*[,;\-–—]\s*(?:\d+|[iIvVxX]+))*\s*\)/gi, '');
+
+  // 4. Marcadores sobrescritos de notas de rodapé (¹, ², ³, ⁴, ⁵, ⁶, ⁷, ⁸, ⁹, ⁰)
+  cleaned = cleaned.replace(/[¹²³⁴⁵⁶⁷⁸⁹⁰]+/g, '');
+
+  // 5. Limpar espaços residuais antes de sinais de pontuação resultantes da remoção (ex: "normativos [1]." -> "normativos.")
+  cleaned = cleaned.replace(/[ \t]+([.,;:?!])/g, '$1');
+
+  // 6. Limpar múltiplos espaços consecutivos na mesma linha
+  cleaned = cleaned.replace(/[ \t]{2,}/g, ' ');
+
+  return cleaned.trim();
+}
+
+/**
+ * Remove números marcadores de linha (como numeração de margem de prova de concurso colada de PDF: 1, 2, 3, etc.)
+ */
+export function stripLineNumberMarkers(text: string): string {
+  if (!text) return '';
+  const lines = text.split('\n');
+  const cleanedLines: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+
+    // Se a linha começa com número marcador de linha de PDF seguido de letra minúscula (continuação de frase de prova)
+    // Ex: "2 judiciária deve conter todos os elementos..." -> "judiciária deve conter todos os elementos..."
+    if (/^[ \t]*\d{1,3}[ \t]+(?=[a-z\u00E0-\u00FC])/.test(line)) {
+      line = line.replace(/^[ \t]*\d{1,3}[ \t]+/, '');
+    }
+
+    // Se a linha começa com marcador explícito de linha: "Linha 1", "Linha 2", "L. 1", "L1"
+    if (/^[ \t]*(?:linha|l\.)\s*\d{1,3}[:.\-–—]?[ \t]*/i.test(line)) {
+      line = line.replace(/^[ \t]*(?:linha|l\.)\s*\d{1,3}[:.\-–—]?[ \t]*/i, '');
+    }
+
+    cleanedLines.push(line);
+  }
+
+  return cleanedLines.join('\n');
+}
+
+/**
+ * Converte assertivas/itens numerados em algarismos arábicos (1., 2., 3. ou 1 -, 2 - ou (1), (2))
+ * para o padrão clássico de concursos com numerais romanos (I., II., III. / (I), (II)),
+ * garantindo espaçamento limpo entre assertivas e eliminando números marcadores soltos.
+ */
+export function convertArabicAssertivasToRoman(text: string): string {
+  if (!text) return '';
+
+  let res = text;
+
+  // 1. Detectar padrão sequencial de itens com ponto ou hífen: 1. e 2. (ou 1 - e 2 -)
+  const hasSeq12 = /(?:^|\n|[:;]\s*)\s*(?:1|01)[\.\)\-–—]\s+[A-Za-z\u00C0-\u00DC"“'\(]/i.test(res) &&
+                   /(?:^|\n|[:;]\s*)\s*(?:2|02)[\.\)\-–—]\s+[A-Za-z\u00C0-\u00DC"“'\(]/i.test(res);
+
+  if (hasSeq12) {
+    const romanMap: [RegExp, string][] = [
+      [/(?:^|\n|(?<=[:;]\s*))\s*(?:1|01)[\.\)\-–—]\s+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g, '\n\nI. '],
+      [/(?:^|\n|(?<=[:;]\s*))\s*(?:2|02)[\.\)\-–—]\s+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g, '\n\nII. '],
+      [/(?:^|\n|(?<=[:;]\s*))\s*(?:3|03)[\.\)\-–—]\s+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g, '\n\nIII. '],
+      [/(?:^|\n|(?<=[:;]\s*))\s*(?:4|04)[\.\)\-–—]\s+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g, '\n\nIV. '],
+      [/(?:^|\n|(?<=[:;]\s*))\s*(?:5|05)[\.\)\-–—]\s+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g, '\n\nV. '],
+      [/(?:^|\n|(?<=[:;]\s*))\s*(?:6|06)[\.\)\-–—]\s+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g, '\n\nVI. '],
+      [/(?:^|\n|(?<=[:;]\s*))\s*(?:7|07)[\.\)\-–—]\s+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g, '\n\nVII. '],
+      [/(?:^|\n|(?<=[:;]\s*))\s*(?:8|08)[\.\)\-–—]\s+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g, '\n\nVIII. '],
+      [/(?:^|\n|(?<=[:;]\s*))\s*(?:9|09)[\.\)\-–—]\s+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g, '\n\nIX. '],
+      [/(?:^|\n|(?<=[:;]\s*))\s*(?:10)[\.\)\-–—]\s+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g, '\n\nX. '],
+    ];
+
+    for (const [re, rep] of romanMap) {
+      res = res.replace(re, rep);
+    }
+  }
+
+  // 2. Detectar padrão com parênteses: (1) e (2)
+  const hasSeqParens = /(?:^|\n|[:;]\s*)\s*\((?:1|01)\)\s+[A-Za-z\u00C0-\u00DC"“'\(]/i.test(res) &&
+                       /(?:^|\n|[:;]\s*)\s*\((?:2|02)\)\s+[A-Za-z\u00C0-\u00DC"“'\(]/i.test(res);
+
+  if (hasSeqParens) {
+    const romanParensMap: [RegExp, string][] = [
+      [/(?:^|\n|(?<=[:;]\s*))\s*\((?:1|01)\)\s+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g, '\n\n(I) '],
+      [/(?:^|\n|(?<=[:;]\s*))\s*\((?:2|02)\)\s+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g, '\n\n(II) '],
+      [/(?:^|\n|(?<=[:;]\s*))\s*\((?:3|03)\)\s+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g, '\n\n(III) '],
+      [/(?:^|\n|(?<=[:;]\s*))\s*\((?:4|04)\)\s+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g, '\n\n(IV) '],
+      [/(?:^|\n|(?<=[:;]\s*))\s*\((?:5|05)\)\s+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g, '\n\n(V) '],
+    ];
+
+    for (const [re, rep] of romanParensMap) {
+      res = res.replace(re, rep);
+    }
+  }
+
+  // 3. Item único isolado após dois-pontos ou quebra de linha: "julgue o item a seguir: 1. O inquérito..."
+  res = res.replace(
+    /(julgue\s+o\s+item(?:\s+a\s+seguir|\s+subsequente|\s+abaixo)?\s*[:.\-–—]*\s*)(?:1|01)[\.\)\-–—]\s+/gi,
+    '$1\n\n'
+  );
+
+  return res;
+}
+
+/**
+ * Remove do texto da pergunta o número predefinido colado na caixa de texto de importação
+ * (ex: "**Questão 2**", "Questão 01:", "01. ", "1. ", "01) ", "1 - ", "(01) ", "1.\n")
+ * e retorna o texto limpo juntamente com o número detectado (caso exista).
+ * Garante que NENHUM número de questão permaneça dentro do comando/enunciado.
+ */
+export function cleanPredefinedQuestionNumber(rawText: string): { cleaned: string; detectedNum?: number } {
+  if (!rawText) return { cleaned: '' };
+
+  let text = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+  let detectedNum: number | undefined;
+
+  // Remover previamente números marcadores de notas/citações bibliográficas ([1], [2], etc.) e linhas de PDF
+  text = stripCitationMarkers(text);
+  text = stripLineNumberMarkers(text);
+
+  let changed = true;
+  let iterations = 0;
+  while (changed && iterations < 8) {
+    changed = false;
+    iterations++;
+
+    // 0. Linhas de cabeçalho de seção de questões tipo "### QUESTÕES DO TÓPICO 1 (EVOLUÇÃO E CONCEITO)" no início
+    const questSecMatch = text.match(/^[ \t]*(?:[#*=_~`]+\s*)?(?:quest(?:[ãa]o|[õo]es)\s+d[oa]\s+[^\n\r]+)(?:\r?\n+|$)/i);
+    if (questSecMatch) {
+      text = text.substring(questSecMatch[0].length).trim();
+      changed = true;
+    }
+
+    // 1. Cabeçalhos de bloco / tópico / módulo / capítulo no início
+    const headerMatch = text.match(/^[ \t]*(?:[#*=_~`]+\s*)?(?:quest(?:[ãa]o|[õo]es)\s+in[ée]dita(?:s)?\s*[\-–—:]*\s*)?(?:bloco|t[óo]pico|subt[óo]pico)?\s*\d+(?:\.\d+)+[^\n\r]*(?:\n+|$)/i);
+    if (headerMatch) {
+      text = text.substring(headerMatch[0].length).trim();
+      changed = true;
+    }
+
+    const hierarchyPrefixMatch = text.match(
+      /^[ \t]*(?:[#*=_~`]+\s*)?(?:mat[ée]ria|disciplina|nome\s+da\s+mat[ée]ria|m[óo]dulo|cap[íi]tulo|cap\.?|subt[óo]pico|sub-t[óo]pico|t[óo]pico|tema(?:\s*\((?:subt[óo]pico\s+do\s+subt[óo]pico|subtopico\s+do\s+subtopico|detalhe)\))?|subt[óo]pico\s+do\s+subt[óo]pico|subtopico\s+do\s+subtopico)\s*(?:[0-9IVXLCDM]+(?:\.[0-9IVXLCDM]+)*)?\s*[:.\-–—]?[^\n\r]*(?:\n+|$)/i
+    );
+    if (hierarchyPrefixMatch) {
+      text = text.substring(hierarchyPrefixMatch[0].length).trim();
+      changed = true;
+    }
+
+    // 2. Modelo 1/2 e Múltipla Escolha
+    const modTag = text.match(/^[ \t]*\(?\s*modelo\s*[12]\s*[-–—:]*\s*(?:m[úu]ltipla\s*escol(?:ha|a)|julgamento(?:\s+de\s+itens)?|certo\s*e?\s*errado)?\s*\)?\s*/i);
+    if (modTag) {
+      text = text.substring(modTag[0].length).trim();
+      changed = true;
+    }
+
+    // 3. Tags inline como (MÓDULO-2...)
+    const inlineModTag = text.match(/^\s*\([^)]*m[óo]dulo[^)]*\)\s*/i);
+    if (inlineModTag) {
+      text = text.substring(inlineModTag[0].length).trim();
+      changed = true;
+    }
+
+    // 4. Tags de Comando / Enunciado / Pergunta com ou sem número: "Comando da Questão 1:", "Comando:", "(Comando)", "Enunciado:"
+    const cmdMatch = text.match(
+      /^[ \t]*\(?[ \t]*(?:[#*=_~`]+\s*)?(?:comando(?:\s+da\s+quest[ãa]o)?|enunciado(?:\s+da\s+quest[ãa]o)?|pergunta)\s*(?:n[º°o]\.?|n[uú]mero)?\s*(\d+)?\s*[:.\-–—)]*(?:[#*=_~`]+\s*)?/i
+    );
+    if (cmdMatch) {
+      if (cmdMatch[1] && detectedNum === undefined) detectedNum = parseInt(cmdMatch[1], 10);
+      text = text.substring(cmdMatch[0].length).trim();
+      changed = true;
+    }
+
+    // 5. Marcador nominal de questão com ou sem markdown (**, *, __, ##): "**Questão 1**", "**Questão 2.**", "QUESTÃO 01:", "Q.1:", "Q01 -", "Item 1:", "Exercício 1"
+    const namedMatch = text.match(
+      /^[ \t]*(?:[#*=_~`]+\s*)?(?:quest[ãa]o|q\.?|item|exerc[íi]cio|simulado)(?:\s*(?:n[º°o]\.?|n[uú]mero))?[\s\-–—:]*(\d+)\b[.:\-–—)]*(?:[#*=_~`]+\s*)?/i
+    );
+    if (namedMatch) {
+      if (detectedNum === undefined) detectedNum = parseInt(namedMatch[1], 10);
+      text = text.substring(namedMatch[0].length).trim();
+      changed = true;
+    }
+
+    // 5.1 Linha isolada de Questão X no início ou após quebra de linha nas primeiras linhas
+    const isolatedQuestLine = text.match(/(?:^|\n)[ \t]*(?:[#*=_~`]+\s*)?(?:quest[ãa]o|q\.?|item|exerc[íi]cio|simulado)(?:\s*(?:n[º°o]\.?|n[uú]mero))?[\s\-–—:]*(\d+)\b[.:\-–—)]*(?:[#*=_~`]+\s*)?[ \t]*(?:\n|$)/i);
+    if (isolatedQuestLine && isolatedQuestLine.index !== undefined && isolatedQuestLine.index < 120) {
+      if (detectedNum === undefined) detectedNum = parseInt(isolatedQuestLine[1], 10);
+      text = (text.substring(0, isolatedQuestLine.index) + '\n' + text.substring(isolatedQuestLine.index + isolatedQuestLine[0].length)).trim();
+      changed = true;
+    }
+
+    // 6. Número no início com pontuação: "**1.** ", "01. ", "1. ", "01) ", "1) ", "01 - ", "1 - ", "(01) ", "1º) ", "1.\n"
+    const numPrefixMatch = text.match(
+      /^[ \t]*(?:[#*=_~`]+\s*)?(?:\(?\s*(\d{1,4})\s*[\.\)\-–—:ºª]|\(\s*(\d{1,4})\s*\)|\b(\d{1,4})\s*[\.\)\-–—:])(?:[#*=_~`]+\s*)?\s*/
+    );
+    if (numPrefixMatch) {
+      const n = parseInt(numPrefixMatch[1] || numPrefixMatch[2] || numPrefixMatch[3], 10);
+      if (!isNaN(n)) {
+        if (detectedNum === undefined) detectedNum = n;
+        text = text.substring(numPrefixMatch[0].length).trim();
+        changed = true;
+      }
+    }
+
+    // 6.1 Número no início seguido de espaço e letra: "1 O auto...", "01 A respeito..."
+    const numSpaceMatch = text.match(/^[ \t]*(?:[#*=_~`]+\s*)?(\d{1,4})[ \t]+(?:[#*=_~`]+\s*)?(?=[A-Z\u00C0-\u00DC"“'\(])/);
+    if (numSpaceMatch) {
+      const n = parseInt(numSpaceMatch[1], 10);
+      if (!isNaN(n)) {
+        if (detectedNum === undefined) detectedNum = n;
+        text = text.substring(numSpaceMatch[0].length).trim();
+        changed = true;
+      }
+    }
+
+    // 7. Número isolado em sua própria linha no início: "1\n", "01\n", "**1**\n"
+    const loneNumMatch = text.match(/^[ \t]*(?:[#*=_~`]+\s*)?(\d{1,4})[ \t]*(?:[#*=_~`]+\s*)?\n+/);
+    if (loneNumMatch) {
+      const n = parseInt(loneNumMatch[1], 10);
+      if (!isNaN(n)) {
+        if (detectedNum === undefined) detectedNum = n;
+        text = text.substring(loneNumMatch[0].length).trim();
+        changed = true;
+      }
+    }
+
+    // 8. Banca no início seguida de número da questão:
+    // Ex: "(CESPE - 2024) 01. O auto circunstanciado..." -> "(CESPE - 2024) O auto circunstanciado..."
+    // Ex: "(FGV) Questão 2: Em relação..." -> "(FGV) Em relação..."
+    const bancaThenNum = text.match(/^(\([^\)\n\r]+\)|\[[^\]\n\r]+\])[ \t]*(?:[#*=_~`]+\s*)?(?:quest[ãa]o\s*(\d+)|q\.?\s*(\d+)|(?:(?:\(?\s*(\d{1,4})\s*[\.\)\-–—:]|\(\s*(\d{1,4})\s*\))))\s*[:.\-–—]?(?:[#*=_~`]+\s*)?/i);
+    if (bancaThenNum) {
+      const bTag = bancaThenNum[1];
+      const nStr = bancaThenNum[2] || bancaThenNum[3] || bancaThenNum[4] || bancaThenNum[5];
+      if (nStr && detectedNum === undefined) detectedNum = parseInt(nStr, 10);
+      text = (bTag + ' ' + text.substring(bancaThenNum[0].length)).trim();
+      changed = true;
+    }
+
+    // 9. Limpar traços, dois-pontos, asteriscos ou pontuações residuais no início
+    const dashMatch = text.match(/^[ \t]*[\-–—:.#*=_~`]+[ \t]*/);
+    if (dashMatch) {
+      text = text.substring(dashMatch[0].length).trim();
+      changed = true;
+    }
+  }
+
+  return { cleaned: text, detectedNum };
+}
+
+/**
  * Formata e organiza o enunciado da questão, retirando menções a Modelo 1/2 e tags de módulo,
+ * removendo números predefinidos colados na importação e
  * justificando e dando espaçamento adequado para itens de assertivas (I, II, III, IV) e comandos de fechamento.
  */
 export function smartFormatEnunciado(rawText: string): string {
   if (!rawText) return '';
 
   let text = rawText.replace(/\r\n/g, '\n').trim();
+
+  // 0. Limpar números marcadores de notas, citações e linhas de PDF
+  text = stripCitationMarkers(text);
+  text = stripLineNumberMarkers(text);
+
+  // 0.1 Remover qualquer menção a "Questão X", "QUESTÃO X:", "Questão X.", "**Questão X**" isolada ou em linha
+  text = text.replace(/(?:^|\n)[ \t]*(?:[#*=_~`]+\s*)?(?:quest[ãa]o|q\.?|item|exerc[íi]cio|simulado)(?:\s*(?:n[º°o]\.?|n[uú]mero))?[\s\-–—:]*\d+\b[.:\-–—)]*(?:[#*=_~`]+\s*)?[ \t]*(?:\n|$)/gi, '\n');
+  text = text.replace(/^[ \t]*(?:[#*=_~`]+\s*)?(?:quest[ãa]o|q\.?|item|exerc[íi]cio|simulado)(?:\s*(?:n[º°o]\.?|n[uú]mero))?[\s\-–—:]*\d+\b[.:\-–—)]*(?:[#*=_~`]+\s*)?[ \t]*/i, '');
+  text = text.replace(/\b(?:quest[ãa]o|q\.?)\s*\d+\b[.:\-–—)]*/gi, '');
 
   // 1. Remover Modelo 1, Modelo 2, Múltipla Escolha, Julgamento de Itens
   text = text.replace(/\(?\s*modelo\s*[12]\s*[-–—:]*\s*(?:m[úu]ltipla\s*escol(?:ha|a)|julgamento(?:\s+de\s+itens)?|certo\s*e?\s*errado)?\s*\)?/gi, '');
@@ -167,8 +911,13 @@ export function smartFormatEnunciado(rawText: string): string {
   // 2. Remover tags iniciais de cabeçalho do tipo (MÓDULO-2-CAPÍTULO 1- [1.0-INTRODUÇÃO])
   text = text.replace(/^\s*\([^)]*m[óo]dulo[^)]*\)\s*/i, '');
 
-  // 3. Limpar traços ou pontuações residuais no início
-  text = text.replace(/^[\s\-–—:.]+/g, '').trim();
+  // 2.1 Remover cabeçalhos de bloco / tópicos no início do enunciado (ex: QUESTÕES INÉDITAS — BLOCO 4.6.2 (AUTO CIRCUNSTANCIADO))
+  text = text.replace(/^[ \t]*(?:[#*=_~-]+\s*)?(?:quest(?:[ãa]o|[õo]es)\s+in[ée]dita(?:s)?\s*[\-–—:]*\s*)?(?:bloco|t[óo]pico|subt[óo]pico)?\s*\d+(?:\.\d+)+[^\n\r]*(?:\r?\n)*/gi, '');
+  text = text.replace(/^[ \t]*(?:[#*=_~-]+\s*)?(?:mat[ée]ria|disciplina|m[óo]dulo|cap[íi]tulo|cap\.?|subt[óo]pico|t[óo]pico|tema|subt[óo]pico\s+do\s+subt[óo]pico)\s*(?:[0-9IVXLCDM]+(?:\.[0-9IVXLCDM]+)*)?\s*[:.\-–—]?[^\n\r]*(?:\r?\n)*/gi, '');
+
+  // 3. Remover número predefinido colado no início do enunciado (ex: "01. ", "Questão 01 - ", "1) ", "(01) ")
+  const { cleaned: cleanWithoutNum } = cleanPredefinedQuestionNumber(text);
+  text = cleanWithoutNum;
 
   // 4. Quebrar assertivas / itens numerais romanos em linhas separadas e bem espaçadas
   // Exemplo: ": I. O domínio... II. A capacitação..." -> "\n\nI. O domínio...\n\nII. A capacitação..."
@@ -187,6 +936,9 @@ export function smartFormatEnunciado(rawText: string): string {
     '\n\n($1) '
   );
 
+  // 4.1 Converter assertivas numeradas em arábicos (1., 2. ou 1 -, 2 - ou (1), (2)) em numerais romanos (I., II.)
+  text = convertArabicAssertivasToRoman(text);
+
   // 5. Quebrar comandos finais de pergunta em linha separada
   // Exemplo: "...trajetória profissional. Estão corretos os itens:" -> "\n\nEstão corretos os itens:"
   text = text.replace(
@@ -202,7 +954,13 @@ export function smartFormatEnunciado(rawText: string): string {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
-  return text;
+  // 7. Passagem final de garantia para remover qualquer número predefinido ou menção a Questão X que tenha sido exposto após a limpeza
+  text = text.replace(/(?:^|\n)[ \t]*(?:[#*=_~`]+\s*)?(?:quest[ãa]o|q\.?|item|exerc[íi]cio|simulado)(?:\s*(?:n[º°o]\.?|n[uú]mero))?[\s\-–—:]*\d+\b[.:\-–—)]*(?:[#*=_~`]+\s*)?[ \t]*(?:\n|$)/gi, '\n');
+  text = text.replace(/^[ \t]*(?:[#*=_~`]+\s*)?(?:quest[ãa]o|q\.?|item|exerc[íi]cio|simulado)(?:\s*(?:n[º°o]\.?|n[uú]mero))?[\s\-–—:]*\d+\b[.:\-–—)]*(?:[#*=_~`]+\s*)?[ \t]*/i, '');
+  text = text.replace(/\b(?:quest[ãa]o|q\.?)\s*\d+\b[.:\-–—)]*/gi, '');
+
+  const finalPass = cleanPredefinedQuestionNumber(text);
+  return finalPass.cleaned || text;
 }
 
 /**
@@ -482,6 +1240,9 @@ export function parseRawQuestionText(
     const temaMatch = line.match(/^(?:tema|tema_subt[óo]pico|subtema):\s*(.+)$/i);
     const pesoMatch = line.match(/^(?:peso|pontos?|valor(?:\s+em\s+pontos)?):\s*(\d+(?:[.,]\d+)?)/i);
 
+    // Também detectar cabeçalhos tipo QUESTÕES INÉDITAS — BLOCO 4.6.2 (AUTO CIRCUNSTANCIADO)
+    const blockHeader = extractHierarchyFromHeaderLine(line);
+
     if (matMatch) {
       materia = matMatch[1].trim();
     } else if (modMatch) {
@@ -497,6 +1258,27 @@ export function parseRawQuestionText(
       if (!isNaN(parsedNum) && parsedNum > 0) {
         peso = parsedNum;
       }
+    } else if (blockHeader) {
+      if (blockHeader.materia) {
+        materia = blockHeader.materia;
+      }
+      if (blockHeader.modulo) {
+        modulo = blockHeader.modulo;
+      }
+      if (blockHeader.capituloNum) {
+        capitulo = blockHeader.capituloTitle ? `Capítulo ${blockHeader.capituloNum} – ${blockHeader.capituloTitle}` : `Capítulo ${blockHeader.capituloNum}`;
+      } else if (blockHeader.capitulo) {
+        capitulo = blockHeader.capitulo;
+      }
+      if (blockHeader.topicoNum) {
+        subtopico = blockHeader.topicoNum;
+      } else if (blockHeader.subtopico) {
+        subtopico = blockHeader.subtopico;
+      }
+      if (blockHeader.tema) {
+        tema_subtopico = blockHeader.tema;
+      }
+      // Cabeçalho hierárquico NÃO deve ir para o enunciado
     } else {
       cleanLines.push(lines[i]);
     }
@@ -619,11 +1401,16 @@ export function parseRawQuestionText(
     }
   }
 
-  // Limpar prefixos comuns no enunciado como "Questão 1:" ou "Enunciado:"
-  enunciado = enunciado.replace(/^(?:enunciado|quest[ãa]o\s*\d*[:.-]?)\s*/i, '').trim();
+  // Limpar prefixos e extrair número predefinido da questão colado no enunciado
+  const { cleaned: cleanEnunciadoText, detectedNum } = cleanPredefinedQuestionNumber(enunciado);
+  enunciado = smartFormatEnunciado(cleanEnunciadoText);
 
-  // Formatar enunciado com espaçamentos justificados e quebras adequadas de assertivas
-  enunciado = smartFormatEnunciado(enunciado);
+  // Limpar marcadores de notas, citações, linhas e números soltos das alternativas
+  for (const alt of alternativas) {
+    alt.texto = stripCitationMarkers(alt.texto);
+    alt.texto = stripLineNumberMarkers(alt.texto);
+    alt.texto = alt.texto.replace(/^[ \t]*(?:\(?\s*\d+\s*[\.\)\-–—:]|\[\s*\d+\s*\]|\d+[ \t]+)\s*/, '').trim();
+  }
 
   // Se não encontrou gabarito explícito, checar se alguma alternativa tinha marcação como "(Correta)" ou "*"
   if (!gabarito && alternativas.length > 0) {
@@ -636,6 +1423,7 @@ export function parseRawQuestionText(
   }
 
   return {
+    numero_questao: detectedNum,
     materia: sanitizeEtiquetaField(materia),
     modulo: sanitizeEtiquetaField(modulo),
     capitulo: sanitizeEtiquetaField(capitulo),
@@ -657,6 +1445,16 @@ export function parseRawQuestionText(
 }
 
 /**
+ * Verifica se um trecho contém indicadores de alternativas de concurso (A-E, Certo/Errado) ou gabarito
+ */
+export function hasQuestionAlternativesOrGabarito(textChunk: string): boolean {
+  const hasAlts = /(?:^|\n)[ \t]*(?:\(?\s*[a-eA-E]\s*[\)\].\-–—:]|\([a-eA-E]\)|\[[a-eA-E]\])[ \t]+/i.test(textChunk);
+  const hasCE = /(?:^|\n)[ \t]*(?:Certo|Errado)\b/i.test(textChunk);
+  const hasGab = /(?:gabarito|resposta(?:\s+oficial|\s+correta)?)\s*[:=-]/i.test(textChunk);
+  return hasAlts || hasCE || hasGab;
+}
+
+/**
  * Fatiador inteligente e multi-estratégia para dividir blocos de questões coladas em lote.
  * Identifica com robustez 10 questões coladas em qualquer padrão comum de concursos:
  * 1. Divisores explícitos (---, ===, ***, ___)
@@ -670,7 +1468,121 @@ export function splitBatchQuestionsText(rawText: string): string[] {
   const text = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
   if (!text) return [];
 
-  // 1. Estratégia de Divisores Explícitos: ---, ===, ***, ___
+  // 1. Estratégia de Prioridade Máxima: Marcadores Nominais Explícitos de Questões
+  // ("Questão 1", "QUESTÃO 01", "Questão 2.", "Q1.", "Item 1", "Exercício 1")
+  // Quando o texto possui marcadores nominais explícitos, ELES SÃO A ÚNICA REFERÊNCIA DE CORTE!
+  // NUNCA misturar com números isolados como 1., 2., 1 -, 2 -, pois são itens/assertivas internas ou linhas de prova!
+  const qMarkerRegex = /(?:^|\n)[ \t]*(?:[#*=_~`]+\s*)?(?:quest[ãa]o|q\.?|item|exerc[íi]cio|simulado)(?:\s*(?:n[º°o]\.?|n[uú]mero))?[\s\-–—:]*(\d+)\b[.:\-–—)]*(?:[#*=_~`]+\s*)?/gi;
+  const qMatches: { index: number; num: number }[] = [];
+  let qm: RegExpExecArray | null;
+  while ((qm = qMarkerRegex.exec(text)) !== null) {
+    const actualIndex = qm.index === 0 && !text.startsWith('\n') ? 0 : qm.index + 1;
+    const lineEnd = text.indexOf('\n', actualIndex);
+    const fullLine = text.substring(actualIndex, lineEnd !== -1 ? lineEnd : text.length);
+    // Ignorar se a linha for menção em cabeçalho de gabarito comentado
+    if (!/gabarito\s+comentado|coment[áa]rio|resolu[çc][ãa]o|justificativa/i.test(fullLine)) {
+      qMatches.push({ index: actualIndex, num: parseInt(qm[1], 10) });
+    }
+  }
+
+  if (qMatches.length >= 1) {
+    qMatches.sort((a, b) => a.index - b.index);
+    const validStarts: number[] = [qMatches[0].index];
+
+    for (let i = 1; i < qMatches.length; i++) {
+      const candidate = qMatches[i];
+      // Aceita nova questão se o índice for posterior em mais de 30 caracteres
+      if (candidate.index - validStarts[validStarts.length - 1] > 30) {
+        validStarts.push(candidate.index);
+      }
+    }
+
+    if (validStarts.length > 0) {
+      const chunks: string[] = [];
+      for (let i = 0; i < validStarts.length; i++) {
+        const start = validStarts[i];
+        const end = i + 1 < validStarts.length ? validStarts[i + 1] : text.length;
+        const rawChunk = text.substring(start, end).trim();
+        const cleanChunk = trimTrailingTransitionContent(rawChunk);
+        if (cleanChunk.length > 20) {
+          chunks.push(cleanChunk);
+        }
+      }
+      if (chunks.length > 0) {
+        return chunks;
+      }
+    }
+  }
+
+  // 1.B Estratégia de Fallback: Questões numeradas na raiz sem a palavra "Questão" (ex: "01. ", "1. ", "1) ", "1 - ")
+  // Usada APENAS quando NÃO existem marcadores nominais "Questão X" no texto.
+  const candidateMatches: { index: number; num: number }[] = [];
+  const numMarkerRegex = /(?:^|\n)[ \t]*(?:(?:\(?\s*(\d{1,4})\s*[\.\)\-–—:ºª]|\[\s*(\d{1,4})\s*\]|\(\s*(\d{1,4})\s*\)))[ \t]+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g;
+  let nm: RegExpExecArray | null;
+  while ((nm = numMarkerRegex.exec(text)) !== null) {
+    const actualIndex = nm.index === 0 && !text.startsWith('\n') ? 0 : nm.index + 1;
+    const num = parseInt(nm[1] || nm[2] || nm[3], 10);
+    // Verificar se não está dentro de comentário
+    const textBefore = text.substring(Math.max(0, actualIndex - 200), actualIndex);
+    const isInComment = /coment[áa]rio|resolu[çc][ãa]o|gabarito\s+comentado|justificativa/i.test(textBefore);
+    if (!isInComment && !candidateMatches.some((c) => Math.abs(c.index - actualIndex) < 20)) {
+      candidateMatches.push({ index: actualIndex, num });
+    }
+  }
+
+  // Número isolado em sua linha antes do enunciado: "1\nUma equipe..."
+  const numLoneLineRegex = /(?:^|\n)[ \t]*(\d{1,4})[ \t]*(?:\r?\n)+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g;
+  let nlm: RegExpExecArray | null;
+  while ((nlm = numLoneLineRegex.exec(text)) !== null) {
+    const actualIndex = nlm.index === 0 && !text.startsWith('\n') ? 0 : nlm.index + 1;
+    const num = parseInt(nlm[1], 10);
+    const textBefore = text.substring(Math.max(0, actualIndex - 200), actualIndex);
+    const isInComment = /coment[áa]rio|resolu[çc][ãa]o|gabarito\s+comentado|justificativa/i.test(textBefore);
+    if (!isInComment && !candidateMatches.some((c) => Math.abs(c.index - actualIndex) < 20)) {
+      candidateMatches.push({ index: actualIndex, num });
+    }
+  }
+
+  candidateMatches.sort((a, b) => a.index - b.index);
+
+  if (candidateMatches.length >= 1) {
+    const validStarts: number[] = [candidateMatches[0].index];
+    let lastAcceptedNum = candidateMatches[0].num;
+
+    for (let i = 1; i < candidateMatches.length; i++) {
+      const prevStart = validStarts[validStarts.length - 1];
+      const candidate = candidateMatches[i];
+      const prevChunk = text.substring(prevStart, candidate.index);
+
+      // O candidato é válido SE E SOMENTE SE:
+      // a) O bloco anterior já apresentou alternativas ou gabarito (evita quebrar assertivas internas 1., 2.)
+      // b) E a numeração é estritamente superior ao último número aceito OU reinicia em 1 (mudança de matéria/bloco)
+      if (hasQuestionAlternativesOrGabarito(prevChunk) && (candidate.num > lastAcceptedNum || candidate.num === 1)) {
+        validStarts.push(candidate.index);
+        lastAcceptedNum = candidate.num;
+      }
+    }
+
+    // Se temos 1 ou mais inícios válidos de questões numeradas
+    if (validStarts.length > 0) {
+      const chunks: string[] = [];
+      for (let i = 0; i < validStarts.length; i++) {
+        const start = validStarts[i];
+        const end = i + 1 < validStarts.length ? validStarts[i + 1] : text.length;
+        const rawChunk = text.substring(start, end).trim();
+        // Remove qualquer texto de transição / orientação / mudança de assunto que tenha ficado no final
+        const cleanChunk = trimTrailingTransitionContent(rawChunk);
+        if (cleanChunk.length > 20) {
+          chunks.push(cleanChunk);
+        }
+      }
+      if (chunks.length > 0) {
+        return chunks;
+      }
+    }
+  }
+
+  // 2. Estratégia de Divisores Explícitos: ---, ===, ***, ___
   if (/(?:\n|^)[ \t]*[-=_*]{3,}[ \t]*(?:\n|$)/.test(text)) {
     const rawChunks = text.split(/(?:\n|^)[ \t]*[-=_*]{3,}[ \t]*(?:\n|$)/);
     const filtered = rawChunks.map((c) => c.trim()).filter((c) => c.length > 20);
@@ -679,7 +1591,7 @@ export function splitBatchQuestionsText(rawText: string): string[] {
     }
   }
 
-  // 2. Estratégia de Cabeçalhos Estruturados Repetidos no início de linha
+  // 3. Estratégia de Cabeçalhos Estruturados Repetidos no início de linha
   // Ex: "Módulo: Direito...", "Matéria: Português...", "Disciplina: ..."
   const headerMarkerRegex = /(?:^|\n)[ \t]*(?:m[óo]dulo|mat[ée]ria|disciplina|nome da mat[ée]ria)\s*[:=-]/gi;
   const headerIndices: number[] = [];
@@ -689,7 +1601,6 @@ export function splitBatchQuestionsText(rawText: string): string[] {
     headerIndices.push(actualIndex);
   }
   if (headerIndices.length > 1) {
-    // Se o primeiro cabeçalho não começar no índice 0 mas estiver perto do topo
     if (headerIndices[0] > 0 && headerIndices[0] < 80) {
       headerIndices[0] = 0;
     }
@@ -697,63 +1608,6 @@ export function splitBatchQuestionsText(rawText: string): string[] {
     for (let i = 0; i < headerIndices.length; i++) {
       const start = headerIndices[i];
       const end = i + 1 < headerIndices.length ? headerIndices[i + 1] : text.length;
-      const chunk = text.substring(start, end).trim();
-      if (chunk.length > 20) {
-        chunks.push(chunk);
-      }
-    }
-    if (chunks.length > 1) {
-      return chunks;
-    }
-  }
-
-  // 3. Estratégia de Marcadores Explícitos de "Questão X" ou "Item X" no início de linha
-  // Não confundir com linhas de comentários como "Gabarito Comentado — Questão 1"
-  const qMarkerRegex = /(?:^|\n)[ \t]*(?:quest[ãa]o|q\.?|item|exerc[íi]cio|simulado)\s*(?:n[º°o]\s*)?\d+\b[.:\-–—)]*/gi;
-  const markerIndices: number[] = [];
-  let qm: RegExpExecArray | null;
-  while ((qm = qMarkerRegex.exec(text)) !== null) {
-    const actualIndex = qm.index === 0 && !text.startsWith('\n') ? 0 : qm.index + 1;
-    const lineEnd = text.indexOf('\n', actualIndex);
-    const fullLine = text.substring(actualIndex, lineEnd !== -1 ? lineEnd : text.length);
-    if (!/gabarito\s+comentado|coment[áa]rio\s+da\s+quest|resolu[çc][ãa]o\s+comentada|justificativa/i.test(fullLine)) {
-      markerIndices.push(actualIndex);
-    }
-  }
-  if (markerIndices.length > 1) {
-    if (markerIndices[0] > 0 && markerIndices[0] < 80) {
-      markerIndices[0] = 0;
-    }
-    const chunks: string[] = [];
-    for (let i = 0; i < markerIndices.length; i++) {
-      const start = markerIndices[i];
-      const end = i + 1 < markerIndices.length ? markerIndices[i + 1] : text.length;
-      const chunk = text.substring(start, end).trim();
-      if (chunk.length > 20) {
-        chunks.push(chunk);
-      }
-    }
-    if (chunks.length > 1) {
-      return chunks;
-    }
-  }
-
-  // 4. Estratégia de Numeração no início de linha: "1. ", "1) ", "1 - ", "01. ", "(01) ", "[1] "
-  const numMarkerRegex = /(?:^|\n)[ \t]*(?:(?:\(?\s*\d{1,3}\s*[\.\)\-–—:ºª]|\[\s*\d{1,3}\s*\]|\(\s*\d{1,3}\s*\)))[ \t]+(?=[A-Za-z\u00C0-\u00DC"“'\(])/g;
-  const numIndices: number[] = [];
-  let nm: RegExpExecArray | null;
-  while ((nm = numMarkerRegex.exec(text)) !== null) {
-    const actualIndex = nm.index === 0 && !text.startsWith('\n') ? 0 : nm.index + 1;
-    numIndices.push(actualIndex);
-  }
-  if (numIndices.length > 1) {
-    if (numIndices[0] > 0 && numIndices[0] < 80) {
-      numIndices[0] = 0;
-    }
-    const chunks: string[] = [];
-    for (let i = 0; i < numIndices.length; i++) {
-      const start = numIndices[i];
-      const end = i + 1 < numIndices.length ? numIndices[i + 1] : text.length;
       const chunk = text.substring(start, end).trim();
       if (chunk.length > 20) {
         chunks.push(chunk);
@@ -784,7 +1638,8 @@ export function splitBatchQuestionsText(rawText: string): string[] {
         cutPoint += metaMatch[0].length;
       }
       const nextEnd = i + 1 < gabMatches.length ? cutPoint : text.length;
-      const chunk = text.substring(currentStart, nextEnd).trim();
+      const rawChunk = text.substring(currentStart, nextEnd).trim();
+      const chunk = trimTrailingTransitionContent(rawChunk);
       if (chunk.length > 20) {
         chunks.push(chunk);
       }
@@ -806,11 +1661,11 @@ export function splitBatchQuestionsText(rawText: string): string[] {
       /(?:^|\n)[ \t]*(?:\(?\s*[a-eA-E]\s*[\)\].\-–—:]|\([a-eA-E]\)|\[[a-eA-E]\]|Certo|Errado)/i.test(b)
     );
     if (blocksWithAlts.length >= 2 && blocksWithAlts.length >= paragraphBlocks.length * 0.6) {
-      return paragraphBlocks;
+      return paragraphBlocks.map((b) => trimTrailingTransitionContent(b));
     }
   }
 
-  return [text];
+  return [trimTrailingTransitionContent(text)];
 }
 
 /**
@@ -822,7 +1677,8 @@ export function splitBatchQuestionsText(rawText: string): string[] {
 export function parseBatchRawQuestions(
   rawQuestionsText: string,
   rawCommentsText?: string,
-  context?: HierarchyContext
+  context?: HierarchyContext,
+  existingQuestions: Question[] = []
 ): ParsedQuestionResult[] {
   if (!rawQuestionsText.trim()) return [];
 
@@ -853,10 +1709,151 @@ export function parseBatchRawQuestions(
     }
   }
 
-  // Divisão com o fatiador inteligente multi-estratégia
-  const splits = splitBatchQuestionsText(questionsText);
+  // Segmentação inteligente por seções / blocos com cabeçalhos hierárquicos
+  // (ex: QUESTÕES INÉDITAS — BLOCO 4.6.2 (AUTO CIRCUNSTANCIADO), # MÓDULO II, etc.)
+  const lines = questionsText.split(/\r?\n/);
+  const sectionChunks: { hierarchy: RawHierarchyMatch; lines: string[] }[] = [];
+  let activeHierarchy: RawHierarchyMatch = {};
+  let currentLines: string[] = [];
+  let foundAnyHeader = false;
 
-  const parsedQuestions = splits.map((chunk) => parseRawQuestionText(chunk, context));
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const detected = extractHierarchyFromHeaderLine(line);
+
+    if (
+      detected &&
+      (detected.materia ||
+        detected.modulo ||
+        detected.capitulo ||
+        detected.capituloNum ||
+        detected.subtopico ||
+        detected.topicoNum ||
+        detected.tema ||
+        detected.temaNum)
+    ) {
+      foundAnyHeader = true;
+      if (currentLines.some((l) => l.trim().length > 0)) {
+        sectionChunks.push({
+          hierarchy: { ...activeHierarchy },
+          lines: [...currentLines],
+        });
+        currentLines = [];
+      }
+
+      // Atualização hierárquica em cascata (se mudar matéria/módulo/capítulo, reseta níveis inferiores)
+      if (detected.materia) {
+        activeHierarchy.materia = detected.materia;
+        if (!detected.modulo) delete activeHierarchy.modulo;
+        if (!detected.capitulo && !detected.capituloNum) {
+          delete activeHierarchy.capitulo;
+          delete activeHierarchy.capituloNum;
+          delete activeHierarchy.capituloTitle;
+        }
+        if (!detected.subtopico && !detected.topicoNum) {
+          delete activeHierarchy.subtopico;
+          delete activeHierarchy.topicoNum;
+          delete activeHierarchy.topicoTitle;
+        }
+        if (!detected.tema && !detected.temaNum) {
+          delete activeHierarchy.tema;
+          delete activeHierarchy.temaNum;
+          delete activeHierarchy.temaTitle;
+        }
+      }
+
+      if (detected.modulo) {
+        activeHierarchy.modulo = detected.modulo;
+        if (!detected.capitulo && !detected.capituloNum) {
+          delete activeHierarchy.capitulo;
+          delete activeHierarchy.capituloNum;
+          delete activeHierarchy.capituloTitle;
+        }
+        if (!detected.subtopico && !detected.topicoNum) {
+          delete activeHierarchy.subtopico;
+          delete activeHierarchy.topicoNum;
+          delete activeHierarchy.topicoTitle;
+        }
+        if (!detected.tema && !detected.temaNum) {
+          delete activeHierarchy.tema;
+          delete activeHierarchy.temaNum;
+          delete activeHierarchy.temaTitle;
+        }
+      }
+
+      if (detected.capitulo || detected.capituloNum) {
+        activeHierarchy.capitulo = detected.capitulo;
+        activeHierarchy.capituloNum = detected.capituloNum;
+        activeHierarchy.capituloTitle = detected.capituloTitle;
+        if (!detected.subtopico && !detected.topicoNum) {
+          delete activeHierarchy.subtopico;
+          delete activeHierarchy.topicoNum;
+          delete activeHierarchy.topicoTitle;
+        }
+        if (!detected.tema && !detected.temaNum) {
+          delete activeHierarchy.tema;
+          delete activeHierarchy.temaNum;
+          delete activeHierarchy.temaTitle;
+        }
+      }
+
+      if (detected.subtopico || detected.topicoNum) {
+        activeHierarchy.subtopico = detected.subtopico;
+        activeHierarchy.topicoNum = detected.topicoNum;
+        activeHierarchy.topicoTitle = detected.topicoTitle;
+        if (!detected.tema && !detected.temaNum) {
+          delete activeHierarchy.tema;
+          delete activeHierarchy.temaNum;
+          delete activeHierarchy.temaTitle;
+        }
+      }
+
+      if (detected.tema || detected.temaNum) {
+        activeHierarchy.tema = detected.tema;
+        activeHierarchy.temaNum = detected.temaNum;
+        activeHierarchy.temaTitle = detected.temaTitle;
+      }
+    } else {
+      currentLines.push(line);
+    }
+  }
+
+  if (currentLines.some((l) => l.trim().length > 0)) {
+    sectionChunks.push({
+      hierarchy: { ...activeHierarchy },
+      lines: currentLines,
+    });
+  }
+
+  const rawParsedQuestions: ParsedQuestionResult[] = [];
+
+  if (foundAnyHeader && sectionChunks.length > 0) {
+    for (const section of sectionChunks) {
+      const sectionText = section.lines.join('\n').trim();
+      if (!sectionText) continue;
+
+      const resolvedContext = resolveHierarchyWithExisting(
+        section.hierarchy,
+        existingQuestions,
+        context
+      );
+
+      const splits = splitBatchQuestionsText(sectionText);
+      for (const chunk of splits) {
+        const cleanChunk = trimTrailingTransitionContent(chunk);
+        const parsed = parseRawQuestionText(cleanChunk, resolvedContext);
+        rawParsedQuestions.push(parsed);
+      }
+    }
+  } else {
+    // Modo padrão sem cabeçalhos de bloco explícitos
+    const splits = splitBatchQuestionsText(questionsText);
+    for (const chunk of splits) {
+      const cleanChunk = trimTrailingTransitionContent(chunk);
+      const parsed = parseRawQuestionText(cleanChunk, context);
+      rawParsedQuestions.push(parsed);
+    }
+  }
 
   // Se houver gabaritos comentados separados (da 2ª caixa ou da seção final), vincular automaticamente
   if (commentsText) {
@@ -870,7 +1867,7 @@ export function parseBatchRawQuestions(
       }
     });
 
-    parsedQuestions.forEach((q, idx) => {
+    rawParsedQuestions.forEach((q, idx) => {
       const qNum = idx + 1;
       const matchedComment = commentsByNum.get(qNum) || commentsList[idx];
 
@@ -887,8 +1884,155 @@ export function parseBatchRawQuestions(
     });
   }
 
-  return parsedQuestions;
+  // FILTRAGEM RIGOROSA DE CONTEÚDO QUE NÃO SÃO QUESTÕES:
+  // Conforme expressamente solicitado: "ignore o conteúdo que não são questões as questões são numeradas, 1,2,3,4,5,6 e por aí vai,
+  // os conteúdos texto de conteúdo não são questões apenas servem para orientar e falar que mudou de assunto".
+  // Uma questão legítima DEVE possuir alternativas completas (>= 2) ou gabarito oficial definido ou comentário estruturado com alternativas.
+  const realQuestions = rawParsedQuestions.filter((q) => {
+    const hasAlts = q.alternativas && q.alternativas.length >= 2;
+    const hasGab = Boolean(q.confidence.hasGabarito);
+    const hasCom = Boolean(q.confidence.hasComentario);
+    return hasAlts || hasGab || (hasCom && q.alternativas && q.alternativas.length >= 1);
+  });
+
+  // Atribuição de numeração sequencial das questões pelo próprio sistema e limpeza rigorosa do enunciado
+  realQuestions.forEach((q, idx) => {
+    // Se a questão já tiver um número detectado de forma confiável no texto (ex: "Questão 2" -> 2),
+    // preservamos o número original. Caso contrário, usamos idx + 1.
+    if (!q.numero_questao || q.numero_questao <= 0) {
+      q.numero_questao = idx + 1;
+    }
+
+    // Remove marcadores e transições residuais do comentário e das alternativas
+    if (q.gabarito_comentado) {
+      q.gabarito_comentado = stripCitationMarkers(q.gabarito_comentado);
+      q.gabarito_comentado = stripLineNumberMarkers(q.gabarito_comentado);
+      q.gabarito_comentado = trimTrailingTransitionContent(q.gabarito_comentado);
+    }
+    q.alternativas.forEach((alt) => {
+      alt.texto = stripCitationMarkers(alt.texto);
+      alt.texto = stripLineNumberMarkers(alt.texto);
+      alt.texto = trimTrailingTransitionContent(alt.texto);
+      // Remove números marcadores no início de alternativas (ex: "1. ", "1 - ", "1) ", "[1]")
+      alt.texto = alt.texto.replace(/^[ \t]*(?:\(?\s*\d+\s*[\.\)\-–—:]|\[\s*\d+\s*\]|\d+[ \t]+)\s*/, '').trim();
+    });
+
+    // Remove completamente qualquer número predefinido do comando (enunciado)
+    const { cleaned } = cleanPredefinedQuestionNumber(q.enunciado);
+    let finalEnunciado = smartFormatEnunciado(cleaned);
+
+    // Garantia estrita: nenhum número da questão ou etiqueta de comando dentro do comando/enunciado
+    finalEnunciado = finalEnunciado
+      .replace(/(?:^|\n)[ \t]*(?:[#*=_~`]+\s*)?(?:quest[ãa]o|q\.?|item|exerc[íi]cio|simulado)(?:\s*(?:n[º°o]\.?|n[uú]mero))?[\s\-–—:]*\d+\b[.:\-–—)]*(?:[#*=_~`]+\s*)?[ \t]*(?:\n|$)/gi, '\n')
+      .replace(/^[ \t]*(?:[#*=_~`]+\s*)?(?:quest[ãa]o|q\.?|item|exerc[íi]cio|simulado)?(?:\s*(?:n[º°o]\.?|n[uú]mero))?[\s\-–—:]*(\d+)\b[.:\-–—)]*\s*/i, '')
+      .replace(/^[ \t]*\(?[ \t]*(?:comando(?:\s+da\s+quest[ãa]o)?|enunciado(?:\s+da\s+quest[ãa]o)?|pergunta)\s*(?:n[º°o]\.?|n[uú]mero)?\s*(?:\d+)?\s*[:.\-–—)]*\s*/i, '')
+      .replace(/^[ \t]*(?:\(?\s*\d+\s*[\.\)\-–—:ºª]|\[\s*\d+\s*\]|\(\s*\d+\s*\)|\b\d+\s*[\.\)\-–—:])\s*/, '')
+      .replace(/^[ \t]*\d+[ \t]+(?=[A-Za-z\u00C0-\u00DC"“'\(])/, '')
+      .trim();
+
+    q.enunciado = finalEnunciado;
+  });
+
+  return realQuestions;
 }
+
+/**
+ * Exemplo real de questões inéditas da PF - Bloco 4.6.2 (Auto Circunstanciado)
+ */
+export const SAMPLE_BLOCO_462 = `QUESTÕES INÉDITAS — BLOCO 4.6.2 (AUTO CIRCUNSTANCIADO)
+
+Questão 1
+Uma equipe da Polícia Federal foi encarregada de estruturar uma investigação sobre lavagem de dinheiro transnacional. Diante da evolução metodológica da atividade investigativa e das diretrizes institucionais de instrução probatória, julgue os itens a seguir:
+I. A investigação policial moderna caracteriza-se como atividade técnico-jurídica que superou a exclusiva dependência de relatos testemunhais e diligências de campo tradicionais.
+II. A utilização de pesquisas em fontes abertas e consultas a relatórios de inteligência financeira qualifica-se como meio extraordinário de investigação submetido à prévia autorização judicial.
+III. A adequada formalização dos dados obtidos ao longo da colheita informativa consubstancia elemento indispensável para a preservação da cadeia de custódia e validade das provas.
+IV. O emprego de inteligência artificial na análise investigativa prescinde de balizamentos éticos e normativos por constituir mera ferramenta de suporte operacional.
+Estão corretos os itens:
+a) I e III, apenas.
+b) II e IV, apenas.
+c) I, II e III, apenas.
+d) I, III e IV, apenas.
+
+Gabarito Comentado — Questão 1: Alternativa a.
+Item I (Correto): A investigação moderna evoluiu de um modelo exclusivamente focado em testemunhas e diligências empíricas de campo para uma atividade técnico-jurídica estruturada.
+Item II (Incorreto): As consultas a fontes abertas e exames de inteligência financeira constituem ações ordinárias que não dependem de autorização judicial prévia.
+Item III (Correto): A formalização rigorosa dos dados colhidos é o pilar que assegura a rastreabilidade da cadeia de custódia e a validade processual do elemento probatório.
+Item IV (Incorreto): O uso de inteligência artificial e ferramentas tecnológicas deve obrigatoriamente submeter-se aos princípios constitucionais, legais e balizamentos éticos.
+
+Questão 2
+Acerca do nível de aprofundamento técnico e da abordagem pedagógica conferida aos instrumentos de obtenção de prova na formação investigativa, assinale a alternativa correta:
+a) A infiltração policial prescinde de fundamentação legal e judicial detalhada por constituir meio ordinário de coleta informativa.
+b) A análise telemática e a de ativos virtuais demandam maior detalhamento técnico devido à dinâmica da evolução tecnológica contemporânea.
+c) A colaboração premiada deve ser abordada de forma estritamente operacional, dispensando o aprofundamento em sala de aula.
+d) Os meios ordinários de investigação dispensam formalização procedimental por não estarem sujeitos ao controle de validade processual.
+
+Gabarito Comentado — Questão 2: Alternativa b.
+a) Incorreta: A infiltração de agentes constitui técnica extraordinária (especial) revestida de excepcionalidade e reserva de jurisdição.
+b) Correta: Conforme o material de referência, matérias como análise telemática, bancária e de ativos virtuais exigem maior detalhamento e aprofundamento técnico em razão da rápida evolução tecnológica.
+c) Incorreta: Institutos como a colaboração premiada e a infiltração são abordados sob parâmetros amplos adequados ao aprofundamento prático e doutrinário em sala de aula.
+d) Incorreta: Todos os meios de prova, inclusive os ordinários, demandam estrita formalização para assegurar a higidez da cadeia de custódia.
+
+Questão 3
+Considerando os parâmetros legais e operacionais que regem a investigação policial contemporânea e a utilização dos meios de prova, julgue os itens subsequentes:
+I. Os meios extraordinários de investigação caracterizam-se pela exigência de controle judicial prévio e por maior rigor procedimental.
+II. O avanço tecnológico dispensou a cooperação interinstitucional, tornando a atuação isolada da Polícia Federal autossuficiente.
+III. A consulta a bancos de dados e o exame de relatórios de inteligência constituem ferramentas ordinárias colocadas à disposição do investigador.
+IV. A validade processual dos elementos colhidos na investigação independe do cumprimento rigoroso das regras de cadeia de custódia.
+Estão corretos os itens:
+a) II e IV, apenas.
+b) I e III, apenas.
+c) I e IV, apenas.
+d) II e III, apenas.
+
+Gabarito Comentado — Questão 3: Alternativa b.
+Item I (Correto): Meios extraordinários (interceptação, quebra de sigilo) relativizam direitos fundamentais e dependem obrigatoriamente de autorização judicial prévia.
+Item II (Incorreto): O enfrentamento de infrações penais complexas torna indispensável a cooperação interinstitucional e o trabalho integrado.
+Item III (Correto): A pesquisa em bancos de dados e fontes abertas representa o primeiro passo ordinário e imediato do policial investigador.
+Item IV (Incorreto): A inobservância das regras formais e da cadeia de custódia compromete diretamente a validade probatória em juízo.
+
+Questão 4
+Sobre o papel da tecnologia e da inteligência artificial na atividade de investigação policial, assinale a alternativa correta:
+a) A inteligência artificial substitui integralmente a valoração jurídica do delegado de polícia no enquadramento dos fatos investigados.
+b) As ferramentas tecnológicas dispensam o respeito aos princípios constitucionais haja vista a prevalência do interesse público na apuração.
+c) A utilização de algoritmos de inteligência artificial como ferramenta de análise demanda a observância de potencialidades e desafios éticos.
+d) O uso de recursos tecnológicos restringe-se aos meios extraordinários de investigação submetidos à reserva absoluta de jurisdição.
+
+Gabarito Comentado — Questão 4: Alternativa c.
+a) Incorreta: A tecnologia e os sistemas de inteligência atuam como ferramentas de suporte analítico, jamais substituindo o juízo técnico-jurídico da autoridade policial.
+b) Incorreta: A atuação estatal de polícia judiciária é estritamente vinculada às garantias constitucionais e aos limites legais.
+c) Correta: O emprego de inteligência artificial no processamento de grandes volumes de dados exige a contínua ponderação de desafios éticos e jurídicos.
+d) Incorreta: Ferramentas tecnológicas aplicam-se cotidianamente tanto no âmbito das ações ordinárias (análise de dados abertos) quanto nas extraordinárias.
+
+Questão 5
+Em relação às características constitutivas e à evolução metodológica do processo investigativo estatal, julgue os itens a seguir:
+I. A investigação criminal moderna fundamenta-se no uso racional de recursos tecnológicos e humanos aliados à cooperação interinstitucional.
+II. A apuração de infrações penais na atualidade prescinde de fundamentação normativo-teórica quando amparada em dados tecnológicos.
+III. O aprendizado acadêmico na formação policial visa articular fundamentos normativos e exemplos práticos da realidade operacional.
+IV. Os meios ordinários de coleta de informações prescindem de observância ao ordenamento jurídico por possuírem caráter informal.
+Estão corretos os itens:
+a) I e II, apenas.
+b) III e IV, apenas.
+c) I e III, apenas.
+d) II e IV, apenas.
+
+Gabarito Comentado — Questão 5: Alternativa c.
+Item I (Correto): O enfrentamento à criminalidade exige otimização de recursos, tecnologia e articulação entre órgãos estatais.
+Item II (Incorreto): A atividade de investigação é eminentemente técnico-jurídica, demandando permanente respaldo na teoria e na norma regente.
+Item III (Correto): A estrutura pedagógica visa unir sólida base conceitual a aplicabilidades práticas do dia a dia policial.
+Item IV (Incorreto): Os meios ordinários, embora dispensem ordem judicial, devem obrigatoriamente respeitar a legislação, a ética e os direitos fundamentais.
+
+Questão 6
+No tocante ao tratamento conferido aos instrumentos ordinários e extraordinários no processo de persecução penal, assinale a alternativa correta:
+a) As interceptações telefônicas e as quebras de sigilo constituem meios ordinários de investigação acessíveis de imediato pelo investigador.
+b) A formalização procedimental adequada dos dados obtidos visa precipuamente assegurar a celeridade arbitrária da instrução policial.
+c) A persecução penal dos crimes complexos exige esforço integrado entre órgãos públicos e emprego de metodologias de inteligência.
+d) As pesquisas em fontes abertas demandam autorização prévia do Poder Judiciário sob pena de ilicitude do conhecimento produzido.
+
+Gabarito Comentado — Questão 6: Alternativa c.
+a) Incorreta: Interceptação e quebra de sigilo são meios extraordinários/especiais dependentes de autorização judicial prévia.
+b) Incorreta: A formalização dos atos de investigação destina-se a garantir a legalidade, a ampla defesa, o contraditório e a higidez da cadeia de custódia.
+c) Correta: O enfrentamento de crimes complexos (como lavagem de dinheiro e organizações criminosas) pressupõe atuação coordenada e inteligência estratégica.
+d) Incorreta: Pesquisas em fontes abertas (OSINT) e dados públicos não dependem de autorização judicial.`;
 
 /**
  * Exemplos pré-carregados de alta qualidade para teste imediato pelo administrador

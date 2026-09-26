@@ -5,6 +5,7 @@ export interface AlternativeItem {
 
 export interface Question {
   id?: string;
+  numero_questao?: number; // Número sequencial da questão (definido pelo sistema e desvinculado do texto)
   // Hierarquia
   materia?: string;
   modulo: string;
