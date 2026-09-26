@@ -17,6 +17,7 @@ import {
   addDoc,
   deleteDoc,
   doc,
+  writeBatch,
 } from 'firebase/firestore';
 import {
   ShieldAlert,
@@ -26,6 +27,7 @@ import {
   CheckCircle2,
   Trash2,
   ListPlus,
+  ListOrdered,
   FileEdit,
   Eye,
   BookOpen,
@@ -695,8 +697,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       const questionsCol = collection(db, 'questions');
       let count = 0;
 
+      // Determinar o próximo número ordinal contínuo para evitar qualquer duplicata
+      const maxExistingNum = existingQuestions.reduce(
+        (max, eq) => Math.max(max, eq.numero_questao || 0),
+        0
+      );
+      const startingNum = maxExistingNum > 0 ? maxExistingNum : existingQuestions.length;
+
       for (const q of extractedQuestions) {
         const validAlts = q.alternativas.filter((a) => a.texto.trim().length > 0);
+        const autoOrdinalNum = startingNum + count + 1;
 
         const questionPayload = {
           materia: (q.materia || nomeMateria || 'IPO-2').trim(),
@@ -705,7 +715,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           subtopico: (q.subtopico || subtopico || '').trim(),
           tema_subtopico: (q.tema_subtopico || tema || '').trim(),
           peso: q.peso !== undefined && Number(q.peso) > 0 ? Number(q.peso) : (Number(pesoQuestao) || 1),
-          numero_questao: q.numero_questao || count + 1,
+          numero_questao: autoOrdinalNum,
           enunciado: q.enunciado.trim(),
           alternativas: validAlts.map((a) => ({
             letra: a.letra.toUpperCase(),
@@ -723,7 +733,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         setSaveProgress({ current: count, total: extractedQuestions.length });
       }
 
-      setSaveSuccessMsg(`${count} questão(ões) inserida(s) com sucesso no Firestore!`);
+      setSaveSuccessMsg(`${count} questão(ões) inserida(s) com numeração ordinal contínua no Firestore!`);
       onQuestionAdded();
 
       // Limpar formulário após sucesso
@@ -740,6 +750,50 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     } finally {
       setSaving(false);
       setSaveProgress(null);
+    }
+  };
+
+  // Renumerar todas as questões do banco de dados em ordem ordinal rigorosa (1, 2, 3, 4, 5...) sem duplicatas
+  const handleRenumerarAutomaticamente = async () => {
+    if (existingQuestions.length === 0) return;
+    if (!user || !isUserAdminEmail(user.email)) return;
+
+    setSaving(true);
+    setErrorMessage(null);
+    setSaveSuccessMsg(null);
+
+    try {
+      // Ordenar questões pelo número atual ou data de criação
+      const sorted = [...existingQuestions].sort((a, b) => {
+        const numA = typeof a.numero_questao === 'number' && a.numero_questao > 0 ? a.numero_questao : 999999;
+        const numB = typeof b.numero_questao === 'number' && b.numero_questao > 0 ? b.numero_questao : 999999;
+        if (numA !== numB) return numA - numB;
+        return (a.createdAt || '').localeCompare(b.createdAt || '');
+      });
+
+      // Gravação em lote com chunks de 400
+      const batchSize = 400;
+      for (let i = 0; i < sorted.length; i += batchSize) {
+        const chunk = sorted.slice(i, i + batchSize);
+        const batch = writeBatch(db);
+        chunk.forEach((q, chunkIdx) => {
+          if (q.id) {
+            const docRef = doc(db, 'questions', q.id);
+            const ordinalNum = i + chunkIdx + 1;
+            batch.update(docRef, { numero_questao: ordinalNum });
+          }
+        });
+        await batch.commit();
+      }
+
+      setSaveSuccessMsg(`Todas as ${sorted.length} questões foram renumeradas com sucesso em ordem ordinal contínua (1, 2, 3, 4, 5...) sem nenhuma duplicata!`);
+      onQuestionAdded();
+      setTimeout(() => setSaveSuccessMsg(null), 5000);
+    } catch (err: unknown) {
+      console.error('Erro ao renumerar questões:', err);
+      setErrorMessage('Erro ao renumerar questões no banco de dados.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -2316,6 +2370,21 @@ Comentário: Apenas a alternativa B atende ao comando...`}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {/* Botão de Renumerar Automaticamente */}
+              {existingQuestions.length > 0 && (
+                <button
+                  id="btn-renumerar-questions"
+                  type="button"
+                  onClick={handleRenumerarAutomaticamente}
+                  disabled={saving}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
+                  title="Renumerar todas as questões do banco de dados em ordem ordinal 1, 2, 3, 4, 5... eliminando qualquer duplicata"
+                >
+                  <ListOrdered className="w-3.5 h-3.5" />
+                  {saving ? 'Processando...' : 'Renumerar Automaticamente (1, 2, 3...)'}
+                </button>
+              )}
+
               {/* Botão de Excluir Selecionadas */}
               {selectedQuestionIds.size > 0 && (
                 <button

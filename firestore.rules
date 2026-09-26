@@ -36,14 +36,14 @@ service cloud.firestore {
     }
 
     match /questions/{questionId} {
-      // Qualquer pessoa autenticada ou visitante pode ler as questões
-      allow get, list: if true;
+      // Leitura restrita a usuários autenticados com Google no sistema
+      allow get, list: if isSignedIn();
       // Apenas o administrador pode criar, editar ou excluir questões
       allow create, update: if isValidId(questionId) && isAdmin() && isValidQuestion(request.resource.data);
       allow delete: if isValidId(questionId) && isAdmin();
 
       match /comments/{commentId} {
-        allow get, list: if true;
+        allow get, list: if isSignedIn();
         allow create: if isValidId(commentId) && isSignedIn() && isValidComment(request.resource.data);
         allow update: if isValidId(commentId) && isSignedIn() &&
                       isValidComment(request.resource.data) &&
@@ -55,7 +55,7 @@ service cloud.firestore {
 
     // Coleção de Simulados Ponderados (Apenas matéria e peso - Exclusivo para o Administrador)
     match /simulados/{simuladoId} {
-      allow get, list: if true;
+      allow get, list: if isSignedIn();
       allow create, update, delete: if isValidId(simuladoId) && isAdmin();
     }
 

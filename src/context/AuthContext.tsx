@@ -91,12 +91,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribeProfile();
   }, [user]);
 
+  const [isMatriculaActive, setIsMatriculaActive] = useState<boolean>(false);
+
+  // Monitorar em tempo real se a matrícula do aluno permanece válida e ativa no banco de dados
+  useEffect(() => {
+    if (!user) {
+      setIsMatriculaActive(false);
+      return;
+    }
+
+    if (isUserAdminEmail(user.email)) {
+      setIsMatriculaActive(true);
+      return;
+    }
+
+    if (!userProfile?.matricula) {
+      setIsMatriculaActive(false);
+      return;
+    }
+
+    const cleanMat = userProfile.matricula.trim().toUpperCase();
+    const matRef = doc(db, 'authorized_matriculas', cleanMat);
+
+    const unsubMat = onSnapshot(
+      matRef,
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data() as AuthorizedMatricula;
+          // A matrícula deve estar ativa e vinculada a esta conta Google
+          const isOk = data.active !== false && (!data.linkedUid || data.linkedUid === user.uid);
+          setIsMatriculaActive(isOk);
+        } else {
+          // Se foi apagada pelo administrador, revoga o acesso imediatamente
+          setIsMatriculaActive(false);
+        }
+      },
+      (err) => {
+        console.warn('Monitoramento de matrícula restrito:', err);
+        // Se houver restrição transitória de leitura, confia no perfil
+        setIsMatriculaActive(true);
+      }
+    );
+
+    return () => unsubMat();
+  }, [user, userProfile?.matricula]);
+
   const isAdmin = Boolean(user?.email && isUserAdminEmail(user.email));
 
-  // O administrador mestre tem acesso imediato garantido para poder gerenciar o sistema.
-  // Usuários comuns precisam ter matrícula vinculada.
+  // O administrador mestre tem acesso irrestrito para gerenciar a plataforma.
+  // Usuários comuns SÓ acessam se possuírem matrícula autorizada ativa e verificada.
   const isMatriculaVerified = Boolean(
-    isAdmin || (userProfile?.matricula && userProfile.matricula.trim().length > 0)
+    isAdmin || (userProfile?.matricula && isMatriculaActive)
   );
 
   const userMatricula = userProfile?.matricula || null;

@@ -25,6 +25,8 @@ import {
   Layers,
   Palette,
   FileCheck2,
+  Lock,
+  LogIn,
 } from 'lucide-react';
 
 function MainApp() {
@@ -65,8 +67,14 @@ function MainApp() {
     }
   });
 
-  // Escutar questões do Firestore em tempo real
+  // Escutar questões do Firestore em tempo real (Apenas se o usuário tiver matrícula verificada ou for admin)
   useEffect(() => {
+    if (!isMatriculaVerified) {
+      setFirestoreQuestions([]);
+      setLoadingQuestions(false);
+      return;
+    }
+
     setLoadingQuestions(true);
     setDbError(null);
 
@@ -96,7 +104,7 @@ function MainApp() {
       setFirestoreQuestions([]);
       setLoadingQuestions(false);
     }
-  }, []);
+  }, [isMatriculaVerified]);
 
   // Persistir respostas no localStorage com a disciplina (módulo) associada
   const handleAnswerQuestion = (questionId: string, isCorrect: boolean) => {
@@ -130,9 +138,9 @@ function MainApp() {
     }
   };
 
-  // Filtragem dinâmica de questões
+  // Filtragem dinâmica de questões com ordenação estritamente ordinal (1, 2, 3, 4, 5, 6...)
   const filteredQuestions = useMemo(() => {
-    return firestoreQuestions.filter((q) => {
+    const list = firestoreQuestions.filter((q) => {
       const qId = q.id || '';
       const answerState = userAnswers[qId];
 
@@ -187,6 +195,14 @@ function MainApp() {
 
       return true;
     });
+
+    // Ordenação estritamente ordinal crescente (1, 2, 3, 4, 5, 6...)
+    return list.sort((a, b) => {
+      const numA = typeof a.numero_questao === 'number' && a.numero_questao > 0 ? a.numero_questao : 999999;
+      const numB = typeof b.numero_questao === 'number' && b.numero_questao > 0 ? b.numero_questao : 999999;
+      if (numA !== numB) return numA - numB;
+      return (a.createdAt || '').localeCompare(b.createdAt || '');
+    });
   }, [firestoreQuestions, filters, userAnswers]);
 
   const currentFilterLabel = useMemo(() => {
@@ -215,7 +231,7 @@ function MainApp() {
       {/* Modal de Escolha de Paleta / Identidade Visual */}
       <ThemeSelectorModal />
 
-      {/* Modal obrigatório de vinculação de matrícula institucional */}
+      {/* Modal obrigatório de vinculação de matrícula institucional (caso precise de overlay) */}
       {user && !isMatriculaVerified && !checkingMatricula && (
         <MatriculaVerificationModal />
       )}
@@ -223,7 +239,7 @@ function MainApp() {
       {/* Conteúdo Principal */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Painel do Administrador */}
-        {isAdminOpen && (
+        {isAdmin && isAdminOpen && (
           <div className="mb-6">
             <AdminPanel
               existingQuestions={firestoreQuestions}
@@ -233,8 +249,53 @@ function MainApp() {
           </div>
         )}
 
-        {/* Renderização Condicional: Caderno de Questões vs. Módulo de Simulados */}
-        {activeNavSection === 'simulados' ? (
+        {/* Bloqueio Obrigatório de Acesso: Apenas Alunos Autorizados por Matrícula */}
+        {!isMatriculaVerified ? (
+          <div className="py-8 sm:py-14 flex items-center justify-center">
+            {checkingMatricula ? (
+              <div className="text-center space-y-3 py-16">
+                <div className="w-10 h-10 border-3 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                <p className="text-sm font-bold text-zinc-300">
+                  Verificando autorização institucional e matrícula...
+                </p>
+              </div>
+            ) : !user ? (
+              <div className="w-full max-w-lg bg-zinc-900/95 border-2 border-sky-500/40 rounded-3xl p-6 sm:p-8 text-center shadow-2xl relative overflow-hidden backdrop-blur-md">
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-sky-500 via-indigo-500 to-sky-400" />
+                <div className="w-16 h-16 rounded-2xl bg-zinc-950 border border-sky-500/40 text-sky-400 flex items-center justify-center mx-auto mb-4 drop-shadow-[0_0_15px_rgba(14,165,233,0.5)]">
+                  <EagleShieldLogo size={48} />
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight uppercase mb-2">
+                  Acesso Restrito &bull; <span className="text-sky-400">PAPA FOX</span>
+                </h2>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-bold mb-4">
+                  <Lock className="w-3.5 h-3.5" />
+                  Plataforma Fechada para Alunos Autorizados
+                </div>
+                <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed mb-6">
+                  Esta plataforma de preparação tática de elite possui acesso restrito. Para acessar os cadernos de questões, simulados e resolução comentada, é obrigatório estar autenticado com sua conta Google e possuir <strong>matrícula institucional autorizada</strong>.
+                </p>
+                <button
+                  id="btn-login-access-gate"
+                  type="button"
+                  onClick={loginWithGoogle}
+                  className="w-full py-3.5 px-6 bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-sm rounded-2xl shadow-lg hover:shadow-sky-500/20 transition-all flex items-center justify-center gap-2.5 cursor-pointer"
+                >
+                  <LogIn className="w-4 h-4 stroke-[2.5]" />
+                  <span>Fazer Login com Google para Validar Matrícula</span>
+                </button>
+                <p className="text-[11px] text-zinc-500 mt-4">
+                  Após entrar com o Google, você informará o número da sua matrícula para liberação imediata do sistema.
+                </p>
+              </div>
+            ) : (
+              /* Usuário está logado com Google, mas não possui matrícula autorizada vinculada */
+              <div className="text-center py-12">
+                <MatriculaVerificationModal />
+              </div>
+            )}
+          </div>
+        ) : activeNavSection === 'simulados' ? (
           <SimuladosDashboard />
         ) : (
           <div className="space-y-6">

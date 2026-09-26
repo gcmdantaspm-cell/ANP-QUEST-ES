@@ -1895,13 +1895,10 @@ export function parseBatchRawQuestions(
     return hasAlts || hasGab || (hasCom && q.alternativas && q.alternativas.length >= 1);
   });
 
-  // Atribuição de numeração sequencial das questões pelo próprio sistema e limpeza rigorosa do enunciado
+  // Atribuição de numeração rigorosamente automática e sequencial: 1, 2, 3, 4, 5, 6...
+  // Conforme solicitação: "a numeração da questão deverá ser automática, não deve ter questão com mesmo número e elas devem ser dispostas em ordem ordinal 1,2,3,4,5,6"
   realQuestions.forEach((q, idx) => {
-    // Se a questão já tiver um número detectado de forma confiável no texto (ex: "Questão 2" -> 2),
-    // preservamos o número original. Caso contrário, usamos idx + 1.
-    if (!q.numero_questao || q.numero_questao <= 0) {
-      q.numero_questao = idx + 1;
-    }
+    q.numero_questao = idx + 1;
 
     // Remove marcadores e transições residuais do comentário e das alternativas
     if (q.gabarito_comentado) {
