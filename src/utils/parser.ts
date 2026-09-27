@@ -37,6 +37,103 @@ export interface ParsedCommentItem {
 }
 
 /**
+ * Converte qualquer formato de número de capítulo (arábico, romano, ordinal: 1, 1º, 1°, 1o, 1.0, I, II, X...)
+ * para número padronizado e limpo.
+ */
+export function normalizeChapterNumber(rawNum?: string): { num: string; isRoman: boolean } | null {
+  if (!rawNum) return null;
+  let clean = rawNum.trim();
+  clean = clean.replace(/^(?:n[º°o]\.?|n[uú]mero)?\s*/i, '');
+  // Remove sufixos ordinais e pontos: 1º, 1ª, 1°, 1o, 1.0, 1.
+  clean = clean.replace(/(?:[ºª°o]|\.0|\.)$/i, '').trim();
+
+  // Mapeamento de numerais romanos
+  const romanMap: Record<string, string> = {
+    'I': '1', 'II': '2', 'III': '3', 'IV': '4', 'V': '5',
+    'VI': '6', 'VII': '7', 'VIII': '8', 'IX': '9', 'X': '10',
+    'XI': '11', 'XII': '12', 'XIII': '13', 'XIV': '14', 'XV': '15',
+    'XVI': '16', 'XVII': '17', 'XVIII': '18', 'XIX': '19', 'XX': '20'
+  };
+  const upper = clean.toUpperCase();
+  if (romanMap[upper]) {
+    return { num: romanMap[upper], isRoman: true };
+  }
+
+  const intNum = parseInt(clean, 10);
+  if (!isNaN(intNum) && intNum > 0) {
+    return { num: String(intNum), isRoman: false };
+  }
+
+  return clean ? { num: clean, isRoman: false } : null;
+}
+
+/**
+ * Normaliza qualquer entrada de capítulo para padrão uniforme "Capítulo X" ou "Capítulo X – Título".
+ * Elimina anomalias como "io", "1 - º", "1.0", "Capítulo 1o", "Capítulo Iº", "1" e duplicatas de nome.
+ */
+export function normalizeCapituloName(cap?: string): string {
+  if (!cap) return '';
+  let c = cap.trim();
+  if (!c) return '';
+
+  // Se já for apenas dígitos: "1" -> "Capítulo 1"
+  if (/^\d+$/.test(c)) {
+    return `Capítulo ${c}`;
+  }
+
+  // Se for "1º", "1°", "1o", "1.0", "1.":
+  if (/^(\d+)(?:[ºª°o]|\.0|\.)?$/i.test(c)) {
+    const m = c.match(/^(\d+)/);
+    return m ? `Capítulo ${m[1]}` : `Capítulo ${c}`;
+  }
+
+  // Se for numeral romano puro: "I", "II", "III", "IV"...
+  const romanMap: Record<string, string> = {
+    'I': '1', 'II': '2', 'III': '3', 'IV': '4', 'V': '5',
+    'VI': '6', 'VII': '7', 'VIII': '8', 'IX': '9', 'X': '10'
+  };
+  if (romanMap[c.toUpperCase()]) {
+    return `Capítulo ${romanMap[c.toUpperCase()]}`;
+  }
+
+  // Se for "Capítulo 1", "Capítulo 1º", "Capítulo 1o", "Capítulo 1.0", "Capítulo 01" com ou sem título
+  const capMatch = c.match(/^cap[íi]tulo\s*(?:n[º°o]\.?|n[uú]mero)?\s*0?(\d+)(?:[ºª°o]|\.0|\.)?(?:\s*[:.\-–—]\s*(.*))?$/i);
+  if (capMatch) {
+    const num = capMatch[1];
+    let title = (capMatch[2] || '').trim();
+    // Limpar restos ordinais ou traços deixados no início do título
+    title = title.replace(/^[ºª°o\.\s\-–—:]+/i, '').trim();
+    return title ? `Capítulo ${num} – ${title}` : `Capítulo ${num}`;
+  }
+
+  // Se for "Capítulo I", "Capítulo Iº", "Capítulo Io", "Capítulo II – Título"
+  const romanCapMatch = c.match(/^cap[íi]tulo\s*([IVXLCDM]+)(?:[ºª°o])?(?:\s*[:.\-–—]\s*(.*))?$/i);
+  if (romanCapMatch) {
+    const rNum = romanCapMatch[1].toUpperCase();
+    const mapped = romanMap[rNum] || rNum;
+    let title = (romanCapMatch[2] || '').trim();
+    title = title.replace(/^[ºª°o\.\s\-–—:]+/i, '').trim();
+    return title ? `Capítulo ${mapped} – ${title}` : `Capítulo ${mapped}`;
+  }
+
+  // Se começar com número seguido de hífen/ponto: "1 - Peças..." -> "Capítulo 1 – Peças..."
+  const numTitleMatch = c.match(/^0?(\d+)(?:[ºª°o]|\.0|\.)?\s*[:.\-–—]\s*(.*)$/i);
+  if (numTitleMatch) {
+    const num = numTitleMatch[1];
+    let title = numTitleMatch[2].trim();
+    title = title.replace(/^[ºª°o\.\s\-–—:]+/i, '').trim();
+    return title ? `Capítulo ${num} – ${title}` : `Capítulo ${num}`;
+  }
+
+  // Normalizar prefixo "Capítulo"
+  if (/^cap[íi]tulo\b/i.test(c)) {
+    c = c.replace(/^cap[íi]tulo\b/i, 'Capítulo');
+  }
+
+  return sanitizeEtiquetaField(c);
+}
+
+/**
  * Limpa qualquer menção a Modelo 1, Modelo 2, Múltipla Escolha, Julgamento de Itens
  * e remove duplicações de termos ("Módulo Módulo 1", "Capítulo Capítulo 1", "Questão 1", etc.)
  * e prefixos indesejados como "QUESTÕES INÉDITAS — BLOCO" ou "BLOCO"
@@ -62,7 +159,8 @@ export function sanitizeEtiquetaField(field?: string): string {
   s = s.replace(/^(?:quest(?:[ãa]o|[õo]es)\s+in[ée]dita(?:s)?\s*[\-–—:]*\s*)/i, '');
   s = s.replace(/^bloco\s+/i, '');
 
-  s = s.replace(/^[\s\-–—:.]+/g, '').replace(/[\s\-–—:.]+$/g, '').trim();
+  // Remove resíduos de ordinais isolados como "º", "ª", "°", "o"
+  s = s.replace(/^[ºª°o\.\s\-–—:]+/i, '').replace(/[\s\-–—:.]+$/g, '').trim();
   return s;
 }
 
@@ -136,16 +234,19 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
     }
 
     // Capítulo
-    const capM = cleanLine.match(/(?:cap[íi]tulo|cap\.?)\s*(?:([0-9]+|[IVXLCDM]+))?\s*[:.\-–—]?\s*([^|;•\n\r>\]]+)?/i);
+    const capM = cleanLine.match(/(?:cap[íi]tulo|cap\.?)\s*(?:n[º°o]\.?|n[uú]mero)?\s*([0-9]+|[IVXLCDM]+)?(?:[ºª°o]|\.0|\.)?\s*[:.\-–—]?\s*([^|;•\n\r>\]]+)?/i);
     if (capM) {
-      const capNum = capM[1]?.trim();
-      const capTitle = capM[2]?.trim() || '';
+      const capNumRaw = capM[1]?.trim();
+      let capTitle = (capM[2] || '').trim();
+      capTitle = capTitle.replace(/^[ºª°o\.\s\-–—:]+/i, '').trim();
+      const norm = normalizeChapterNumber(capNumRaw);
+      const capNum = norm ? norm.num : capNumRaw;
       if (capNum) {
         res.capituloNum = capNum;
         res.capituloTitle = capTitle || undefined;
         res.capitulo = capTitle ? `Capítulo ${capNum} – ${capTitle}` : `Capítulo ${capNum}`;
       } else if (capTitle) {
-        res.capitulo = sanitizeEtiquetaField(capTitle);
+        res.capitulo = normalizeCapituloName(capTitle);
       }
       foundAny = true;
     }
@@ -329,14 +430,29 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
   // Ex: ## CAPÍTULO 4 – PEÇAS DE POLÍCIA JUDICIÁRIA
   // Ex: CAPÍTULO 4: PEÇAS
   // Ex: Capítulo 4
+  // Ex: Capítulo 1º
+  // Ex: Capítulo I
   // Ex: Capítulo: Peças de Polícia
-  // Ex: Capítulo Peças de Polícia
   const capMatch = cleanLine.match(
-    /^(?:[#*=_~-]+\s*)?cap[íi]tulo(?:\s*([0-9]+|[IVXLCDM]+))?\b(?:\s*[:.\-–—]\s*|\s+)?([^\n\r]+)?/i
+    /^(?:[#*=_~-]+\s*)?cap[íi]tulo(?:\s*(?:n[º°o]\.?|n[uú]mero)?\s*([0-9]+|[IVXLCDM]+))?(?:[ºª°o]|\.0|\.)?\b(?:\s*[:.\-–—]\s*|\s+)?([^\n\r]+)?/i
   );
   if (capMatch) {
-    const capNum = capMatch[1]?.trim();
-    const capTitle = capMatch[2]?.trim() || '';
+    const capNumRaw = capMatch[1]?.trim();
+    let capTitle = (capMatch[2] || '').trim();
+    capTitle = capTitle.replace(/^[ºª°o\.\s\-–—:]+/i, '').trim();
+
+    // Rejeitar se for uma frase de enunciado ou comentário de questão
+    const isSentence =
+      capTitle.length > 50 ||
+      /[.;?!]$/.test(capTitle) ||
+      /\b(?:prev[eê]|trata|disp[õo]e|estabelece|determina|julgue|assinale|considere|conforme|segundo|decorre|aplic[aá]-se)\b/i.test(capTitle);
+
+    if (isSentence) {
+      return null;
+    }
+
+    const norm = normalizeChapterNumber(capNumRaw);
+    const capNum = norm ? norm.num : capNumRaw;
     const cleanCapTitle = sanitizeEtiquetaField(capTitle);
 
     let finalCap = '';
@@ -345,7 +461,7 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
     } else if (capNum) {
       finalCap = `Capítulo ${capNum}`;
     } else if (cleanCapTitle) {
-      finalCap = cleanCapTitle;
+      finalCap = normalizeCapituloName(cleanCapTitle);
     } else {
       finalCap = 'Capítulo';
     }
@@ -372,7 +488,7 @@ export function resolveHierarchyWithExisting(
 ): HierarchyContext {
   let materia = detected.materia?.trim() || context?.materia?.trim() || 'IPO-2';
   let modulo = detected.modulo?.trim() || context?.modulo?.trim() || '';
-  let capitulo = context?.capitulo?.trim() || '';
+  let capitulo = context?.capitulo?.trim() ? normalizeCapituloName(context.capitulo) : '';
   let subtopico = context?.subtopico?.trim() || '';
   let tema = context?.tema_subtopico?.trim() || '';
 
@@ -392,24 +508,26 @@ export function resolveHierarchyWithExisting(
     // Procurar capítulo existente com o mesmo número (ex: "Capítulo 4", "Capítulo 4 – ...", "4")
     const matchExistingCap = existingQuestions.find((q) => {
       if (!q.capitulo) return false;
-      const c = q.capitulo.trim();
+      const c = normalizeCapituloName(q.capitulo).trim();
       const numMatch = c.match(/\b0?(\d+)\b/);
       return numMatch && numMatch[1] === capNum;
     });
 
     if (matchExistingCap && matchExistingCap.capitulo) {
-      capitulo = matchExistingCap.capitulo.trim();
+      capitulo = normalizeCapituloName(matchExistingCap.capitulo);
     } else {
       capitulo = detected.capituloTitle
         ? `Capítulo ${capNum} – ${detected.capituloTitle}`
         : `Capítulo ${capNum}`;
     }
   } else if (detected.capitulo) {
-    const cleanCap = sanitizeEtiquetaField(detected.capitulo);
+    const cleanCap = normalizeCapituloName(detected.capitulo);
     const matchExistingCap = existingQuestions.find(
-      (q) => q.capitulo && q.capitulo.trim().toLowerCase() === cleanCap.toLowerCase()
+      (q) => q.capitulo && normalizeCapituloName(q.capitulo).toLowerCase() === cleanCap.toLowerCase()
     );
-    capitulo = matchExistingCap?.capitulo?.trim() || cleanCap;
+    capitulo = matchExistingCap?.capitulo ? normalizeCapituloName(matchExistingCap.capitulo) : cleanCap;
+  } else if (context?.capitulo) {
+    capitulo = normalizeCapituloName(context.capitulo);
   }
 
   // 3. Resolver Módulo com base existente
@@ -1714,6 +1832,14 @@ export function parseBatchRawQuestions(
   const lines = questionsText.split(/\r?\n/);
   const sectionChunks: { hierarchy: RawHierarchyMatch; lines: string[] }[] = [];
   let activeHierarchy: RawHierarchyMatch = {};
+  if (context?.capitulo) {
+    const normCap = normalizeCapituloName(context.capitulo);
+    const numM = normCap.match(/\b(\d+)\b/);
+    activeHierarchy.capitulo = normCap;
+    if (numM) activeHierarchy.capituloNum = numM[1];
+  }
+  if (context?.modulo) activeHierarchy.modulo = context.modulo;
+  if (context?.materia) activeHierarchy.materia = context.materia;
   let currentLines: string[] = [];
   let foundAnyHeader = false;
 
@@ -1888,18 +2014,15 @@ export function parseBatchRawQuestions(
   // Conforme expressamente solicitado: "ignore o conteúdo que não são questões as questões são numeradas, 1,2,3,4,5,6 e por aí vai,
   // os conteúdos texto de conteúdo não são questões apenas servem para orientar e falar que mudou de assunto".
   // Uma questão legítima DEVE possuir alternativas completas (>= 2) ou gabarito oficial definido ou comentário estruturado com alternativas.
-  const realQuestions = rawParsedQuestions.filter((q) => {
+  const rawFiltered = rawParsedQuestions.filter((q) => {
     const hasAlts = q.alternativas && q.alternativas.length >= 2;
     const hasGab = Boolean(q.confidence.hasGabarito);
     const hasCom = Boolean(q.confidence.hasComentario);
     return hasAlts || hasGab || (hasCom && q.alternativas && q.alternativas.length >= 1);
   });
 
-  // Atribuição de numeração rigorosamente automática e sequencial: 1, 2, 3, 4, 5, 6...
-  // Conforme solicitação: "a numeração da questão deverá ser automática, não deve ter questão com mesmo número e elas devem ser dispostas em ordem ordinal 1,2,3,4,5,6"
-  realQuestions.forEach((q, idx) => {
-    q.numero_questao = idx + 1;
-
+  // Limpeza de enunciado e formatação preliminar para chave de deduplicação
+  rawFiltered.forEach((q) => {
     // Remove marcadores e transições residuais do comentário e das alternativas
     if (q.gabarito_comentado) {
       q.gabarito_comentado = stripCitationMarkers(q.gabarito_comentado);
@@ -1929,6 +2052,72 @@ export function parseBatchRawQuestions(
 
     q.enunciado = finalEnunciado;
   });
+
+  // DEDUPLICAÇÃO INTELIGENTE DE QUESTÕES:
+  // Se o texto colado contiver cópias duplicadas das mesmas questões (ex: colado 2 vezes duplicando de 25 para 50),
+  // descarta cópias idênticas e preserva estritamente questões únicas.
+  const seenFingerprints = new Set<string>();
+  const realQuestions: ParsedQuestionResult[] = [];
+
+  for (const q of rawFiltered) {
+    const rawKey = q.enunciado
+      .toLowerCase()
+      .replace(/[^a-z0-9\u00C0-\u00FF]/gi, '')
+      .slice(0, 120);
+
+    const altsKey = (q.alternativas || [])
+      .map((a) => a.texto.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20))
+      .join('|');
+
+    const fingerprint = `${rawKey}:::${altsKey}`;
+
+    if (rawKey.length >= 20) {
+      if (seenFingerprints.has(fingerprint)) {
+        continue; // duplicata ignorada
+      }
+      seenFingerprints.add(fingerprint);
+    }
+    realQuestions.push(q);
+  }
+
+  // Atribuição de numeração rigorosamente automática e sequencial: 1, 2, 3, 4, 5, 6...
+  // Conforme solicitação: "a numeração da questão deverá ser automática, não deve ter questão com mesmo número e elas devem ser dispostas em ordem ordinal 1,2,3,4,5,6"
+  realQuestions.forEach((q, idx) => {
+    q.numero_questao = idx + 1;
+  });
+
+  // Harmonização e consolidação uniforme do Capítulo:
+  // Conforme solicitação expressa: "tem apenas um capítulo"
+  const detectedCapitulos = Array.from(
+    new Set(
+      realQuestions
+        .map((q) => (q.capitulo ? normalizeCapituloName(q.capitulo) : ''))
+        .filter(Boolean)
+    )
+  );
+
+  const singleChapter = context?.capitulo
+    ? normalizeCapituloName(context.capitulo)
+    : detectedCapitulos.length === 1
+    ? detectedCapitulos[0]
+    : '';
+
+  if (singleChapter) {
+    realQuestions.forEach((q) => {
+      // Se há um capítulo especificado pelo usuário ou apenas 1 no lote todo, todas recebem o mesmo capítulo uniforme
+      if (!q.capitulo || detectedCapitulos.length <= 1 || context?.capitulo) {
+        q.capitulo = singleChapter;
+      } else {
+        q.capitulo = normalizeCapituloName(q.capitulo);
+      }
+    });
+  } else {
+    realQuestions.forEach((q) => {
+      if (q.capitulo) {
+        q.capitulo = normalizeCapituloName(q.capitulo);
+      }
+    });
+  }
 
   return realQuestions;
 }

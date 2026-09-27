@@ -10,6 +10,7 @@ import {
   formatEtiqueta,
   getQuestionMateria,
   getQuestionModulo,
+  normalizeCapituloName,
 } from '../utils/parser';
 import { db, handleFirestoreError, OperationType } from '../firebase/config';
 import {
@@ -310,11 +311,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
     const commentsToProcess = typeof commentsOverride === 'string' ? commentsOverride : rawCommentsText;
 
+    const userCapitulo = normalizeCapituloName(capituloMateria);
+
     // Contexto hierárquico definido pelo usuário
     const context = {
       materia: nomeMateria.trim() || 'IPO-2',
       modulo: moduloMateria.trim() || '',
-      capitulo: capituloMateria.trim(),
+      capitulo: userCapitulo,
       subtopico: subtopico.trim(),
       tema_subtopico: tema.trim(),
       peso: Number(pesoQuestao) > 0 ? Number(pesoQuestao) : 1,
@@ -334,7 +337,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     // Sincronizar os campos do painel de importação com a hierarquia detectada no texto (ex: Capítulo 4, Tópico 4.6, Tema 4.6.2)
     if (parsedList.length > 0) {
       const first = parsedList[0];
-      if (first.capitulo) setCapituloMateria(first.capitulo);
+      const effectiveCap = userCapitulo || (first.capitulo ? normalizeCapituloName(first.capitulo) : '');
+      if (effectiveCap) setCapituloMateria(effectiveCap);
       if (first.subtopico) setSubtopico(first.subtopico);
       if (first.tema_subtopico) setTema(first.tema_subtopico);
       if (first.modulo) setModuloMateria(first.modulo);
@@ -368,6 +372,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Capturar evento de Colar (Paste) para processamento instantâneo
   const handlePasteQuestions = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    e.preventDefault(); // Previne que o navegador insira uma segunda cópia duplicando as questões de 25 para 50
     const pasted = e.clipboardData.getData('text');
     if (pasted && pasted.trim().length > 15) {
       setRawText(pasted);
@@ -704,14 +709,37 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       );
       const startingNum = maxExistingNum > 0 ? maxExistingNum : existingQuestions.length;
 
+      // Mapeamento das questões existentes para evitar inserir cópias duplicadas no Firestore
+      const existingFingerprints = new Set(
+        existingQuestions.map((eq) =>
+          eq.enunciado
+            .toLowerCase()
+            .replace(/[^a-z0-9\u00C0-\u00FF]/gi, '')
+            .slice(0, 100)
+        )
+      );
+
+      let skippedDuplicates = 0;
+
       for (const q of extractedQuestions) {
         const validAlts = q.alternativas.filter((a) => a.texto.trim().length > 0);
+        const key = q.enunciado
+          .toLowerCase()
+          .replace(/[^a-z0-9\u00C0-\u00FF]/gi, '')
+          .slice(0, 100);
+
+        if (key.length >= 20 && existingFingerprints.has(key)) {
+          skippedDuplicates++;
+          continue;
+        }
+
         const autoOrdinalNum = startingNum + count + 1;
+        const normCap = normalizeCapituloName(q.capitulo || capituloMateria || '');
 
         const questionPayload = {
           materia: (q.materia || nomeMateria || 'IPO-2').trim(),
           modulo: (q.modulo || moduloMateria || '').trim(),
-          capitulo: (q.capitulo || capituloMateria || '').trim(),
+          capitulo: normCap,
           subtopico: (q.subtopico || subtopico || '').trim(),
           tema_subtopico: (q.tema_subtopico || tema || '').trim(),
           peso: q.peso !== undefined && Number(q.peso) > 0 ? Number(q.peso) : (Number(pesoQuestao) || 1),
@@ -729,11 +757,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         };
 
         await addDoc(questionsCol, questionPayload);
+        existingFingerprints.add(key);
         count++;
         setSaveProgress({ current: count, total: extractedQuestions.length });
       }
 
-      setSaveSuccessMsg(`${count} questão(ões) inserida(s) com numeração ordinal contínua no Firestore!`);
+      const dupMsg = skippedDuplicates > 0 ? ` (${skippedDuplicates} cópias duplicadas ignoradas)` : '';
+      setSaveSuccessMsg(`${count} questão(ões) inserida(s) com numeração ordinal contínua no Firestore!${dupMsg}`);
       onQuestionAdded();
 
       // Limpar formulário após sucesso
@@ -750,6 +780,75 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     } finally {
       setSaving(false);
       setSaveProgress(null);
+    }
+  };
+
+  // Remover questões duplicadas gravadas no Firestore e renumerar as restantes
+  const handleRemoverDuplicadasBanco = async () => {
+    if (existingQuestions.length === 0) return;
+    if (!user || !isUserAdminEmail(user.email)) return;
+
+    setSaving(true);
+    setErrorMessage(null);
+    setSaveSuccessMsg(null);
+
+    try {
+      const seen = new Set<string>();
+      const idsToDelete: string[] = [];
+      const keptQuestions: Question[] = [];
+
+      for (const q of existingQuestions) {
+        const key = q.enunciado
+          .toLowerCase()
+          .replace(/[^a-z0-9\u00C0-\u00FF]/gi, '')
+          .slice(0, 100);
+
+        if (key.length >= 20) {
+          if (seen.has(key)) {
+            if (q.id) idsToDelete.push(q.id);
+            continue;
+          }
+          seen.add(key);
+        }
+        keptQuestions.push(q);
+      }
+
+      if (idsToDelete.length === 0) {
+        setSaveSuccessMsg('Nenhuma questão duplicada foi encontrada no banco de dados!');
+        setTimeout(() => setSaveSuccessMsg(null), 4000);
+        return;
+      }
+
+      // Deletar as duplicatas
+      for (const id of idsToDelete) {
+        await deleteDoc(doc(db, 'questions', id));
+      }
+
+      // Renumerar ordenadamente as questões restantes (1, 2, 3...)
+      const batchSize = 400;
+      for (let i = 0; i < keptQuestions.length; i += batchSize) {
+        const chunk = keptQuestions.slice(i, i + batchSize);
+        const batch = writeBatch(db);
+        chunk.forEach((q, chunkIdx) => {
+          if (q.id) {
+            const docRef = doc(db, 'questions', q.id);
+            const ordinalNum = i + chunkIdx + 1;
+            batch.update(docRef, { numero_questao: ordinalNum });
+          }
+        });
+        await batch.commit();
+      }
+
+      setSaveSuccessMsg(
+        `${idsToDelete.length} questão(ões) duplicada(s) excluída(s) com sucesso! As ${keptQuestions.length} questões restantes foram renumeradas ordinalmente (1, 2, 3...).`
+      );
+      onQuestionAdded();
+      setTimeout(() => setSaveSuccessMsg(null), 5000);
+    } catch (err: unknown) {
+      console.error('Erro ao remover duplicadas do banco:', err);
+      setErrorMessage('Erro ao remover questões duplicadas.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -2370,6 +2469,21 @@ Comentário: Apenas a alternativa B atende ao comando...`}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {/* Botão de Remover Duplicadas */}
+              {existingQuestions.length > 0 && (
+                <button
+                  id="btn-remover-duplicadas-questions"
+                  type="button"
+                  onClick={handleRemoverDuplicadasBanco}
+                  disabled={saving}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
+                  title="Detectar e excluir automaticamente cópias duplicadas de questões no Firestore mantendo apenas uma única ocorrência de cada"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {saving ? 'Processando...' : 'Remover Questões Duplicadas'}
+                </button>
+              )}
+
               {/* Botão de Renumerar Automaticamente */}
               {existingQuestions.length > 0 && (
                 <button
