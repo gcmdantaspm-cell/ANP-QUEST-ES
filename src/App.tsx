@@ -296,7 +296,7 @@ function MainApp() {
             )}
           </div>
         ) : activeNavSection === 'simulados' ? (
-          <SimuladosDashboard />
+          <SimuladosDashboard existingQuestions={firestoreQuestions} />
         ) : (
           <div className="space-y-6">
             {/* Barra de Ações Rápidas do Topo */}
@@ -402,7 +402,7 @@ function MainApp() {
                   const qId = q.id || `q_${idx}`;
                   return (
                     <QuestionCard
-                      key={qId}
+                      key={`${qId}_${idx}`}
                       question={q}
                       index={idx}
                       savedAnswer={userAnswers[qId]}

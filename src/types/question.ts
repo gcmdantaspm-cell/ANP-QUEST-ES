@@ -9,6 +9,7 @@ export interface Question {
   // Hierarquia
   materia?: string;
   modulo: string;
+  modulo_anterior?: string; // Módulo anterior caso tenha sido mesclado/unificado (permite desunir)
   capitulo: string;
   subtopico?: string;
   tema_subtopico?: string;

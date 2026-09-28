@@ -134,9 +134,26 @@ export function parseSimuladoRawQuestions(rawText: string): SimuladoParseResult 
         const firstIndex = altMatches[0].index !== undefined ? altMatches[0].index : 0;
         enunciado = cleanedBody.substring(0, firstIndex).trim();
 
+        const seenLetters = new Set<string>();
         altMatches.forEach((m) => {
-          const letter = (m[1] || m[2] || m[3]).toUpperCase();
+          let letter = (m[1] || m[2] || m[3]).toUpperCase();
           const altText = m[4].trim();
+
+          if (seenLetters.has(letter)) {
+            if (alternativas.length > 0 && alternativas[alternativas.length - 1].letra === letter) {
+              alternativas[alternativas.length - 1].texto += ' ' + altText;
+              return;
+            }
+            let nextCode = 65 + alternativas.length;
+            while (seenLetters.has(String.fromCharCode(nextCode)) && nextCode <= 90) {
+              nextCode++;
+            }
+            if (nextCode <= 90) {
+              letter = String.fromCharCode(nextCode);
+            }
+          }
+
+          seenLetters.add(letter);
           alternativas.push({
             letra: letter,
             texto: altText,

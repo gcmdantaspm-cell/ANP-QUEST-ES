@@ -349,8 +349,8 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                     className="text-xs font-semibold text-sky-300 bg-zinc-950 border border-sky-500/30 rounded-lg px-2.5 py-1 focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="todas">Geral (Todas)</option>
-                    {listaDisciplinas.map((disc) => (
-                      <option key={disc} value={disc}>
+                    {listaDisciplinas.map((disc, idx) => (
+                      <option key={`${disc}-${idx}`} value={disc}>
                         {disc}
                       </option>
                     ))}
@@ -505,9 +505,9 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
               {/* Tabela Resumo Rápido */}
               {statsPorDisciplina.length > 0 && (
                 <div className="max-h-28 overflow-y-auto divide-y divide-zinc-800 bg-zinc-950 rounded-xl border border-zinc-800">
-                  {statsPorDisciplina.map((item) => (
+                  {statsPorDisciplina.map((item, idx) => (
                     <div
-                      key={item.disciplina}
+                      key={`${item.disciplina}-${idx}`}
                       className="px-3 py-1.5 flex items-center justify-between text-xs hover:bg-zinc-900"
                     >
                       <span className="font-semibold text-zinc-200 truncate max-w-[180px]">

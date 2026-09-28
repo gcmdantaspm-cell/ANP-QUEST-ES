@@ -33,10 +33,16 @@ import {
   Sparkles,
 } from 'lucide-react';
 
+import { Question } from '../types/question';
+
 const LOCAL_SIMULADOS_KEY = 'lda2_simulados_list';
 const LOCAL_ATTEMPTS_KEY = 'lda2_simulado_attempts_list';
 
-export const SimuladosDashboard: React.FC = () => {
+interface SimuladosDashboardProps {
+  existingQuestions?: Question[];
+}
+
+export const SimuladosDashboard: React.FC<SimuladosDashboardProps> = ({ existingQuestions = [] }) => {
   const { user, isAdmin } = useAuth();
   const { theme } = useTheme();
 
@@ -306,13 +312,13 @@ export const SimuladosDashboard: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {simulados.map((sim) => {
+              {simulados.map((sim, idx) => {
                 const simAttempts = attempts.filter((a) => a.simuladoId === sim.id);
                 const lastAttempt = simAttempts[0];
 
                 return (
                   <div
-                    key={sim.id}
+                    key={`${sim.id || 'sim'}-${idx}`}
                     className="bg-zinc-900/90 rounded-2xl border border-sky-500/30 hover:border-sky-500/60 shadow-md hover:shadow-xl transition-all p-5 flex flex-col justify-between space-y-4 relative group"
                   >
                     <div>
@@ -360,9 +366,9 @@ export const SimuladosDashboard: React.FC = () => {
 
                       {/* Disciplinas Envolvidas */}
                       <div className="flex flex-wrap gap-1 mt-3">
-                        {sim.materias.map((mat) => (
+                        {sim.materias.map((mat, matIdx) => (
                           <span
-                            key={mat}
+                            key={`${mat}-${matIdx}`}
                             className="text-[10px] px-2 py-0.5 rounded font-medium bg-zinc-950 text-zinc-300 border border-zinc-800"
                           >
                             {mat}
@@ -414,6 +420,7 @@ export const SimuladosDashboard: React.FC = () => {
           <SimuladoImporter
             onSaveSimulado={handleSaveSimulado}
             onCancel={() => setActiveTab('disponiveis')}
+            existingQuestions={existingQuestions}
           />
         ) : (
           <div className="bg-zinc-900 border border-rose-500/40 rounded-2xl p-8 text-center max-w-md mx-auto my-6 shadow-xl">

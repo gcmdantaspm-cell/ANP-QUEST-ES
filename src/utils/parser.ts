@@ -59,6 +59,11 @@ export function normalizeChapterNumber(rawNum?: string): { num: string; isRoman:
     return { num: romanMap[upper], isRoman: true };
   }
 
+  // Se for decimal pontuado (ex: "1.1", "2.3", "4.6")
+  if (/^\d+(?:\.\d+)+$/.test(clean)) {
+    return { num: clean, isRoman: false };
+  }
+
   const intNum = parseInt(clean, 10);
   if (!isNaN(intNum) && intNum > 0) {
     return { num: String(intNum), isRoman: false };
@@ -81,6 +86,11 @@ export function normalizeCapituloName(cap?: string): string {
     return `Capítulo ${c}`;
   }
 
+  // Se for "1.1" puro
+  if (/^\d+(?:\.\d+)+$/.test(c)) {
+    return `Capítulo ${c}`;
+  }
+
   // Se for "1º", "1°", "1o", "1.0", "1.":
   if (/^(\d+)(?:[ºª°o]|\.0|\.)?$/i.test(c)) {
     const m = c.match(/^(\d+)/);
@@ -96,13 +106,15 @@ export function normalizeCapituloName(cap?: string): string {
     return `Capítulo ${romanMap[c.toUpperCase()]}`;
   }
 
-  // Se for "Capítulo 1", "Capítulo 1º", "Capítulo 1o", "Capítulo 1.0", "Capítulo 01" com ou sem título
-  const capMatch = c.match(/^cap[íi]tulo\s*(?:n[º°o]\.?|n[uú]mero)?\s*0?(\d+)(?:[ºª°o]|\.0|\.)?(?:\s*[:.\-–—]\s*(.*))?$/i);
+  // Se for "Capítulo 1.1", "Capítulo 1", "Capítulo 1º", "Capítulo 1o", "Capítulo 1.0", "Capítulo 01" com ou sem título
+  const capMatch = c.match(/^cap[íi]tulo\s*(?:n[º°o]\.?|n[uú]mero)?\s*(\d+(?:\.\d+)*|[IVXLCDM]+)(?:[ºª°o]|\.0|\.)?(?:\s*[:.\-–—]\s*(.*))?$/i);
   if (capMatch) {
-    const num = capMatch[1];
+    const rawNum = capMatch[1];
+    const norm = normalizeChapterNumber(rawNum);
+    const num = norm ? norm.num : rawNum;
     let title = (capMatch[2] || '').trim();
     // Limpar restos ordinais ou traços deixados no início do título
-    title = title.replace(/^[ºª°o\.\s\-–—:]+/i, '').trim();
+    title = title.replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
     return title ? `Capítulo ${num} – ${title}` : `Capítulo ${num}`;
   }
 
@@ -112,8 +124,16 @@ export function normalizeCapituloName(cap?: string): string {
     const rNum = romanCapMatch[1].toUpperCase();
     const mapped = romanMap[rNum] || rNum;
     let title = (romanCapMatch[2] || '').trim();
-    title = title.replace(/^[ºª°o\.\s\-–—:]+/i, '').trim();
+    title = title.replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
     return title ? `Capítulo ${mapped} – ${title}` : `Capítulo ${mapped}`;
+  }
+
+  // Se começar com número decimal: "1.1 - Ação de..." -> "Capítulo 1.1 – Ação de..."
+  const decimalMatch = c.match(/^(\d+(?:\.\d+)+)(?:[ºª°o]|\.0|\.)?\s*[:.\-–—]\s*(.*)$/i);
+  if (decimalMatch) {
+    const num = decimalMatch[1];
+    let title = decimalMatch[2].trim().replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
+    return title ? `Capítulo ${num} – ${title}` : `Capítulo ${num}`;
   }
 
   // Se começar com número seguido de hífen/ponto: "1 - Peças..." -> "Capítulo 1 – Peças..."
@@ -121,7 +141,7 @@ export function normalizeCapituloName(cap?: string): string {
   if (numTitleMatch) {
     const num = numTitleMatch[1];
     let title = numTitleMatch[2].trim();
-    title = title.replace(/^[ºª°o\.\s\-–—:]+/i, '').trim();
+    title = title.replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
     return title ? `Capítulo ${num} – ${title}` : `Capítulo ${num}`;
   }
 
@@ -131,6 +151,120 @@ export function normalizeCapituloName(cap?: string): string {
   }
 
   return sanitizeEtiquetaField(c);
+}
+
+const MODULO_ROMAN_MAP: Record<string, string> = {
+  '1': 'I',
+  '2': 'II',
+  '3': 'III',
+  '4': 'IV',
+  '5': 'V',
+  '6': 'VI',
+  '7': 'VII',
+  '8': 'VIII',
+  '9': 'IX',
+  '10': 'X',
+  '11': 'XI',
+  '12': 'XII',
+  '13': 'XIII',
+  '14': 'XIV',
+  '15': 'XV',
+  '16': 'XVI',
+  '17': 'XVII',
+  '18': 'XVIII',
+  '19': 'XIX',
+  '20': 'XX',
+};
+
+const MODULO_ARABIC_MAP: Record<string, string> = {
+  'I': '1',
+  'II': '2',
+  'III': '3',
+  'IV': '4',
+  'V': '5',
+  'VI': '6',
+  'VII': '7',
+  'VIII': '8',
+  'IX': '9',
+  'X': '10',
+  'XI': '11',
+  'XII': '12',
+  'XIII': '13',
+  'XIV': '14',
+  'XV': '15',
+  'XVI': '16',
+  'XVII': '17',
+  'XVIII': '18',
+  'XIX': '19',
+  'XX': '20',
+};
+
+/**
+ * Normaliza o nome do Módulo para garantir que "modulo 2" e "modulo II"
+ * sejam rigorosamente o mesmo módulo canônico ("Módulo II").
+ * Trata variações de numerais arábicos e romanos, maiúsculas/minúsculas e pontuação.
+ */
+export function normalizeModuloName(raw?: string): string {
+  if (!raw) return '';
+  let s = sanitizeEtiquetaField(raw).trim();
+  if (!s) return '';
+
+  // Se for "2" ou "II" puro
+  const pureNumMatch = s.match(/^([0-9]+|[IVXLCDM]+)$/i);
+  if (pureNumMatch) {
+    const rawVal = pureNumMatch[1].trim();
+    const roman = MODULO_ROMAN_MAP[rawVal] || rawVal.toUpperCase();
+    return `Módulo ${roman}`;
+  }
+
+  // Verificar se tem o padrão "Módulo 2" ou "Módulo II" ou "Módulo 2 – Título" ou "Modulo 2:"
+  const mMatch = s.match(/^(?:m[óo]dulo\s*(?:n[º°o]\.?|n[uú]mero)?\s*)([0-9]+|[IVXLCDM]+)(?:[ºª°o]|\.0|\.)?(?:\s*[:.\-–—]\s*(.*))?$/i);
+  if (mMatch) {
+    const rawNum = mMatch[1].trim();
+    let title = (mMatch[2] || '').trim();
+    title = title.replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
+
+    let roman = rawNum.toUpperCase();
+    if (MODULO_ROMAN_MAP[rawNum]) {
+      roman = MODULO_ROMAN_MAP[rawNum];
+    } else if (MODULO_ARABIC_MAP[roman]) {
+      roman = roman.toUpperCase();
+    }
+
+    return title ? `Módulo ${roman} – ${title}` : `Módulo ${roman}`;
+  }
+
+  // Se começar com "módulo" sem número específico (ex: "Módulo Investigação")
+  if (/^m[óo]dulo\b/i.test(s)) {
+    s = s.replace(/^m[óo]dulo\s*[:.\-–—]?\s*/i, 'Módulo – ').trim();
+    return s;
+  }
+
+  return s;
+}
+
+/**
+ * Verifica se dois módulos são equivalentes (ex: "modulo 2" e "Módulo II")
+ */
+export function areModulosEquivalent(a?: string, b?: string): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  const normA = normalizeModuloName(a).toLowerCase();
+  const normB = normalizeModuloName(b).toLowerCase();
+  if (normA === normB) return true;
+
+  // Comparar apenas o identificador numérico/romano
+  const matchA = normA.match(/m[óo]dulo\s*([ivxlcdm]+|[0-9]+)/i);
+  const matchB = normB.match(/m[óo]dulo\s*([ivxlcdm]+|[0-9]+)/i);
+  if (matchA && matchB) {
+    const idA = matchA[1].toUpperCase();
+    const idB = matchB[1].toUpperCase();
+    const numA = MODULO_ARABIC_MAP[idA] || idA;
+    const numB = MODULO_ARABIC_MAP[idB] || idB;
+    return numA === numB;
+  }
+
+  return false;
 }
 
 /**
@@ -160,7 +294,7 @@ export function sanitizeEtiquetaField(field?: string): string {
   s = s.replace(/^bloco\s+/i, '');
 
   // Remove resíduos de ordinais isolados como "º", "ª", "°", "o"
-  s = s.replace(/^[ºª°o\.\s\-–—:]+/i, '').replace(/[\s\-–—:.]+$/g, '').trim();
+  s = s.replace(/^[ºª°\.\s\-–—:]+/i, '').replace(/[\s\-–—:.]+$/g, '').trim();
   return s;
 }
 
@@ -176,6 +310,7 @@ export interface RawHierarchyMatch {
   tema?: string;
   temaNum?: string;
   temaTitle?: string;
+  isTopico?: boolean;
 }
 
 /**
@@ -203,42 +338,205 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
     .replace(/__/g, '')
     .trim();
 
-  // 1. Padrão Composto em linha única (delimitado por |, ;, •, ou >)
+  // 1. Padrão Composto em linha única (delimitado por |, ;, •, >, / ou múltiplos colchetes [...])
   // Ex: Matéria: Direito Penal | Módulo: 1 | Capítulo: 4 | Subtópico: 4.6 | Tema: 4.6.2 (Auto Circunstanciado)
   // Ex: Matéria: IPO-2 > Módulo 1 > Capítulo 4 > Subtópico 4.6 > Tema 4.6.2
   // Ex: [Matéria: IPO-2] [Módulo: 1] [Capítulo: 4] [Subtópico: 4.6] [Tema: 4.6.2]
-  if (/[|;•>]|\[(?:mat[ée]ria|disciplina|m[óo]dulo|cap[íi]tulo|subt[óo]pico|tema)/i.test(cleanLine)) {
+  // Ex: SUBTÓPICO: 1.1.2.1 / DETALHE: 1.1.2.1.1 - Princípio da Oportunidade e o Processo Investigativo em Espiral
+  const bracketMatches = cleanLine.match(/\[([^\]]+)\]/g);
+  const hasMultipleBrackets = Boolean(bracketMatches && bracketMatches.length >= 2);
+  const hasSlashSeparators = /\s+\/\s+|\/(?=(?:mat[ée]ria|m[óo]dulo|cap[íi]tulo|t[óo]pico|subt[óo]pico|tema|detalhe)\b)/i.test(cleanLine);
+  const isDelimited = /[>|;•]/.test(cleanLine) || hasMultipleBrackets || hasSlashSeparators;
+
+  if (isDelimited) {
     const res: RawHierarchyMatch = {};
     let foundAny = false;
 
+    let segments: string[] = [];
+    if (hasMultipleBrackets && bracketMatches) {
+      segments = bracketMatches.map((b) => b.replace(/^\[/, '').replace(/\]$/, '').trim());
+    } else if (cleanLine.includes('>')) {
+      segments = cleanLine.split(/\s*>\s*/);
+    } else if (cleanLine.includes('|')) {
+      segments = cleanLine.split(/\s*\|\s*/);
+    } else if (cleanLine.includes(';')) {
+      segments = cleanLine.split(/\s*;\s*/);
+    } else if (cleanLine.includes('•')) {
+      segments = cleanLine.split(/\s*•\s*/);
+    } else if (hasSlashSeparators) {
+      segments = cleanLine.split(/\s+\/\s+|\s*\/\s*(?=(?:mat[ée]ria|m[óo]dulo|cap[íi]tulo|t[óo]pico|subt[óo]pico|tema|detalhe)\b)/i);
+    }
+
+    segments = segments.map((s) => s.trim()).filter((s) => s.length > 0);
+
+    if (segments.length >= 2) {
+      for (let sIdx = 0; sIdx < segments.length; sIdx++) {
+        const seg = segments[sIdx];
+
+        // 1. Matéria
+        const matM = seg.match(/^(?:mat[ée]ria|disciplina|nome\s+da\s+mat[ée]ria)\s*[:=-]\s*(.+)$/i);
+        if (matM) {
+          res.materia = sanitizeEtiquetaField(matM[1]);
+          foundAny = true;
+          continue;
+        }
+
+        // 2. Módulo
+        const modM = seg.match(/^m[óo]dulo\b(?:\s*([0-9]+|[IVXLCDM]+))?\b(?:\s*[:.\-–—]\s*|\s+)?(.+)?$/i);
+        if (modM) {
+          const modNum = modM[1]?.trim();
+          const modTitle = modM[2]?.trim() || '';
+          if (modNum && modTitle && !modTitle.toLowerCase().startsWith('módulo')) {
+            res.modulo = normalizeModuloName(`Módulo ${modNum} – ${modTitle}`);
+          } else if (modNum) {
+            res.modulo = normalizeModuloName(`Módulo ${modNum}`);
+          } else if (modTitle) {
+            res.modulo = normalizeModuloName(modTitle);
+          } else {
+            res.modulo = 'Módulo';
+          }
+          foundAny = true;
+          continue;
+        }
+
+        // 3. Capítulo
+        const capM = seg.match(/^(?:cap[íi]tulo|cap\.?)\b(?:\s*(?:n[º°o]\.?|n[uú]mero)?\s*(\d+(?:\.\d+)*|[IVXLCDM]+))?(?:[ºª°o]|\.0|\.)?\b(?:\s*[:.\-–—]\s*|\s+)?(.+)?$/i);
+        if (capM) {
+          const capNumRaw = capM[1]?.trim();
+          let capTitle = (capM[2] || '').trim();
+          capTitle = capTitle.replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
+          const norm = normalizeChapterNumber(capNumRaw);
+          const capNum = norm ? norm.num : capNumRaw;
+          if (capNum) {
+            res.capituloNum = capNum;
+            res.capituloTitle = capTitle || undefined;
+            res.capitulo = capTitle ? `Capítulo ${capNum} – ${capTitle}` : `Capítulo ${capNum}`;
+          } else if (capTitle) {
+            res.capitulo = normalizeCapituloName(capTitle);
+          }
+          foundAny = true;
+          continue;
+        }
+
+        // 4. Subtópico / Tópico
+        const subPrefixMatch = seg.match(
+          /^(?:(t[óo]pico)|(subt[óo]pico|sub-t[óo]pico))\b(?:\s*[:.\-–—]\s*|\s+)?(?:\(?\s*(\d+(?:\.\d+)*\.?)\s*\)?|\b(\d+(?:\.\d+)*\.?)\b)?\s*[:.\-–—]?\s*(.+)?$/i
+        );
+        if (subPrefixMatch) {
+          const isTop = Boolean(subPrefixMatch[1]);
+          const rawNum = (subPrefixMatch[3] || subPrefixMatch[4] || '').trim();
+          const cleanNum = rawNum.replace(/\.+$/, '');
+          let title = (subPrefixMatch[5] || '').trim().replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
+          title = title.replace(/^[\(\[]\s*([^()]+?)\s*[\)\]]$/, '$1').trim();
+
+          const fullSub = cleanNum && title ? `${cleanNum} - ${sanitizeEtiquetaField(title)}` : (cleanNum || sanitizeEtiquetaField(title));
+
+          if (isTop) {
+            res.isTopico = true;
+            res.subtopico = fullSub;
+            res.topicoNum = cleanNum || undefined;
+            res.topicoTitle = title || undefined;
+          } else if (res.subtopico && !res.tema) {
+            // Se já tem subtópico no mesmo cabeçalho (ex: Tópico 1.1.1 / Subtópico 1.1.1.1), o segundo vira Tema!
+            res.tema = fullSub;
+            res.temaNum = cleanNum || undefined;
+            res.temaTitle = title || undefined;
+          } else {
+            res.subtopico = fullSub;
+            res.topicoNum = cleanNum || undefined;
+            res.topicoTitle = title || undefined;
+          }
+          foundAny = true;
+          continue;
+        }
+
+        // 5. Tema / Detalhe / Subtópico do Subtópico
+        const temaM = seg.match(/^(?:\btema\b(?:\s*\([^)]*\))?|detalhe|subt[óo]pico\s+do\s+subt[óo]pico|subtopico\s+do\s+subtopico|sub-subt[óo]pico|\bsubtema\b)\s*(?:(\d+(?:\.\d+)*))?\b(?:\s*[:.\-–—]\s*|\s+)?(.+)?$/i);
+        if (temaM) {
+          const temaNum = temaM[1]?.trim();
+          let temaTitle = (temaM[2] || '').trim();
+          temaTitle = temaTitle.replace(/^[\(\[]\s*([^()]+?)\s*[\)\]]$/, '$1').trim();
+
+          if (temaTitle) {
+            res.tema = temaNum ? `${temaNum} - ${sanitizeEtiquetaField(temaTitle)}` : sanitizeEtiquetaField(temaTitle);
+            if (temaNum) res.temaNum = temaNum;
+            res.temaTitle = temaTitle;
+          } else if (temaNum) {
+            res.tema = temaNum;
+            res.temaNum = temaNum;
+          }
+          foundAny = true;
+          continue;
+        }
+
+        // Segmento posicional sem rótulo explícito:
+        if (sIdx === 0 && !res.materia && !res.modulo && !res.capitulo) {
+          res.materia = sanitizeEtiquetaField(seg);
+          foundAny = true;
+        } else if (!res.modulo && (/^m[óo]dulo/i.test(seg) || /^[0-9IVXLCDM]+$/i.test(seg))) {
+          res.modulo = normalizeModuloName(seg);
+          foundAny = true;
+        } else if (!res.capitulo && /^cap[íi]tulo/i.test(seg)) {
+          res.capitulo = normalizeCapituloName(seg);
+          foundAny = true;
+        } else if (!res.subtopico && /^\d+(?:\.\d+)+/.test(seg)) {
+          const numM = seg.match(/^(\d+(?:\.\d+)+)\.?\s*[:.\-–—]?\s*(.+)?$/);
+          if (numM) {
+            const cleanNum = numM[1].trim();
+            res.subtopico = cleanNum;
+            res.topicoNum = cleanNum;
+            res.topicoTitle = (numM[2] || '').trim().replace(/^[ºª°\.\s\-–—:]+/i, '').trim() || undefined;
+          } else {
+            res.subtopico = sanitizeEtiquetaField(seg);
+          }
+          foundAny = true;
+        } else if (res.subtopico && !res.tema) {
+          // O subtópico já foi definido (ex: Subtópico: 4.6.1...) e este é o próximo elemento da cadeia: é o Tema!
+          res.tema = sanitizeEtiquetaField(seg);
+          foundAny = true;
+        } else if (!res.subtopico) {
+          res.subtopico = sanitizeEtiquetaField(seg);
+          foundAny = true;
+        } else if (!res.tema) {
+          res.tema = sanitizeEtiquetaField(seg);
+          foundAny = true;
+        }
+      }
+
+      if (foundAny) {
+        return res;
+      }
+    }
+
+    // Fallback se não quebrou em múltiplos segmentos: busca explícita com limites de palavra \b
     // Matéria / Disciplina
-    const matM = cleanLine.match(/(?:mat[ée]ria|disciplina|nome da mat[ée]ria)\s*[:=-]\s*([^|;•\n\r>\]]+)/i);
+    const matM = cleanLine.match(/(?:mat[ée]ria|disciplina|nome\s+da\s+mat[ée]ria)\s*[:=-]\s*([^|;•\n\r>\]]+)/i);
     if (matM) {
       res.materia = sanitizeEtiquetaField(matM[1].trim());
       foundAny = true;
     }
 
     // Módulo
-    const modM = cleanLine.match(/(?:m[óo]dulo)\s*(?:([0-9]+|[IVXLCDM]+))?\s*[:.\-–—]?\s*([^|;•\n\r>\]]+)?/i);
+    const modM = cleanLine.match(/m[óo]dulo\b(?:\s*([0-9]+|[IVXLCDM]+))?\b(?:\s*[:.\-–—]\s*|\s+)?([^|;•\n\r>\]]+)?/i);
     if (modM) {
       const modNum = modM[1]?.trim();
       const modTitle = modM[2]?.trim() || '';
       if (modNum && modTitle && !modTitle.toLowerCase().startsWith('módulo')) {
-        res.modulo = `Módulo ${modNum} – ${modTitle}`;
+        res.modulo = normalizeModuloName(`Módulo ${modNum} – ${modTitle}`);
       } else if (modNum) {
-        res.modulo = `Módulo ${modNum}`;
+        res.modulo = normalizeModuloName(`Módulo ${modNum}`);
       } else if (modTitle) {
-        res.modulo = sanitizeEtiquetaField(modTitle);
+        res.modulo = normalizeModuloName(modTitle);
       }
       foundAny = true;
     }
 
     // Capítulo
-    const capM = cleanLine.match(/(?:cap[íi]tulo|cap\.?)\s*(?:n[º°o]\.?|n[uú]mero)?\s*([0-9]+|[IVXLCDM]+)?(?:[ºª°o]|\.0|\.)?\s*[:.\-–—]?\s*([^|;•\n\r>\]]+)?/i);
+    const capM = cleanLine.match(/(?:cap[íi]tulo|cap\.?)\b(?:\s*(?:n[º°o]\.?|n[uú]mero)?\s*(\d+(?:\.\d+)*|[IVXLCDM]+))?(?:[ºª°o]|\.0|\.)?\b(?:\s*[:.\-–—]\s*|\s+)?([^|;•\n\r>\]]+)?/i);
     if (capM) {
       const capNumRaw = capM[1]?.trim();
       let capTitle = (capM[2] || '').trim();
-      capTitle = capTitle.replace(/^[ºª°o\.\s\-–—:]+/i, '').trim();
+      capTitle = capTitle.replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
       const norm = normalizeChapterNumber(capNumRaw);
       const capNum = norm ? norm.num : capNumRaw;
       if (capNum) {
@@ -252,35 +550,41 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
     }
 
     // Subtópico / Tópico
-    const subM = cleanLine.match(/(?:subt[óo]pico|sub-t[óo]pico|t[óo]pico)\s*(?:(\d+(?:\.\d+)*))?\s*[:.\-–—]?\s*([^|;•\n\r>\]]+)?/i);
-    if (subM) {
-      const subNum = subM[1]?.trim();
-      const subTitle = subM[2]?.trim() || '';
-      if (subNum && subTitle) {
-        res.subtopico = `${subNum} (${subTitle})`;
-        res.topicoNum = subNum;
-      } else if (subNum) {
-        res.subtopico = subNum;
-        res.topicoNum = subNum;
-      } else if (subTitle) {
-        res.subtopico = sanitizeEtiquetaField(subTitle);
+    const subPrefixMatch = cleanLine.match(
+      /(?:(t[óo]pico)|(subt[óo]pico|sub-t[óo]pico))\b(?:\s*[:.\-–—]\s*|\s+)?(?:\(?\s*(\d+(?:\.\d+)*\.?)\s*\)?|\b(\d+(?:\.\d+)*\.?)\b)?\s*[:.\-–—]?\s*([^|;•\n\r>\]]+)?/i
+    );
+    if (subPrefixMatch) {
+      const isTop = Boolean(subPrefixMatch[1]);
+      const rawNum = (subPrefixMatch[3] || subPrefixMatch[4] || '').trim();
+      const cleanNum = rawNum.replace(/\.+$/, '');
+      let title = (subPrefixMatch[5] || '').trim().replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
+      title = title.replace(/^[\(\[]\s*([^()]+?)\s*[\)\]]$/, '$1').trim();
+
+      const fullSub = cleanNum && title ? `${cleanNum} - ${sanitizeEtiquetaField(title)}` : (cleanNum || sanitizeEtiquetaField(title));
+
+      if (cleanNum || title) {
+        res.isTopico = isTop;
+        res.subtopico = fullSub;
+        res.topicoNum = cleanNum || undefined;
+        res.topicoTitle = title || undefined;
       }
       foundAny = true;
     }
 
-    // Tema / Subtópico do Subtópico
-    const temaM = cleanLine.match(/(?:tema(?:\s*\((?:subt[óo]pico\s+do\s+subt[óo]pico|detalhe)\))?|subt[óo]pico\s+do\s+subt[óo]pico|subtopico\s+do\s+subtopico|sub-subt[óo]pico)\s*(?:(\d+(?:\.\d+)*))?\s*[:.\-–—]?\s*([^|;•\n\r>\]]+)?/i);
+    // Tema / Detalhe / Subtópico do Subtópico
+    const temaM = cleanLine.match(/(?:(?:\btema\b(?:\s*\([^)]*\))?|detalhe|subt[óo]pico\s+do\s+subt[óo]pico|subtopico\s+do\s+subtopico|sub-subt[óo]pico|\bsubtema\b))\s*(?:(\d+(?:\.\d+)*))?\s*[:.\-–—]?\s*([^|;•\n\r>\]]+)?/i);
     if (temaM) {
       const temaNum = temaM[1]?.trim();
-      const temaTitle = temaM[2]?.trim() || '';
-      if (temaNum && temaTitle) {
-        res.tema = `${temaNum} (${temaTitle})`;
-        res.temaNum = temaNum;
+      let temaTitle = (temaM[2] || '').trim();
+      temaTitle = temaTitle.replace(/^[\(\[]\s*([^()]+?)\s*[\)\]]$/, '$1').trim();
+
+      if (temaTitle) {
+        res.tema = temaNum ? `${temaNum} - ${sanitizeEtiquetaField(temaTitle)}` : sanitizeEtiquetaField(temaTitle);
+        if (temaNum) res.temaNum = temaNum;
+        res.temaTitle = temaTitle;
       } else if (temaNum) {
         res.tema = temaNum;
         res.temaNum = temaNum;
-      } else if (temaTitle) {
-        res.tema = sanitizeEtiquetaField(temaTitle);
       }
       foundAny = true;
     }
@@ -305,19 +609,15 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
 
     // Limpar delimitadores do restDesc
     let cleanDesc = restDesc.replace(/^[\(\[\{]/, '').replace(/[\)\]\}]$/, '').trim();
-    cleanDesc = cleanDesc.replace(/^[\-–—:]+\s*/, '').trim();
+    cleanDesc = cleanDesc.replace(/^[.\-–—:]+\s*/, '').trim();
+    cleanDesc = cleanDesc.replace(/^(\d+(?:\.\d+)*)\.?\s*[:.\-–—]?\s*/, '').trim();
 
     const parts = numStr.split('.');
     const capNum = parts[0]; // "4" ou "2"
     const topNum = parts.length >= 2 ? `${parts[0]}.${parts[1]}` : parts[0]; // "4.6" ou "2.2"
     const temaNum = numStr; // "4.6.2"
 
-    let tema = '';
-    if (parts.length >= 3) {
-      tema = cleanDesc ? `${numStr} (${cleanDesc})` : numStr;
-    } else if (cleanDesc) {
-      tema = `${numStr} (${cleanDesc})`;
-    }
+    let tema = cleanDesc || '';
 
     return {
       capituloNum: capNum,
@@ -340,24 +640,25 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
     };
   }
 
-  // 4. Padrão TEMA / SUBTÓPICO DO SUBTÓPICO isolado
+  // 4. Padrão TEMA / DETALHE / SUBTÓPICO DO SUBTÓPICO isolado
   // Ex: Tema: 4.6.2 (Auto Circunstanciado)
-  // Ex: Tema (subtópico do subtópico): Auto Circunstanciado
+  // Ex: Tema: 1.1.1.1 - Esclarecimento de Autoria/Materialidade
+  // Ex: Detalhe: 1.1.2.1.1 - Princípio da Oportunidade
   // Ex: Subtópico do subtópico: Peças Iniciais
   // Ex: Tema: Inquérito Policial
   const temaMatch = cleanLine.match(
-    /^(?:[#*=_~-]+\s*)?(?:tema(?:\s*\((?:subt[óo]pico\s+do\s+subt[óo]pico|subtopico\s+do\s+subtopico|detalhe)\))?|subt[óo]pico\s+do\s+subt[óo]pico|subtopico\s+do\s+subtopico|sub-subt[óo]pico)\s*(?:(\d+(?:\.\d+)*))?\s*[:.\-–—]?\s*([^\n\r]+)?$/i
+    /^(?:[#*=_~-]+\s*)?(?:\btema\b(?:\s*\([^)]*\))?|detalhe|subt[óo]pico\s+do\s+subt[óo]pico|subtopico\s+do\s+subtopico|sub-subt[óo]pico|\bsubtema\b)\s*(?:(\d+(?:\.\d+)*))?\s*[:.\-–—]?\s*([^\n\r]+)?$/i
   );
   if (temaMatch) {
     const tNum = temaMatch[1]?.trim();
-    const tTitle = temaMatch[2]?.trim() || '';
+    let tTitle = (temaMatch[2] || '').trim();
+    tTitle = tTitle.replace(/^[\(\[]\s*([^()]+?)\s*[\)\]]$/, '$1').trim();
+
     let val = '';
-    if (tNum && tTitle) {
-      val = `${tNum} (${tTitle.replace(/^[\(\[]/, '').replace(/[\)\]]$/, '')})`;
+    if (tTitle) {
+      val = tNum ? `${tNum} - ${sanitizeEtiquetaField(tTitle)}` : sanitizeEtiquetaField(tTitle);
     } else if (tNum) {
       val = tNum;
-    } else if (tTitle) {
-      val = sanitizeEtiquetaField(tTitle);
     }
     if (val) {
       return {
@@ -369,29 +670,28 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
   }
 
   // 5. Padrão SUBTÓPICO / TÓPICO isolado
+  // Ex: Subtópico: 4.6.1. DA INFORMAÇÃO DE POLÍCIA JUDICIÁRIA (IPJ)
   // Ex: Subtópico: 4.6 (Termo de Declarações)
-  // Ex: Subtópico 4.6: Termo de Declarações
-  // Ex: Tópico: 2.2
-  // Ex: Subtópico - Prisão em Flagrante
+  // Ex: Tópico: 1.1.1 - Conceito, Finalidades da Investigação e Investigação Patrimonial Paralela
+  // Ex: Subtópico: 1.1.1.1 - Esclarecimento de Autoria/Materialidade, Confisco Alargado e Por Equivalência
   const subMatch = cleanLine.match(
-    /^(?:[#*=_~-]+\s*)?(?:subt[óo]pico|sub-t[óo]pico|t[óo]pico)\s*(?:(\d+(?:\.\d+)*))?\s*[:.\-–—]?\s*([^\n\r]+)?$/i
+    /^(?:[#*=_~-]+\s*)?(?:(t[óo]pico)|(subt[óo]pico|sub-t[óo]pico))\b(?:\s*[:.\-–—]\s*|\s+)?(?:\(?\s*(\d+(?:\.\d+)*\.?)\s*\)?|\b(\d+(?:\.\d+)*\.?)\b)?\s*[:.\-–—]?\s*([^\n\r]+)?$/i
   );
   if (subMatch) {
-    const sNum = subMatch[1]?.trim();
-    const sTitle = subMatch[2]?.trim() || '';
-    let val = '';
-    if (sNum && sTitle) {
-      val = `${sNum} (${sTitle.replace(/^[\(\[]/, '').replace(/[\)\]]$/, '')})`;
-    } else if (sNum) {
-      val = sNum;
-    } else if (sTitle) {
-      val = sanitizeEtiquetaField(sTitle);
-    }
-    if (val) {
+    const isTop = Boolean(subMatch[1]);
+    const rawNum = (subMatch[3] || subMatch[4] || '').trim();
+    const cleanNum = rawNum.replace(/\.+$/, '');
+    let title = (subMatch[5] || '').trim().replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
+    title = title.replace(/^[\(\[]\s*([^()]+?)\s*[\)\]]$/, '$1').trim();
+
+    const fullSub = cleanNum && title ? `${cleanNum} - ${sanitizeEtiquetaField(title)}` : (cleanNum || sanitizeEtiquetaField(title));
+
+    if (cleanNum || title) {
       return {
-        subtopico: val,
-        topicoNum: sNum,
-        topicoTitle: sTitle || undefined,
+        isTopico: isTop,
+        subtopico: fullSub,
+        topicoNum: cleanNum || undefined,
+        topicoTitle: title || undefined,
       };
     }
   }
@@ -412,11 +712,11 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
 
     let finalMod = '';
     if (modNum && cleanModTitle) {
-      finalMod = `Módulo ${modNum} – ${cleanModTitle}`;
+      finalMod = normalizeModuloName(`Módulo ${modNum} – ${cleanModTitle}`);
     } else if (modNum) {
-      finalMod = `Módulo ${modNum}`;
+      finalMod = normalizeModuloName(`Módulo ${modNum}`);
     } else if (cleanModTitle) {
-      finalMod = cleanModTitle;
+      finalMod = normalizeModuloName(cleanModTitle);
     } else {
       finalMod = 'Módulo';
     }
@@ -428,26 +728,25 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
 
   // 7. Padrão CAPÍTULO isolado ou no cabeçalho
   // Ex: ## CAPÍTULO 4 – PEÇAS DE POLÍCIA JUDICIÁRIA
+  // Ex: CAPÍTULO 1.1 - Ação de Obtenção de Elementos de Informação para a Investigação
   // Ex: CAPÍTULO 4: PEÇAS
   // Ex: Capítulo 4
   // Ex: Capítulo 1º
   // Ex: Capítulo I
   // Ex: Capítulo: Peças de Polícia
   const capMatch = cleanLine.match(
-    /^(?:[#*=_~-]+\s*)?cap[íi]tulo(?:\s*(?:n[º°o]\.?|n[uú]mero)?\s*([0-9]+|[IVXLCDM]+))?(?:[ºª°o]|\.0|\.)?\b(?:\s*[:.\-–—]\s*|\s+)?([^\n\r]+)?/i
+    /^(?:[#*=_~-]+\s*)?cap[íi]tulo(?:\s*(?:n[º°o]\.?|n[uú]mero)?\s*(\d+(?:\.\d+)*|[IVXLCDM]+))?(?:[ºª°o]|\.0|\.)?\b(?:\s*[:.\-–—]\s*|\s+)?([^\n\r]+)?/i
   );
   if (capMatch) {
     const capNumRaw = capMatch[1]?.trim();
     let capTitle = (capMatch[2] || '').trim();
-    capTitle = capTitle.replace(/^[ºª°o\.\s\-–—:]+/i, '').trim();
+    capTitle = capTitle.replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
 
-    // Rejeitar se for uma frase de enunciado ou comentário de questão
-    const isSentence =
-      capTitle.length > 50 ||
-      /[.;?!]$/.test(capTitle) ||
-      /\b(?:prev[eê]|trata|disp[õo]e|estabelece|determina|julgue|assinale|considere|conforme|segundo|decorre|aplic[aá]-se)\b/i.test(capTitle);
+    // Rejeitar APENAS se for uma frase de comando de questão ("julgue os itens a seguir", "assinale a alternativa", etc.)
+    const isQuestionCommand =
+      /\b(?:julgue\s+o?s?\s+itens|assinale\s+a\s+opção|assinale\s+a\s+alternativa|corret[oa]s?\s+os\s+itens|estão\s+corretos)\b/i.test(capTitle);
 
-    if (isSentence) {
+    if (isQuestionCommand) {
       return null;
     }
 
@@ -532,18 +831,13 @@ export function resolveHierarchyWithExisting(
 
   // 3. Resolver Módulo com base existente
   if (detected.modulo) {
-    const cleanMod = sanitizeEtiquetaField(detected.modulo);
-    const modNumMatch = cleanMod.match(/(?:m[óo]dulo\s*)?([0-9]+|[IVXLCDM]+)/i);
-    const modId = modNumMatch ? modNumMatch[1].toLowerCase() : cleanMod.toLowerCase();
-
+    const cleanMod = normalizeModuloName(detected.modulo);
     const matchExistingMod = existingQuestions.find((q) => {
       const m = getQuestionModulo(q);
-      if (!m) return false;
-      const qNumMatch = m.match(/(?:m[óo]dulo\s*)?([0-9]+|[IVXLCDM]+)/i);
-      return qNumMatch && qNumMatch[1].toLowerCase() === modId;
+      return areModulosEquivalent(m, cleanMod);
     });
 
-    modulo = matchExistingMod ? getQuestionModulo(matchExistingMod) : cleanMod;
+    modulo = matchExistingMod ? normalizeModuloName(getQuestionModulo(matchExistingMod)) : cleanMod;
   } else if (!modulo && capitulo) {
     // Se o módulo não veio no texto, verificar se o Capítulo já possui um Módulo associado no banco
     const sameCapQuestion = existingQuestions.find(
@@ -553,54 +847,23 @@ export function resolveHierarchyWithExisting(
         getQuestionModulo(q)
     );
     if (sameCapQuestion) {
-      modulo = getQuestionModulo(sameCapQuestion);
+      modulo = normalizeModuloName(getQuestionModulo(sameCapQuestion));
     }
   }
 
   // 4. Resolver Tópico / Subtópico com base existente
-  const topNum = detected.topicoNum;
-  if (topNum) {
-    // Procurar subtópico existente com o mesmo número (ex: "4.6", "Tópico 4.6", "4.6 - ...")
-    const matchExistingSub = existingQuestions.find((q) => {
-      if (!q.subtopico) return false;
-      const s = q.subtopico.trim();
-      return (
-        s === topNum ||
-        s.startsWith(`${topNum} `) ||
-        s.startsWith(`${topNum}-`) ||
-        s.startsWith(`${topNum}.`) ||
-        new RegExp(`\\b${topNum.replace('.', '\\.')}\\b`).test(s)
-      );
-    });
-
-    if (matchExistingSub && matchExistingSub.subtopico) {
-      subtopico = matchExistingSub.subtopico.trim();
-    } else {
-      subtopico = topNum;
-    }
-  } else if (detected.subtopico) {
-    const cleanSub = sanitizeEtiquetaField(detected.subtopico);
-    const matchExistingSub = existingQuestions.find(
-      (q) => q.subtopico && q.subtopico.trim().toLowerCase() === cleanSub.toLowerCase()
-    );
-    subtopico = matchExistingSub?.subtopico?.trim() || cleanSub;
+  const topNum = detected.topicoNum ? detected.topicoNum.replace(/\.+$/, '').trim() : '';
+  if (detected.subtopico) {
+    subtopico = detected.subtopico.trim();
+  } else if (topNum) {
+    subtopico = topNum;
   }
 
   // 5. Resolver Tema com base existente
   if (detected.tema) {
-    const cleanTema = sanitizeEtiquetaField(detected.tema);
-    const temaNumMatch = cleanTema.match(/(\d+(?:\.\d+)+)/);
-    const temaTargetNum = temaNumMatch ? temaNumMatch[1] : '';
-
-    const matchExistingTema = existingQuestions.find((q) => {
-      if (!q.tema_subtopico) return false;
-      const t = q.tema_subtopico.trim();
-      if (t.toLowerCase() === cleanTema.toLowerCase()) return true;
-      if (temaTargetNum && t.includes(temaTargetNum)) return true;
-      return false;
-    });
-
-    tema = matchExistingTema?.tema_subtopico?.trim() || cleanTema;
+    let cleanTema = sanitizeEtiquetaField(detected.tema);
+    cleanTema = cleanTema.replace(/^[\(\[]\s*([^()]+?)\s*[\)\]]$/, '$1').trim();
+    tema = cleanTema;
   }
 
   return {
@@ -638,7 +901,7 @@ export function getQuestionModulo(q: { materia?: string; modulo?: string }): str
     if (q.materia && q.modulo.trim().toLowerCase() === q.materia.trim().toLowerCase() && !/^\s*m[óo]dulo\b/i.test(q.modulo)) {
       return '';
     }
-    return q.modulo.trim();
+    return normalizeModuloName(q.modulo.trim());
   }
   return '';
 }
@@ -1339,7 +1602,18 @@ export function parseRawQuestionText(
     }
     if (subM && !subtopico) {
       const rawSubVal = (subM[1] || subM[2]).trim().replace(/^[\-–—:]+/, '').trim();
-      subtopico = rawSubVal;
+      const numM = rawSubVal.match(/^(\d+(?:\.\d+)*)\.?\s*[:.\-–—]?\s*(.+)?$/);
+      if (numM) {
+        subtopico = numM[1].trim();
+        let subTitle = (numM[2] || '').trim().replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
+        subTitle = subTitle.replace(/^(\d+(?:\.\d+)*)\.?\s*[:.\-–—]?\s*/, '').trim();
+        subTitle = subTitle.replace(/^[\(\[]\s*([^()]+?)\s*[\)\]]$/, '$1').trim();
+        if (subTitle && !tema_subtopico) {
+          tema_subtopico = sanitizeEtiquetaField(subTitle);
+        }
+      } else {
+        subtopico = sanitizeEtiquetaField(rawSubVal);
+      }
     }
 
     cleanedRaw = cleanedRaw.substring(inlineTagMatch[0].length).trim();
@@ -1353,9 +1627,10 @@ export function parseRawQuestionText(
     const line = lines[i].trim();
     const matMatch = line.match(/^(?:mat[ée]ria|disciplina|nome da mat[ée]ria):\s*(.+)$/i);
     const modMatch = line.match(/^(?:m[óo]dulo):\s*(.+)$/i);
-    const capMatch = line.match(/^(?:cap[íi]tulo|assunto|t[óo]pico|cap[íi]tulo da mat[ée]ria):\s*(.+)$/i);
+    const capMatch = line.match(/^(?:cap[íi]tulo|cap[íi]tulo da mat[ée]ria):\s*(.+)$/i);
+    const topMatch = line.match(/^(?:t[óo]pico|assunto):\s*(.+)$/i);
     const subMatch = line.match(/^(?:subt[óo]pico|subassunto):\s*(.+)$/i);
-    const temaMatch = line.match(/^(?:tema|tema_subt[óo]pico|subtema):\s*(.+)$/i);
+    const temaMatch = line.match(/^(?:tema(?:\s*\([^)]*\))?|detalhe|tema_subt[óo]pico|subtema|subt[óo]pico\s+do\s+subt[óo]pico):\s*(.+)$/i);
     const pesoMatch = line.match(/^(?:peso|pontos?|valor(?:\s+em\s+pontos)?):\s*(\d+(?:[.,]\d+)?)/i);
 
     // Também detectar cabeçalhos tipo QUESTÕES INÉDITAS — BLOCO 4.6.2 (AUTO CIRCUNSTANCIADO)
@@ -1366,11 +1641,36 @@ export function parseRawQuestionText(
     } else if (modMatch) {
       modulo = modMatch[1].trim();
     } else if (capMatch) {
-      capitulo = capMatch[1].trim();
+      capitulo = normalizeCapituloName(capMatch[1].trim());
+    } else if (topMatch) {
+      const rawTop = topMatch[1].trim();
+      const numM = rawTop.match(/^(\d+(?:\.\d+)*)\.?\s*[:.\-–—]?\s*(.+)?$/);
+      if (numM) {
+        subtopico = numM[2] ? `${numM[1].trim()} - ${sanitizeEtiquetaField(numM[2].trim())}` : numM[1].trim();
+      } else {
+        subtopico = sanitizeEtiquetaField(rawTop);
+      }
     } else if (subMatch) {
-      subtopico = subMatch[1].trim();
+      const rawSub = subMatch[1].trim();
+      const numM = rawSub.match(/^(\d+(?:\.\d+)*)\.?\s*[:.\-–—]?\s*(.+)?$/);
+      if (numM) {
+        const fullSub = numM[2] ? `${numM[1].trim()} - ${sanitizeEtiquetaField(numM[2].trim())}` : numM[1].trim();
+        if (subtopico) {
+          tema_subtopico = fullSub;
+        } else {
+          subtopico = fullSub;
+        }
+      } else {
+        if (subtopico && !tema_subtopico) {
+          tema_subtopico = sanitizeEtiquetaField(rawSub);
+        } else {
+          subtopico = sanitizeEtiquetaField(rawSub);
+        }
+      }
     } else if (temaMatch) {
-      tema_subtopico = temaMatch[1].trim();
+      let rawTema = temaMatch[1].trim();
+      rawTema = rawTema.replace(/^[\(\[]\s*([^()]+?)\s*[\)\]]$/, '$1').trim();
+      tema_subtopico = sanitizeEtiquetaField(rawTema);
     } else if (pesoMatch) {
       const parsedNum = parseFloat(pesoMatch[1].replace(',', '.'));
       if (!isNaN(parsedNum) && parsedNum > 0) {
@@ -1386,11 +1686,9 @@ export function parseRawQuestionText(
       if (blockHeader.capituloNum) {
         capitulo = blockHeader.capituloTitle ? `Capítulo ${blockHeader.capituloNum} – ${blockHeader.capituloTitle}` : `Capítulo ${blockHeader.capituloNum}`;
       } else if (blockHeader.capitulo) {
-        capitulo = blockHeader.capitulo;
+        capitulo = normalizeCapituloName(blockHeader.capitulo);
       }
-      if (blockHeader.topicoNum) {
-        subtopico = blockHeader.topicoNum;
-      } else if (blockHeader.subtopico) {
+      if (blockHeader.subtopico) {
         subtopico = blockHeader.subtopico;
       }
       if (blockHeader.tema) {
@@ -1462,12 +1760,30 @@ export function parseRawQuestionText(
   let firstAltIndex = -1;
 
   let match: RegExpExecArray | null;
+  const seenLetters = new Set<string>();
   while ((match = altRegex.exec(altTargetText)) !== null) {
     if (firstAltIndex === -1) {
       firstAltIndex = match.index;
     }
-    const letter = (match[1] || match[2] || match[3]).toUpperCase();
+    let letter = (match[1] || match[2] || match[3]).toUpperCase();
     const text = match[4].trim();
+
+    // Se já encontramos uma alternativa com essa mesma letra (ex: citação de "alínea c)" dentro da questão):
+    if (seenLetters.has(letter)) {
+      if (alternativas.length > 0 && alternativas[alternativas.length - 1].letra === letter) {
+        alternativas[alternativas.length - 1].texto += ' ' + text;
+        continue;
+      }
+      let nextCode = 65 + alternativas.length;
+      while (seenLetters.has(String.fromCharCode(nextCode)) && nextCode <= 90) {
+        nextCode++;
+      }
+      if (nextCode <= 90) {
+        letter = String.fromCharCode(nextCode);
+      }
+    }
+
+    seenLetters.add(letter);
     alternativas.push({
       letra: letter,
       texto: text,
@@ -1587,11 +1903,10 @@ export function splitBatchQuestionsText(rawText: string): string[] {
   if (!text) return [];
 
   // 1. Estratégia de Prioridade Máxima: Marcadores Nominais Explícitos de Questões
-  // ("Questão 1", "QUESTÃO 01", "Questão 2.", "Q1.", "Item 1", "Exercício 1")
-  // Quando o texto possui marcadores nominais explícitos, ELES SÃO A ÚNICA REFERÊNCIA DE CORTE!
-  // NUNCA misturar com números isolados como 1., 2., 1 -, 2 -, pois são itens/assertivas internas ou linhas de prova!
-  const qMarkerRegex = /(?:^|\n)[ \t]*(?:[#*=_~`]+\s*)?(?:quest[ãa]o|q\.?|item|exerc[íi]cio|simulado)(?:\s*(?:n[º°o]\.?|n[uú]mero))?[\s\-–—:]*(\d+)\b[.:\-–—)]*(?:[#*=_~`]+\s*)?/gi;
-  const qMatches: { index: number; num: number }[] = [];
+  // ("Questão 1", "QUESTÃO 01", "Questão 2.", "Q1.")
+  // Quando o texto possui "Questão", "Item 1" e "Item 2" no enunciado NUNCA são tratados como nova questão!
+  const qMarkerRegex = /(?:^|\n)[ \t]*(?:[#*=_~`]+\s*)?(?:(quest[ãa]o|q\.?)|(item|exerc[íi]cio|simulado))(?:\s*(?:n[º°o]\.?|n[uú]mero))?[\s\-–—:]*(\d+)\b[.:\-–—)]*(?:[#*=_~`]+\s*)?/gi;
+  const rawMatches: { index: number; num: number; isQuestao: boolean }[] = [];
   let qm: RegExpExecArray | null;
   while ((qm = qMarkerRegex.exec(text)) !== null) {
     const actualIndex = qm.index === 0 && !text.startsWith('\n') ? 0 : qm.index + 1;
@@ -1599,19 +1914,34 @@ export function splitBatchQuestionsText(rawText: string): string[] {
     const fullLine = text.substring(actualIndex, lineEnd !== -1 ? lineEnd : text.length);
     // Ignorar se a linha for menção em cabeçalho de gabarito comentado
     if (!/gabarito\s+comentado|coment[áa]rio|resolu[çc][ãa]o|justificativa/i.test(fullLine)) {
-      qMatches.push({ index: actualIndex, num: parseInt(qm[1], 10) });
+      rawMatches.push({
+        index: actualIndex,
+        num: parseInt(qm[3], 10),
+        isQuestao: Boolean(qm[1]),
+      });
     }
   }
+
+  // Se houver qualquer "Questão X" ou "Q.X", descarta "Item X", "Simulado X" para evitar quebrar assertivas internas
+  const hasExplicitQuestao = rawMatches.some((m) => m.isQuestao);
+  const qMatches = hasExplicitQuestao ? rawMatches.filter((m) => m.isQuestao) : rawMatches;
 
   if (qMatches.length >= 1) {
     qMatches.sort((a, b) => a.index - b.index);
     const validStarts: number[] = [qMatches[0].index];
+    let lastAcceptedNum = qMatches[0].num;
 
     for (let i = 1; i < qMatches.length; i++) {
       const candidate = qMatches[i];
-      // Aceita nova questão se o índice for posterior em mais de 30 caracteres
-      if (candidate.index - validStarts[validStarts.length - 1] > 30) {
+      const prevChunk = text.substring(validStarts[validStarts.length - 1], candidate.index);
+      // Exige que o bloco anterior tenha alternativas ou gabarito e a numeração seja sequencial
+      if (
+        hasQuestionAlternativesOrGabarito(prevChunk) &&
+        (candidate.num > lastAcceptedNum || candidate.num === 1) &&
+        candidate.index - validStarts[validStarts.length - 1] > 30
+      ) {
         validStarts.push(candidate.index);
+        lastAcceptedNum = candidate.num;
       }
     }
 
@@ -1908,7 +2238,7 @@ export function parseBatchRawQuestions(
       }
 
       if (detected.capitulo || detected.capituloNum) {
-        activeHierarchy.capitulo = detected.capitulo;
+        activeHierarchy.capitulo = normalizeCapituloName(detected.capitulo || detected.capituloTitle);
         activeHierarchy.capituloNum = detected.capituloNum;
         activeHierarchy.capituloTitle = detected.capituloTitle;
         if (!detected.subtopico && !detected.topicoNum) {
@@ -1924,13 +2254,45 @@ export function parseBatchRawQuestions(
       }
 
       if (detected.subtopico || detected.topicoNum) {
-        activeHierarchy.subtopico = detected.subtopico;
-        activeHierarchy.topicoNum = detected.topicoNum;
-        activeHierarchy.topicoTitle = detected.topicoTitle;
-        if (!detected.tema && !detected.temaNum) {
-          delete activeHierarchy.tema;
-          delete activeHierarchy.temaNum;
-          delete activeHierarchy.temaTitle;
+        const prevNum = activeHierarchy.topicoNum || '';
+        const currNum = detected.topicoNum || '';
+        const prevParts = prevNum ? prevNum.split('.').filter(Boolean) : [];
+        const currParts = currNum ? currNum.split('.').filter(Boolean) : [];
+        const isChildOfPrevious = Boolean(prevNum && currNum && currNum !== prevNum && currNum.startsWith(prevNum) && currParts.length > prevParts.length);
+
+        if (isChildOfPrevious && !detected.isTopico) {
+          // É o Tema filho do Subtópico anterior (ex: SUBTÓPICO: 1.1.1 -> TEMA / SUBTÓPICO: 1.1.1.1)!
+          activeHierarchy.tema = detected.tema || detected.subtopico;
+          activeHierarchy.temaNum = currNum || detected.temaNum;
+          activeHierarchy.temaTitle = detected.topicoTitle || detected.temaTitle;
+        } else if (detected.subtopico && detected.tema) {
+          // A linha já forneceu ambos os campos explicitamente (ex: SUBTÓPICO: 1.1.2 / TEMA: 1.1.2.1)
+          activeHierarchy.subtopico = detected.subtopico;
+          activeHierarchy.topicoNum = detected.topicoNum;
+          activeHierarchy.topicoTitle = detected.topicoTitle;
+          activeHierarchy.tema = detected.tema;
+          activeHierarchy.temaNum = detected.temaNum;
+          activeHierarchy.temaTitle = detected.temaTitle;
+        } else if (currParts.length >= 4 && !detected.isTopico) {
+          // Nível 4 (ex: 2.2.2.2 ou 1.1.1.1): Tema!
+          activeHierarchy.tema = detected.tema || detected.subtopico;
+          activeHierarchy.temaNum = currNum || detected.temaNum;
+          activeHierarchy.temaTitle = detected.topicoTitle || detected.temaTitle;
+        } else {
+          // Novo Subtópico (nível 3 ou padrão)
+          activeHierarchy.subtopico = detected.subtopico;
+          activeHierarchy.topicoNum = detected.topicoNum;
+          activeHierarchy.topicoTitle = detected.topicoTitle;
+          if (detected.tema || detected.temaNum) {
+            activeHierarchy.tema = detected.tema;
+            activeHierarchy.temaNum = detected.temaNum;
+            activeHierarchy.temaTitle = detected.temaTitle;
+          } else {
+            // Limpa qualquer tema anterior
+            delete activeHierarchy.tema;
+            delete activeHierarchy.temaNum;
+            delete activeHierarchy.temaTitle;
+          }
         }
       }
 

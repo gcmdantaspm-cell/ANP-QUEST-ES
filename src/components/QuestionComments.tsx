@@ -193,13 +193,13 @@ export const QuestionComments: React.FC<QuestionCommentsProps> = ({ questionId }
         </div>
       ) : (
         <div className="space-y-3">
-          {comments.map((c) => {
+          {comments.map((c, idx) => {
             const isAuthor = user && user.uid === c.userId;
             const canDelete = isAuthor || isAdmin;
 
             return (
               <div
-                key={c.id}
+                key={`${c.id || 'comment'}-${idx}`}
                 id={`comment-${c.id}`}
                 className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm"
               >

@@ -384,12 +384,12 @@ export const SimuladosStatsView: React.FC<SimuladosStatsViewProps> = ({ attempts
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
-              {attempts.map((att) => {
+              {attempts.map((att, idx) => {
                 const totalQ = att.acertos + att.erros + att.emBranco;
                 const durMin = Math.round(att.duracaoSegundos / 60);
 
                 return (
-                  <tr key={att.id} className="hover:bg-zinc-800/40 transition-colors">
+                  <tr key={`${att.id || 'att'}-${idx}`} className="hover:bg-zinc-800/40 transition-colors">
                     <td className="py-3 px-4 font-bold text-zinc-100">
                       {att.simuladoTitulo}
                     </td>

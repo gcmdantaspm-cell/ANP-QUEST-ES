@@ -165,8 +165,8 @@ export const SimuladoResultModal: React.FC<SimuladoResultModalProps> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-900">
-                      {Object.values(attempt.desempenhoPorMateria).map((mat) => (
-                        <tr key={mat.materia} className="hover:bg-zinc-900/50">
+                      {Object.values(attempt.desempenhoPorMateria).map((mat, idx) => (
+                        <tr key={`${mat.materia}-${idx}`} className="hover:bg-zinc-900/50">
                           <td className="py-2.5 px-3.5 font-bold text-zinc-200">
                             {mat.materia}
                           </td>
@@ -206,7 +206,7 @@ export const SimuladoResultModal: React.FC<SimuladoResultModalProps> = ({
 
                 return (
                   <div
-                    key={q.id}
+                    key={`${q.id || 'q'}-${idx}`}
                     className={`p-4 sm:p-5 rounded-xl border text-xs space-y-3 ${
                       isCorrect
                         ? 'bg-zinc-950 border-sky-500/40'
@@ -257,7 +257,7 @@ export const SimuladoResultModal: React.FC<SimuladoResultModalProps> = ({
 
                     {/* Alternativas */}
                     <div className="space-y-1.5 pt-1">
-                      {q.alternativas.map((alt) => {
+                      {q.alternativas.map((alt, altIdx) => {
                         const letter = alt.letra.toUpperCase();
                         const isUserSelected = userChoice === letter;
                         const isTheCorrectOne = q.alternativa_correta.toUpperCase() === letter;
@@ -271,7 +271,7 @@ export const SimuladoResultModal: React.FC<SimuladoResultModalProps> = ({
 
                         return (
                           <div
-                            key={letter}
+                            key={`${letter}-${altIdx}`}
                             className={`p-2.5 rounded-xl border text-[11px] flex items-start gap-2 ${style}`}
                           >
                             <span className="font-bold shrink-0 text-sky-400">{letter})</span>

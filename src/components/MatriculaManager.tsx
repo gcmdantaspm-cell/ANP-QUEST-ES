@@ -615,10 +615,10 @@ export const MatriculaManager: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredList.map((mat) => {
+                {filteredList.map((mat, idx) => {
                   const isLinked = Boolean(mat.linkedUid);
                   return (
-                    <tr key={mat.matricula} className="hover:bg-slate-50/70 transition-colors">
+                    <tr key={`${mat.matricula || 'mat'}-${idx}`} className="hover:bg-slate-50/70 transition-colors">
                       {/* Matrícula */}
                       <td className="py-3 px-4">
                         <span className="font-mono font-bold text-slate-900 text-xs sm:text-sm bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">

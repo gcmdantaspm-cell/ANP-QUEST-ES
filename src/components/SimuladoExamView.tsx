@@ -246,7 +246,7 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
 
             return (
               <button
-                key={q.id}
+                key={`${q.id || 'q'}-${idx}`}
                 type="button"
                 onClick={() => setCurrentIndex(idx)}
                 className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg text-xs flex items-center justify-center border transition-all cursor-pointer shrink-0 relative ${btnStyle}`}
@@ -312,14 +312,14 @@ export const SimuladoExamView: React.FC<SimuladoExamViewProps> = ({
 
           {/* Alternativas de Resposta com estilo limpo e radio buttons */}
           <div className="space-y-2 pt-1">
-            {currentQ.alternativas.map((alt) => {
+            {currentQ.alternativas.map((alt, altIdx) => {
               const letter = alt.letra.toUpperCase().trim();
               const lowercaseLetter = letter.toLowerCase();
               const isSelected = answers[currentQ.id] === letter;
 
               return (
                 <label
-                  key={letter}
+                  key={`${letter}-${altIdx}`}
                   onClick={() => handleSelectAnswer(letter)}
                   className={`flex items-start gap-2.5 sm:gap-3 p-2.5 sm:p-3 rounded-xl transition-all cursor-pointer text-xs sm:text-sm select-none ${
                     isSelected

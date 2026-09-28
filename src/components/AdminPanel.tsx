@@ -11,6 +11,8 @@ import {
   getQuestionMateria,
   getQuestionModulo,
   normalizeCapituloName,
+  normalizeModuloName,
+  areModulosEquivalent,
 } from '../utils/parser';
 import { db, handleFirestoreError, OperationType } from '../firebase/config';
 import {
@@ -49,8 +51,14 @@ import {
   Edit3,
   SlidersHorizontal,
   FolderTree,
+  GitMerge,
+  RotateCcw,
+  Split,
+  Undo2,
+  Bot,
 } from 'lucide-react';
 import { MatriculaManager } from './MatriculaManager';
+import { NotebookLMModal } from './NotebookLMModal';
 
 interface AdminPanelProps {
   existingQuestions: Question[];
@@ -75,6 +83,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [subtopico, setSubtopico] = useState('');
   const [tema, setTema] = useState('');
   const [pesoQuestao, setPesoQuestao] = useState<number>(1);
+  const [isNotebookModalOpen, setIsNotebookModalOpen] = useState(false);
 
   // 1. Matérias existentes já cadastradas no banco de dados
   const existingMaterias = useMemo(() => {
@@ -203,6 +212,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Questões processadas e extraídas automaticamente
   const [extractedQuestions, setExtractedQuestions] = useState<ParsedQuestionResult[]>([]);
 
+  // Confirmação e edição de novos campos detectados na importação
+  const [confirmedFieldIds, setConfirmedFieldIds] = useState<Set<string>>(new Set());
+  const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
+  const [editingFieldValue, setEditingFieldValue] = useState<string>('');
+
   // Estados de salvamento
   const [saving, setSaving] = useState(false);
   const [saveProgress, setSaveProgress] = useState<{ current: number; total: number } | null>(null);
@@ -289,6 +303,803 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     tema: string;
     indices: number[];
   } | null>(null);
+
+  // Modal para Unir Módulos / Padronizar Hierarquia
+  const [mergeModal, setMergeModal] = useState<{
+    isOpen: boolean;
+    type: 'modulo' | 'materia' | 'capitulo' | 'subtopico' | 'tema';
+    mode: 'equivalent' | 'manual';
+    scope: 'banco' | 'lote' | 'ambos';
+    selectedItems: string[];
+    targetValue: string;
+    searchFilter: string;
+  } | null>(null);
+
+  // Registro persistente da última mesclagem para exibição contínua
+  const [lastMergeInfo, setLastMergeInfo] = useState<{
+    timestamp: string;
+    type: string;
+    sources: string[];
+    target: string;
+    questionCount: number;
+    details: string;
+    canUndo: boolean;
+    historyId?: string;
+  } | null>(() => {
+    try {
+      const saved = localStorage.getItem('last_module_merge_info');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Histórico de mesclagens para possibilitar desfazer (Undo)
+  const [mergeHistory, setMergeHistory] = useState<
+    Array<{
+      id: string;
+      timestamp: string;
+      type: string;
+      sources: string[];
+      target: string;
+      questionIds: string[];
+      previousValues: Record<string, string>;
+      description: string;
+    }>
+  >(() => {
+    try {
+      const saved = localStorage.getItem('admin_merge_history');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Modal para Desunir / Separar Módulos
+  const [desunirModal, setDesunirModal] = useState<{
+    isOpen: boolean;
+    tab: 'undo' | 'auto_split' | 'manual_split';
+    targetModulo: string;
+    selectedCapitulos: string[];
+    newModuloDestination: string;
+  } | null>(null);
+
+  // Abrir modal de desunião de módulos
+  const handleOpenDesunirModal = () => {
+    const dominantMod =
+      lastMergeInfo?.target ||
+      (existingModulos.length === 1
+        ? existingModulos[0]
+        : existingModulos.find((m) => /ii|2/i.test(m)) || existingModulos[0] || '');
+
+    setDesunirModal({
+      isOpen: true,
+      tab: lastMergeInfo?.canUndo ? 'undo' : 'auto_split',
+      targetModulo: dominantMod,
+      selectedCapitulos: [],
+      newModuloDestination: 'Módulo I',
+    });
+  };
+
+  // Abrir modal de união de módulos ou hierarquia
+  const handleOpenMergeModal = (
+    type: 'modulo' | 'materia' | 'capitulo' | 'subtopico' | 'tema' = 'modulo',
+    initialSelected?: string
+  ) => {
+    const defaultScope: 'banco' | 'lote' | 'ambos' =
+      activeTab === 'gerenciar' || extractedQuestions.length === 0 ? 'banco' : 'ambos';
+
+    setMergeModal({
+      isOpen: true,
+      type,
+      mode: 'equivalent',
+      scope: defaultScope,
+      selectedItems: initialSelected ? [initialSelected] : [],
+      targetValue: initialSelected || '',
+      searchFilter: '',
+    });
+  };
+
+  // Itens candidatos a união de acordo com o tipo e escopo
+  const mergeCandidates = useMemo(() => {
+    if (!mergeModal) return [];
+    const { type, scope } = mergeModal;
+    const countMap = new Map<string, number>();
+
+    if (scope === 'banco' || scope === 'ambos') {
+      existingQuestions.forEach((q) => {
+        let val = '';
+        if (type === 'modulo') val = getQuestionModulo(q) || '(Sem módulo / Geral)';
+        else if (type === 'materia') val = getQuestionMateria(q) || 'IPO-2';
+        else if (type === 'capitulo') val = q.capitulo || '(Geral)';
+        else if (type === 'subtopico') val = q.subtopico || '(Sem subtópico)';
+        else val = q.tema_subtopico || '(Sem tema)';
+
+        val = val.trim();
+        if (val) countMap.set(val, (countMap.get(val) || 0) + 1);
+      });
+    }
+
+    if (scope === 'lote' || scope === 'ambos') {
+      extractedQuestions.forEach((q) => {
+        let val = '';
+        if (type === 'modulo') val = (q.modulo || moduloMateria || '').trim() || '(Sem módulo / Geral)';
+        else if (type === 'materia') val = (q.materia || nomeMateria || 'IPO-2').trim();
+        else if (type === 'capitulo') val = (q.capitulo || capituloMateria || '').trim() || '(Geral)';
+        else if (type === 'subtopico') val = (q.subtopico || subtopico || '').trim() || '(Sem subtópico)';
+        else val = (q.tema_subtopico || tema || '').trim() || '(Sem tema)';
+
+        val = val.trim();
+        if (val) countMap.set(val, (countMap.get(val) || 0) + 1);
+      });
+    }
+
+    return Array.from(countMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [mergeModal, existingQuestions, extractedQuestions, moduloMateria, nomeMateria, capituloMateria, subtopico, tema]);
+
+  // Sugestões inteligentes automáticas para união (ex: Módulo e Módulo II)
+  const smartSuggestions = useMemo(() => {
+    if (!mergeModal || mergeCandidates.length < 2) return [];
+    const names = mergeCandidates.map((c) => c.name);
+    const suggestions: { label: string; items: string[]; suggestedTarget: string }[] = [];
+
+    if (mergeModal.type === 'modulo') {
+      const modSolo = names.find((n) => /^m[óo]dulo$/i.test(n.trim()));
+      const modII = names.find((n) => /^m[óo]dulo\s*(?:ii|2|dois)\b/i.test(n.trim()));
+      const modI = names.find((n) => /^m[óo]dulo\s*(?:i|1|um)\b/i.test(n.trim()));
+
+      if (modSolo && modII) {
+        suggestions.push({
+          label: `Unir "${modSolo}" e "${modII}"`,
+          items: [modSolo, modII],
+          suggestedTarget: modII,
+        });
+      } else if (modSolo && modI) {
+        suggestions.push({
+          label: `Unir "${modSolo}" e "${modI}"`,
+          items: [modSolo, modI],
+          suggestedTarget: modI,
+        });
+      }
+    }
+
+    // Variações com mesma grafia base mas acentos ou maiúsculas diferentes
+    for (let i = 0; i < names.length; i++) {
+      for (let j = i + 1; j < names.length; j++) {
+        const a = names[i];
+        const b = names[j];
+        const normA = a.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        const normB = b.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        if (normA === normB && a !== b) {
+          suggestions.push({
+            label: `Unir "${a}" e "${b}" (grafias quase idênticas)`,
+            items: [a, b],
+            suggestedTarget: a,
+          });
+        }
+      }
+    }
+
+    return suggestions;
+  }, [mergeModal, mergeCandidates]);
+
+  // Detecção de grupos de módulos com nomes equivalentes / variações de grafia
+  // Garante que variações do Módulo I fiquem no Módulo I e variações do Módulo II fiquem no Módulo II, sem misturá-los!
+  const equivalentGroups = useMemo(() => {
+    const distinctModulos = Array.from(
+      new Set(
+        existingQuestions
+          .map((q) => getQuestionModulo(q).trim())
+          .filter((m) => m && m !== '(Sem módulo / Geral)')
+      )
+    );
+
+    const groups: { target: string; sources: string[]; totalQuestions: number }[] = [];
+
+    // 1. Grupo Módulo I (Módulo, Módulo 1, Módulo I, MÓDULO I, etc.)
+    const modISources = distinctModulos.filter(
+      (m) =>
+        /^m[óo]dulo(?:\s*(?:1|01|i|um|1[º°o]))?$/i.test(m) &&
+        !/^m[óo]dulo\s*(?:ii|2|dois)\b/i.test(m)
+    );
+    if (modISources.length > 1 || (modISources.length === 1 && modISources[0] !== 'Módulo I')) {
+      const qCount = existingQuestions.filter((q) =>
+        modISources.some((s) => s.toLowerCase() === getQuestionModulo(q).toLowerCase())
+      ).length;
+      groups.push({
+        target: 'Módulo I',
+        sources: modISources,
+        totalQuestions: qCount,
+      });
+    }
+
+    // 2. Grupo Módulo II (Módulo 2, Módulo II, MÓDULO II, etc.)
+    const modIISources = distinctModulos.filter(
+      (m) => /^m[óo]dulo\s*(?:2|02|ii|dois|2[º°o])\b/i.test(m)
+    );
+    if (modIISources.length > 1 || (modIISources.length === 1 && modIISources[0] !== 'Módulo II')) {
+      const qCount = existingQuestions.filter((q) =>
+        modIISources.some((s) => s.toLowerCase() === getQuestionModulo(q).toLowerCase())
+      ).length;
+      groups.push({
+        target: 'Módulo II',
+        sources: modIISources,
+        totalQuestions: qCount,
+      });
+    }
+
+    // 3. Grupo Módulo III (Módulo 3, Módulo III, etc.)
+    const modIIISources = distinctModulos.filter(
+      (m) => /^m[óo]dulo\s*(?:3|03|iii|tr[eê]s|3[º°o])\b/i.test(m)
+    );
+    if (modIIISources.length > 1 || (modIIISources.length === 1 && modIIISources[0] !== 'Módulo III')) {
+      const qCount = existingQuestions.filter((q) =>
+        modIIISources.some((s) => s.toLowerCase() === getQuestionModulo(q).toLowerCase())
+      ).length;
+      groups.push({
+        target: 'Módulo III',
+        sources: modIIISources,
+        totalQuestions: qCount,
+      });
+    }
+
+    // 4. Agrupamento por acentuação/maiúsculas de outros nomes
+    for (let i = 0; i < distinctModulos.length; i++) {
+      const a = distinctModulos[i];
+      if (modISources.includes(a) || modIISources.includes(a) || modIIISources.includes(a)) {
+        continue;
+      }
+
+      const normA = a.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      const cluster = distinctModulos.filter((b) => {
+        const normB = b.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        return normA === normB;
+      });
+
+      if (cluster.length > 1 && !groups.some((g) => g.sources.includes(a))) {
+        const qCount = existingQuestions.filter((q) =>
+          cluster.some((s) => s.toLowerCase() === getQuestionModulo(q).toLowerCase())
+        ).length;
+        groups.push({
+          target: a,
+          sources: cluster,
+          totalQuestions: qCount,
+        });
+      }
+    }
+
+    return groups;
+  }, [existingQuestions]);
+
+  // Total de questões nas uniões por nomes equivalentes
+  const totalEquivalentCount = useMemo(() => {
+    return equivalentGroups.reduce((acc, g) => acc + g.totalQuestions, 0);
+  }, [equivalentGroups]);
+
+  // Quantidade total de questões impactadas pela união selecionada
+  const affectedMergeCount = useMemo(() => {
+    if (!mergeModal) return 0;
+    if (mergeModal.mode === 'equivalent') return totalEquivalentCount;
+    if (mergeModal.selectedItems.length === 0) return 0;
+    return mergeCandidates
+      .filter((c) => mergeModal.selectedItems.includes(c.name))
+      .reduce((sum, c) => sum + c.count, 0);
+  }, [mergeModal, mergeCandidates, totalEquivalentCount]);
+
+  // Executar a união automática apenas de nomes equivalentes (sem misturar módulos diferentes)
+  const handleExecuteEquivalentMerge = async () => {
+    if (equivalentGroups.length === 0) {
+      setErrorMessage('Nenhuma variação de nome equivalente foi detectada para unir.');
+      return;
+    }
+
+    setSaving(true);
+    setErrorMessage(null);
+    setSaveSuccessMsg(null);
+
+    try {
+      let totalUpdated = 0;
+      const historyPrevValues: Record<string, string> = {};
+      const historySources: string[] = [];
+      const historyTargets: string[] = [];
+
+      for (const group of equivalentGroups) {
+        historyTargets.push(group.target);
+        group.sources.forEach((s) => {
+          if (!historySources.includes(s)) historySources.push(s);
+        });
+
+        const matching = existingQuestions.filter((q) => {
+          const current = getQuestionModulo(q);
+          return (
+            group.sources.some((s) => s.toLowerCase() === current.toLowerCase()) &&
+            current !== group.target
+          );
+        });
+
+        if (matching.length > 0) {
+          const batchSize = 400;
+          for (let i = 0; i < matching.length; i += batchSize) {
+            const chunk = matching.slice(i, i + batchSize);
+            const batch = writeBatch(db);
+            chunk.forEach((q) => {
+              if (q.id) {
+                const docRef = doc(db, 'questions', q.id);
+                historyPrevValues[q.id] = getQuestionModulo(q);
+                batch.update(docRef, {
+                  modulo: group.target,
+                  modulo_anterior: getQuestionModulo(q),
+                });
+              }
+            });
+            await batch.commit();
+          }
+          totalUpdated += matching.length;
+        }
+
+        // Atualizar no lote em memória
+        setExtractedQuestions((prev) =>
+          prev.map((q) => {
+            const current = (q.modulo || moduloMateria || '').trim();
+            if (
+              group.sources.some((s) => s.toLowerCase() === current.toLowerCase()) &&
+              current !== group.target
+            ) {
+              return { ...q, modulo: group.target };
+            }
+            return q;
+          })
+        );
+      }
+
+      const historyEntry = {
+        id: `merge_${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        type: 'modulo',
+        sources: historySources,
+        target: historyTargets.join(' & '),
+        questionIds: Object.keys(historyPrevValues),
+        previousValues: historyPrevValues,
+        description: `${totalUpdated} questão(ões) unificadas exclusivamente por nomes iguais em [${historyTargets.join(
+          ', '
+        )}], mantendo os módulos rigorosamente separados.`,
+      };
+
+      const updatedHistory = [historyEntry, ...mergeHistory.slice(0, 19)];
+      setMergeHistory(updatedHistory);
+      localStorage.setItem('admin_merge_history', JSON.stringify(updatedHistory));
+
+      const newLastMerge = {
+        timestamp: historyEntry.timestamp,
+        type: 'Módulos',
+        sources: historySources,
+        target: historyTargets.join(' & '),
+        questionCount: totalUpdated,
+        details: `União por nomes equivalentes: ${totalUpdated} questão(ões) padronizadas em [${historyTargets.join(
+          ', '
+        )}] com separação mantida entre Módulo I e Módulo II.`,
+        canUndo: true,
+        historyId: historyEntry.id,
+      };
+      setLastMergeInfo(newLastMerge);
+      localStorage.setItem('last_module_merge_info', JSON.stringify(newLastMerge));
+
+      setSaveSuccessMsg(
+        `🎉 Sucesso! ${totalUpdated} questão(ões) foram unificadas apenas com seus nomes equivalentes. Módulo I e Módulo II foram mantidos rigorosamente separados!`
+      );
+      onQuestionAdded();
+      if (mergeModal) setMergeModal(null);
+      setTimeout(() => setSaveSuccessMsg(null), 5000);
+    } catch (err: unknown) {
+      console.error('Erro na união equivalente:', err);
+      setErrorMessage('Erro ao executar união automática por nomes iguais.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Desfazer a última mesclagem registrada, restaurando os módulos anteriores de cada questão
+  const handleUndoLastMerge = async () => {
+    if (!lastMergeInfo) return;
+    setSaving(true);
+    setErrorMessage(null);
+    setSaveSuccessMsg(null);
+
+    try {
+      const historyEntry =
+        mergeHistory.find((h) => h.id === lastMergeInfo.historyId) || mergeHistory[0];
+
+      let restoredCount = 0;
+
+      // 1. Restaurar usando o mapa de previousValues do histórico se existir
+      if (
+        historyEntry &&
+        historyEntry.previousValues &&
+        Object.keys(historyEntry.previousValues).length > 0
+      ) {
+        const batchSize = 400;
+        const entries = Object.entries(historyEntry.previousValues);
+        for (let i = 0; i < entries.length; i += batchSize) {
+          const chunk = entries.slice(i, i + batchSize);
+          const batch = writeBatch(db);
+          chunk.forEach(([qId, prevVal]) => {
+            const docRef = doc(db, 'questions', qId);
+            batch.update(docRef, {
+              modulo: prevVal,
+              modulo_anterior: '',
+            });
+          });
+          await batch.commit();
+        }
+        restoredCount = entries.length;
+      } else {
+        // Fallback: restaurar qualquer questão no banco que tenha modulo_anterior gravado
+        const questionsWithPrev = existingQuestions.filter(
+          (q) => q.modulo_anterior && q.modulo_anterior.trim() && q.modulo_anterior !== q.modulo
+        );
+        if (questionsWithPrev.length > 0) {
+          const batchSize = 400;
+          for (let i = 0; i < questionsWithPrev.length; i += batchSize) {
+            const chunk = questionsWithPrev.slice(i, i + batchSize);
+            const batch = writeBatch(db);
+            chunk.forEach((q) => {
+              if (q.id) {
+                const docRef = doc(db, 'questions', q.id);
+                batch.update(docRef, {
+                  modulo: q.modulo_anterior,
+                  modulo_anterior: '',
+                });
+              }
+            });
+            await batch.commit();
+          }
+          restoredCount = questionsWithPrev.length;
+        } else {
+          // Se não houver histórico, acionar a separação inteligente automática por capítulos
+          await handleAutoSplitModule('Módulo II', 'Módulo I');
+          return;
+        }
+      }
+
+      setSaveSuccessMsg(
+        `🎉 Desunião concluída! ${restoredCount} questão(ões) foram restauradas com sucesso para seus módulos de origem.`
+      );
+      setLastMergeInfo(null);
+      localStorage.removeItem('last_module_merge_info');
+      onQuestionAdded();
+      if (desunirModal) setDesunirModal(null);
+      setTimeout(() => setSaveSuccessMsg(null), 5000);
+    } catch (err: unknown) {
+      console.error('Erro ao desfazer mesclagem:', err);
+      setErrorMessage('Erro ao restaurar módulos anteriores no banco de dados.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Separar automaticamente questões por Capítulos (Capítulo 1, 2, 3 -> Módulo I; Capítulo 4+ -> Módulo II)
+  const handleAutoSplitModule = async (sourceMod = '', targetModI = 'Módulo I', targetModII = 'Módulo II') => {
+    setSaving(true);
+    setErrorMessage(null);
+    setSaveSuccessMsg(null);
+
+    try {
+      const pool = sourceMod
+        ? existingQuestions.filter((q) => getQuestionModulo(q).toLowerCase() === sourceMod.toLowerCase())
+        : existingQuestions;
+
+      if (pool.length === 0) {
+        setErrorMessage(`Nenhuma questão encontrada para desunir.`);
+        setSaving(false);
+        return;
+      }
+
+      let toModICount = 0;
+      let toModIICount = 0;
+
+      const batchSize = 400;
+      for (let i = 0; i < pool.length; i += batchSize) {
+        const chunk = pool.slice(i, i + batchSize);
+        const batch = writeBatch(db);
+
+        chunk.forEach((q) => {
+          if (!q.id) return;
+          const docRef = doc(db, 'questions', q.id);
+
+          // Se tiver modulo_anterior gravado, preferir ele
+          if (q.modulo_anterior && q.modulo_anterior.trim()) {
+            batch.update(docRef, { modulo: q.modulo_anterior, modulo_anterior: '' });
+            if (/ii|2/i.test(q.modulo_anterior)) toModIICount++;
+            else toModICount++;
+            return;
+          }
+
+          // Checar número do capítulo
+          const capText = (q.capitulo || '').toLowerCase();
+          const capMatch = capText.match(/(\d+)/);
+          const capNum = capMatch ? parseInt(capMatch[1], 10) : 0;
+
+          // Capítulos 1, 2 e 3 -> Módulo I
+          // Capítulo 4 em diante (Peças de Polícia Judiciária, Auto Circunstanciado, etc.) -> Módulo II
+          let target = targetModII;
+          if (capNum >= 1 && capNum <= 3) {
+            target = targetModI;
+            toModICount++;
+          } else if (capNum >= 4) {
+            target = targetModII;
+            toModIICount++;
+          } else {
+            const content = `${q.enunciado} ${q.capitulo} ${q.subtopico || ''}`.toLowerCase();
+            if (content.includes('módulo i') || content.includes('módulo 1') || content.includes('modulo 1')) {
+              target = targetModI;
+              toModICount++;
+            } else {
+              target = targetModII;
+              toModIICount++;
+            }
+          }
+
+          batch.update(docRef, { modulo: target, modulo_anterior: getQuestionModulo(q) });
+        });
+
+        await batch.commit();
+      }
+
+      setSaveSuccessMsg(
+        `🎉 Separação concluída com sucesso! ${toModICount} questão(ões) foram direcionadas para "${targetModI}" e ${toModIICount} questão(ões) para "${targetModII}".`
+      );
+      setLastMergeInfo(null);
+      localStorage.removeItem('last_module_merge_info');
+      onQuestionAdded();
+      if (desunirModal) setDesunirModal(null);
+      setTimeout(() => setSaveSuccessMsg(null), 5000);
+    } catch (err: unknown) {
+      console.error('Erro ao separar módulos automaticamente:', err);
+      setErrorMessage('Erro ao executar separação automática de módulos.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Mover capítulos selecionados de um módulo para outro módulo
+  const handleManualSplitModule = async (
+    sourceMod: string,
+    chapters: string[],
+    destinationMod: string
+  ) => {
+    if (chapters.length === 0 || !destinationMod.trim()) return;
+    setSaving(true);
+    setErrorMessage(null);
+    setSaveSuccessMsg(null);
+
+    try {
+      const matching = existingQuestions.filter(
+        (q) =>
+          (!sourceMod || getQuestionModulo(q).toLowerCase() === sourceMod.toLowerCase()) &&
+          chapters.includes(q.capitulo || '(Geral)')
+      );
+
+      if (matching.length === 0) {
+        setErrorMessage('Nenhuma questão encontrada para os capítulos selecionados.');
+        setSaving(false);
+        return;
+      }
+
+      const batchSize = 400;
+      for (let i = 0; i < matching.length; i += batchSize) {
+        const chunk = matching.slice(i, i + batchSize);
+        const batch = writeBatch(db);
+        chunk.forEach((q) => {
+          if (q.id) {
+            const docRef = doc(db, 'questions', q.id);
+            batch.update(docRef, {
+              modulo: destinationMod.trim(),
+              modulo_anterior: getQuestionModulo(q),
+            });
+          }
+        });
+        await batch.commit();
+      }
+
+      setSaveSuccessMsg(
+        `🎉 ${matching.length} questão(ões) dos capítulos [${chapters.join(
+          ', '
+        )}] foram movidas com sucesso para "${destinationMod.trim()}".`
+      );
+      setLastMergeInfo(null);
+      localStorage.removeItem('last_module_merge_info');
+      onQuestionAdded();
+      if (desunirModal) setDesunirModal(null);
+      setTimeout(() => setSaveSuccessMsg(null), 5000);
+    } catch (err: unknown) {
+      console.error('Erro ao mover capítulos:', err);
+      setErrorMessage('Erro ao redistribuir questões no banco de dados.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Executar a união no Firestore e/ou na memória
+  const handleExecuteMerge = async () => {
+    if (!mergeModal) return;
+    const { type, scope, selectedItems, targetValue } = mergeModal;
+    const cleanTarget = targetValue.trim();
+
+    if (selectedItems.length === 0) {
+      setErrorMessage('Selecione pelo menos um módulo ou item da lista para unir.');
+      return;
+    }
+    if (!cleanTarget) {
+      setErrorMessage('Informe o nome de destino unificado.');
+      return;
+    }
+
+    setSaving(true);
+    setErrorMessage(null);
+    setSaveSuccessMsg(null);
+
+    try {
+      let affectedBanco = 0;
+      let affectedLote = 0;
+      const historyPrevValues: Record<string, string> = {};
+
+      // 1. Atualizar no Firestore se o escopo incluir 'banco' ou 'ambos'
+      if (scope === 'banco' || scope === 'ambos') {
+        const field =
+          type === 'modulo'
+            ? 'modulo'
+            : type === 'materia'
+            ? 'materia'
+            : type === 'capitulo'
+            ? 'capitulo'
+            : type === 'subtopico'
+            ? 'subtopico'
+            : 'tema_subtopico';
+
+        const toUpdate = existingQuestions.filter((q) => {
+          let currentVal = '';
+          if (type === 'modulo') currentVal = getQuestionModulo(q) || '(Sem módulo / Geral)';
+          else if (type === 'materia') currentVal = getQuestionMateria(q) || 'IPO-2';
+          else if (type === 'capitulo') currentVal = q.capitulo || '(Geral)';
+          else if (type === 'subtopico') currentVal = q.subtopico || '(Sem subtópico)';
+          else currentVal = q.tema_subtopico || '(Sem tema)';
+
+          return (
+            selectedItems.includes(currentVal) ||
+            selectedItems.some((s) => s.trim().toLowerCase() === currentVal.trim().toLowerCase())
+          );
+        });
+
+        if (toUpdate.length > 0) {
+          const batchSize = 400;
+          for (let i = 0; i < toUpdate.length; i += batchSize) {
+            const chunk = toUpdate.slice(i, i + batchSize);
+            const batch = writeBatch(db);
+            chunk.forEach((q) => {
+              if (q.id) {
+                const docRef = doc(db, 'questions', q.id);
+                const finalVal = cleanTarget === '(Sem módulo / Geral)' ? '' : cleanTarget;
+                const prevVal =
+                  type === 'modulo'
+                    ? getQuestionModulo(q)
+                    : type === 'materia'
+                    ? getQuestionMateria(q)
+                    : type === 'capitulo'
+                    ? q.capitulo || ''
+                    : type === 'subtopico'
+                    ? q.subtopico || ''
+                    : q.tema_subtopico || '';
+                historyPrevValues[q.id] = prevVal;
+
+                batch.update(docRef, {
+                  [field]: finalVal,
+                  modulo_anterior: prevVal,
+                });
+              }
+            });
+            await batch.commit();
+          }
+          affectedBanco = toUpdate.length;
+        }
+      }
+
+      // 2. Atualizar no Lote extraído em memória se o escopo incluir 'lote' ou 'ambos'
+      if (scope === 'lote' || scope === 'ambos') {
+        setExtractedQuestions((prev) =>
+          prev.map((q) => {
+            let currentVal = '';
+            if (type === 'modulo') currentVal = (q.modulo || moduloMateria || '').trim() || '(Sem módulo / Geral)';
+            else if (type === 'materia') currentVal = (q.materia || nomeMateria || 'IPO-2').trim();
+            else if (type === 'capitulo') currentVal = (q.capitulo || capituloMateria || '').trim() || '(Geral)';
+            else if (type === 'subtopico') currentVal = (q.subtopico || subtopico || '').trim() || '(Sem subtópico)';
+            else currentVal = (q.tema_subtopico || tema || '').trim() || '(Sem tema)';
+
+            if (
+              selectedItems.includes(currentVal) ||
+              selectedItems.some((s) => s.trim().toLowerCase() === currentVal.trim().toLowerCase())
+            ) {
+              affectedLote++;
+              const finalVal = cleanTarget === '(Sem módulo / Geral)' ? '' : cleanTarget;
+              if (type === 'modulo') return { ...q, modulo: finalVal };
+              if (type === 'materia') return { ...q, materia: finalVal };
+              if (type === 'capitulo') return { ...q, capitulo: finalVal };
+              if (type === 'subtopico') return { ...q, subtopico: finalVal };
+              return { ...q, tema_subtopico: finalVal };
+            }
+            return q;
+          })
+        );
+      }
+
+      if (type === 'modulo') {
+        setModuloMateria(cleanTarget === '(Sem módulo / Geral)' ? '' : cleanTarget);
+      } else if (type === 'materia') {
+        setNomeMateria(cleanTarget);
+      }
+
+      const typeName =
+        type === 'modulo'
+          ? 'módulo(s)'
+          : type === 'materia'
+          ? 'matéria(s)'
+          : type === 'capitulo'
+          ? 'capítulo(s)'
+          : 'subtópico(s)';
+      const totalAffected = affectedBanco + affectedLote;
+
+      // Registrar no histórico de mesclagens para permitir "Desunir" (Undo)
+      const historyEntry = {
+        id: `merge_${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        type,
+        sources: selectedItems,
+        target: cleanTarget,
+        questionIds: Object.keys(historyPrevValues),
+        previousValues: historyPrevValues,
+        description: `${totalAffected} questão(ões) dos ${typeName} [${selectedItems.join(
+          ', '
+        )}] foram unificadas no nome "${cleanTarget}".`,
+      };
+
+      const updatedHistory = [historyEntry, ...mergeHistory.slice(0, 19)];
+      setMergeHistory(updatedHistory);
+      localStorage.setItem('admin_merge_history', JSON.stringify(updatedHistory));
+
+      const newLastMerge = {
+        timestamp: historyEntry.timestamp,
+        type: typeName,
+        sources: selectedItems,
+        target: cleanTarget,
+        questionCount: totalAffected,
+        details: `Mesclagem ativa: ${totalAffected} questão(ões) dos ${typeName} [${selectedItems.join(
+          ', '
+        )}] reunidas em "${cleanTarget}".`,
+        canUndo: true,
+        historyId: historyEntry.id,
+      };
+      setLastMergeInfo(newLastMerge);
+      localStorage.setItem('last_module_merge_info', JSON.stringify(newLastMerge));
+
+      setSaveSuccessMsg(
+        `🎉 União concluída com sucesso! ${totalAffected} questão(ões) dos ${typeName} [${selectedItems.join(
+          ', '
+        )}] foram unificadas no nome "${cleanTarget}".`
+      );
+
+      if (affectedBanco > 0) {
+        onQuestionAdded();
+      }
+      setMergeModal(null);
+      setTimeout(() => setSaveSuccessMsg(null), 5000);
+    } catch (err: unknown) {
+      console.error('Erro ao unir módulos/hierarquia:', err);
+      setErrorMessage('Erro ao executar união no banco de dados Firestore.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Executar organização automática no texto bruto
   const handleOrganizarAutomaticamente = (
@@ -424,7 +1235,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
     existingQuestions.forEach((q) => {
       const mat = getQuestionMateria(q) || 'IPO-2';
-      const mod = getQuestionModulo(q) || '(Geral)';
+      const mod = normalizeModuloName(getQuestionModulo(q)) || '(Geral)';
       const cap = q.capitulo || '(Geral)';
       const sub = q.subtopico || '(Sem subtópico)';
       const tm = q.tema_subtopico || '(Sem tema)';
@@ -469,7 +1280,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       const cap = q.capitulo || capituloMateria || '';
       const sub = q.subtopico || subtopico || '';
       const tm = q.tema_subtopico || tema || '';
-      const mod = q.modulo || moduloMateria || '';
+      // Normalização canônica do Módulo: modulo 2 e modulo II geram a mesma chave "Módulo II"
+      const mod = normalizeModuloName(q.modulo || moduloMateria || '');
       const mat = q.materia || nomeMateria || 'IPO-2';
 
       const key = `${mat}___${mod}___${cap}___${sub}___${tm}`;
@@ -484,8 +1296,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         const isTemaExisting = existingQuestions.some(
           (eq) => eq.tema_subtopico && eq.tema_subtopico.trim().toLowerCase() === tm.trim().toLowerCase()
         );
-        const isModExisting = existingQuestions.some(
-          (eq) => getQuestionModulo(eq).toLowerCase() === mod.trim().toLowerCase()
+        const isModExisting = existingQuestions.some((eq) =>
+          areModulosEquivalent(getQuestionModulo(eq), mod)
         );
 
         map.set(key, {
@@ -508,6 +1320,165 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
     return Array.from(map.values());
   }, [extractedQuestions, existingQuestions, capituloMateria, subtopico, tema, moduloMateria, nomeMateria]);
+
+  // Novos campos detectados no lote extraído para confirmação pelo usuário em cartões
+  const newDetectedFields = useMemo(() => {
+    if (extractedQuestions.length === 0) return [];
+    const fieldsMap = new Map<
+      string,
+      {
+        id: string;
+        type: 'modulo' | 'capitulo' | 'subtopico' | 'tema';
+        label: string;
+        value: string;
+        isUnifiedModulo?: boolean;
+        count: number;
+      }
+    >();
+
+    extractedQuestions.forEach((q) => {
+      const mod = normalizeModuloName(q.modulo || moduloMateria || '');
+      const cap = q.capitulo || capituloMateria || '';
+      const sub = q.subtopico || subtopico || '';
+      const tm = q.tema_subtopico || tema || '';
+
+      // Módulo
+      if (mod) {
+        const isExisting = existingQuestions.some((eq) => areModulosEquivalent(getQuestionModulo(eq), mod));
+        if (!isExisting) {
+          const id = `mod:${mod.toLowerCase()}`;
+          const prev = fieldsMap.get(id);
+          const isUnified = /m[óo]dulo\s*(?:[0-9]+|[ivxlcdm]+)/i.test(mod);
+          fieldsMap.set(id, {
+            id,
+            type: 'modulo',
+            label: 'Módulo',
+            value: mod,
+            isUnifiedModulo: isUnified,
+            count: (prev?.count || 0) + 1,
+          });
+        }
+      }
+
+      // Capítulo
+      if (cap) {
+        const isExisting = existingQuestions.some(
+          (eq) => eq.capitulo && eq.capitulo.trim().toLowerCase() === cap.trim().toLowerCase()
+        );
+        if (!isExisting) {
+          const id = `cap:${cap.toLowerCase()}`;
+          const prev = fieldsMap.get(id);
+          fieldsMap.set(id, {
+            id,
+            type: 'capitulo',
+            label: 'Capítulo',
+            value: cap,
+            count: (prev?.count || 0) + 1,
+          });
+        }
+      }
+
+      // Subtópico
+      if (sub) {
+        let cleanSub = sub.trim();
+        const numM = cleanSub.match(/^(\d+(?:\.\d+)*)\.?\s*[:.\-–—]?\s*(.+)?$/);
+        if (numM && numM[2]) {
+          cleanSub = `${numM[1].trim()} - ${numM[2].trim()}`;
+        } else if (numM) {
+          cleanSub = numM[1].trim();
+        }
+        const isExisting = existingQuestions.some(
+          (eq) => eq.subtopico && eq.subtopico.trim().toLowerCase() === cleanSub.toLowerCase()
+        );
+        if (!isExisting) {
+          const id = `sub:${cleanSub.toLowerCase()}`;
+          const prev = fieldsMap.get(id);
+          fieldsMap.set(id, {
+            id,
+            type: 'subtopico',
+            label: 'Subtópico',
+            value: cleanSub,
+            count: (prev?.count || 0) + 1,
+          });
+        }
+      }
+
+      // Tema
+      if (tm) {
+        let cleanTm = tm.trim();
+        cleanTm = cleanTm.replace(/^[\(\[]\s*([^()]+?)\s*[\)\]]$/, '$1').trim();
+        if (cleanTm) {
+          const isExisting = existingQuestions.some(
+            (eq) => eq.tema_subtopico && eq.tema_subtopico.trim().toLowerCase() === cleanTm.toLowerCase()
+          );
+          if (!isExisting) {
+            const id = `tema:${cleanTm.toLowerCase()}`;
+            const prev = fieldsMap.get(id);
+            fieldsMap.set(id, {
+              id,
+              type: 'tema',
+              label: 'Tema',
+              value: cleanTm,
+              count: (prev?.count || 0) + 1,
+            });
+          }
+        }
+      }
+    });
+
+    return Array.from(fieldsMap.values());
+  }, [extractedQuestions, existingQuestions, moduloMateria, capituloMateria, subtopico, tema]);
+
+  const handleToggleConfirmField = (fieldId: string) => {
+    setConfirmedFieldIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(fieldId)) {
+        next.delete(fieldId);
+      } else {
+        next.add(fieldId);
+      }
+      return next;
+    });
+  };
+
+  const handleConfirmAllNewFields = () => {
+    setConfirmedFieldIds(new Set(newDetectedFields.map((f) => f.id)));
+  };
+
+  const handleSaveFieldRename = (
+    field: { id: string; type: 'modulo' | 'capitulo' | 'subtopico' | 'tema'; value: string },
+    newName: string
+  ) => {
+    const clean = newName.trim();
+    if (!clean) return;
+
+    setExtractedQuestions((prev) =>
+      prev.map((q) => {
+        const copy = { ...q };
+        if (field.type === 'modulo') {
+          const curMod = normalizeModuloName(copy.modulo || moduloMateria || '');
+          if (areModulosEquivalent(curMod, field.value)) {
+            copy.modulo = normalizeModuloName(clean);
+          }
+        } else if (field.type === 'capitulo') {
+          if ((copy.capitulo || capituloMateria || '').toLowerCase() === field.value.toLowerCase()) {
+            copy.capitulo = clean;
+          }
+        } else if (field.type === 'subtopico') {
+          if ((copy.subtopico || subtopico || '').toLowerCase() === field.value.toLowerCase()) {
+            copy.subtopico = clean;
+          }
+        } else if (field.type === 'tema') {
+          if ((copy.tema_subtopico || tema || '').toLowerCase() === field.value.toLowerCase()) {
+            copy.tema_subtopico = clean;
+          }
+        }
+        return copy;
+      })
+    );
+
+    setEditingFieldId(null);
+  };
 
   // Separação das questões do banco (Firestore) em cartões hierárquicos
   const existingCards = useMemo(() => {
@@ -1145,6 +2116,73 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       )}
 
+      {/* Banner Permanente de Registro da Mesclagem / Status de Módulos */}
+      {lastMergeInfo && (
+        <div
+          id="banner-registro-mesclagem"
+          className="mb-5 p-3.5 sm:p-4 bg-indigo-50/90 border border-indigo-200 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in"
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+              <GitMerge className="w-5 h-5" />
+            </div>
+            <div className="space-y-0.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-black text-indigo-950 uppercase tracking-wide">
+                  Registro da Mesclagem de Módulos
+                </span>
+                <span className="text-[10px] font-bold bg-indigo-200/90 text-indigo-900 px-2 py-0.5 rounded-full">
+                  {lastMergeInfo.timestamp}
+                </span>
+                {lastMergeInfo.canUndo && (
+                  <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full">
+                    Backup ativo disponível
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-indigo-900 leading-relaxed font-medium">
+                {lastMergeInfo.details}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto shrink-0">
+            {lastMergeInfo.canUndo && (
+              <button
+                type="button"
+                onClick={handleUndoLastMerge}
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+                title="Desfazer esta mesclagem e restaurar os módulos originais de cada questão"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                {saving ? 'Restaurando...' : 'Desunir / Desfazer'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => handleOpenDesunirModal()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-indigo-100 text-indigo-900 border border-indigo-300 text-xs font-bold rounded-xl shadow-2xs transition-colors cursor-pointer"
+              title="Abrir opções completas para desunir ou separar questões"
+            >
+              <Split className="w-3.5 h-3.5 text-indigo-700" />
+              Opções de Desunir
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setLastMergeInfo(null);
+                localStorage.removeItem('last_module_merge_info');
+              }}
+              className="text-indigo-400 hover:text-indigo-700 p-1.5 rounded-lg hover:bg-indigo-100/60 transition-colors cursor-pointer"
+              title="Ocultar aviso de mesclagem"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'lote' ? (
         <div className="space-y-6">
           {/* Seção 1: Configuração Hierárquica com Dropdowns de itens já subidos */}
@@ -1197,8 +2235,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs cursor-pointer"
                 >
                   <option value="">(Selecionar Matéria Cadastrada...)</option>
-                  {existingMaterias.map((mat) => (
-                    <option key={mat} value={mat}>
+                  {existingMaterias.map((mat, idx) => (
+                    <option key={`${mat}-${idx}`} value={mat}>
                       {mat}
                     </option>
                   ))}
@@ -1219,11 +2257,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <label className="block text-xs font-semibold text-slate-700">
                     2. Módulo
                   </label>
-                  {existingModulos.length > 0 && (
-                    <span className="text-[10px] font-semibold text-indigo-800 bg-indigo-100 px-1.5 py-0.2 rounded">
-                      {existingModulos.length} na base
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {existingModulos.length > 0 && (
+                      <span className="text-[10px] font-semibold text-indigo-800 bg-indigo-100 px-1.5 py-0.2 rounded">
+                        {existingModulos.length} na base
+                      </span>
+                    )}
+                    <button
+                      id="btn-unir-modulo-form"
+                      type="button"
+                      onClick={() => handleOpenMergeModal('modulo')}
+                      className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-1.5 py-0.5 rounded cursor-pointer transition-colors shadow-2xs"
+                      title="Unir módulos parecidos ou redundantes (ex: 'Módulo' e 'Módulo II')"
+                    >
+                      <GitMerge className="w-3 h-3 text-indigo-600" />
+                      Unir Módulo
+                    </button>
+                    <button
+                      id="btn-desunir-modulo-form"
+                      type="button"
+                      onClick={() => handleOpenDesunirModal()}
+                      className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded cursor-pointer transition-colors shadow-2xs"
+                      title="Desunir módulos ou desfazer última mesclagem"
+                    >
+                      <Split className="w-3 h-3 text-amber-600" />
+                      Desunir
+                    </button>
+                  </div>
                 </div>
                 <select
                   id="select-existing-modulo"
@@ -1232,8 +2292,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs cursor-pointer"
                 >
                   <option value="">(Selecionar Módulo Cadastrado...)</option>
-                  {existingModulos.map((mod) => (
-                    <option key={mod} value={mod}>
+                  {existingModulos.map((mod, idx) => (
+                    <option key={`${mod}-${idx}`} value={mod}>
                       {mod}
                     </option>
                   ))}
@@ -1267,8 +2327,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs cursor-pointer"
                 >
                   <option value="">(Selecionar Capítulo Cadastrado...)</option>
-                  {existingCapitulos.map((cap) => (
-                    <option key={cap} value={cap}>
+                  {existingCapitulos.map((cap, idx) => (
+                    <option key={`${cap}-${idx}`} value={cap}>
                       {cap}
                     </option>
                   ))}
@@ -1302,8 +2362,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs cursor-pointer"
                 >
                   <option value="">(Selecionar Subtópico Cadastrado...)</option>
-                  {relatedSubtopicos.map((sub) => (
-                    <option key={sub} value={sub}>
+                  {relatedSubtopicos.map((sub, idx) => (
+                    <option key={`${sub}-${idx}`} value={sub}>
                       {sub}
                     </option>
                   ))}
@@ -1337,8 +2397,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs cursor-pointer"
                 >
                   <option value="">(Selecionar Tema Cadastrado...)</option>
-                  {relatedTemas.map((t) => (
-                    <option key={t} value={t}>
+                  {relatedTemas.map((t, idx) => (
+                    <option key={`${t}-${idx}`} value={t}>
                       {t}
                     </option>
                   ))}
@@ -1446,6 +2506,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </label>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsNotebookModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-700 via-indigo-600 to-sky-600 hover:from-purple-600 hover:to-sky-500 text-white text-xs font-black rounded-lg transition-all cursor-pointer shadow-md hover:shadow-lg border border-purple-300/40"
+                    title="Gerar modelo e prompt base para o NotebookLM importar 50 questões perfeitas"
+                  >
+                    <Bot className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                    Gerar Estrutura Base para NotebookLM (50 Questões)
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => {
@@ -1614,6 +2684,163 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                     : `Inserir no Banco de Dados (${extractedQuestions.length})`}
                 </button>
               </div>
+
+              {/* Cartões Interativos de Confirmação de Novos Campos na Importação */}
+              {newDetectedFields.length > 0 && (
+                <div className="p-4 sm:p-5 bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 border-2 border-indigo-400/40 rounded-2xl shadow-lg space-y-4 text-white">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-800/60 pb-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-amber-400 animate-pulse" />
+                        <h4 className="text-sm font-black text-white flex items-center gap-2">
+                          Cartões de Confirmação de Novos Campos na Importação
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-400 text-slate-950">
+                            {newDetectedFields.length} campo(s) detectado(s)
+                          </span>
+                        </h4>
+                      </div>
+                      <p className="text-xs text-indigo-200">
+                        Revise e confirme os campos novos identificados no lote. <strong className="text-sky-300">"Módulo 2" e "Módulo II" são tratados como o mesmo módulo</strong> e unificados automaticamente.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-indigo-300 font-semibold hidden md:inline">
+                        {newDetectedFields.filter((f) => confirmedFieldIds.has(f.id)).length} de {newDetectedFields.length} confirmados
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleConfirmAllNewFields}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl transition-all shadow-md cursor-pointer"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        Confirmar Todos os Campos Novos
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Grade de Cartões */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {newDetectedFields.map((field) => {
+                      const isConfirmed = confirmedFieldIds.has(field.id);
+                      const isEditing = editingFieldId === field.id;
+
+                      return (
+                        <div
+                          key={field.id}
+                          className={`p-3.5 rounded-xl border-2 transition-all flex flex-col justify-between gap-3 ${
+                            isConfirmed
+                              ? 'bg-emerald-950/40 border-emerald-500/60 shadow-xs'
+                              : 'bg-indigo-900/40 border-amber-400/50 hover:border-amber-300 shadow-md'
+                          }`}
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span
+                                className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                                  field.type === 'modulo'
+                                    ? 'bg-indigo-500/30 text-indigo-200 border border-indigo-400/40'
+                                    : field.type === 'capitulo'
+                                    ? 'bg-amber-500/30 text-amber-200 border border-amber-400/40'
+                                    : field.type === 'subtopico'
+                                    ? 'bg-emerald-500/30 text-emerald-200 border border-emerald-400/40'
+                                    : 'bg-purple-500/30 text-purple-200 border border-purple-400/40'
+                                }`}
+                              >
+                                <Layers className="w-3 h-3" />
+                                Novo {field.label}
+                              </span>
+
+                              <span className="text-[11px] font-bold text-slate-300 bg-white/10 px-2 py-0.5 rounded-full">
+                                {field.count} questão(ões)
+                              </span>
+                            </div>
+
+                            {isEditing ? (
+                              <div className="space-y-1.5 pt-1">
+                                <input
+                                  type="text"
+                                  value={editingFieldValue}
+                                  onChange={(e) => setEditingFieldValue(e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-slate-950 border border-indigo-400 rounded-lg text-xs font-bold text-white focus:outline-hidden focus:ring-2 focus:ring-sky-400"
+                                  placeholder="Novo nome do campo..."
+                                  autoFocus
+                                />
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingFieldId(null)}
+                                    className="px-2 py-1 text-[11px] bg-white/10 hover:bg-white/20 text-slate-300 rounded font-medium cursor-pointer"
+                                  >
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveFieldRename(field, editingFieldValue)}
+                                    className="px-2.5 py-1 text-[11px] bg-sky-500 hover:bg-sky-400 text-slate-950 rounded font-bold cursor-pointer"
+                                  >
+                                    Salvar Ajuste
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-1">
+                                <div className="flex items-start justify-between gap-1.5">
+                                  <p className="font-extrabold text-sm text-white break-words">
+                                    {field.value}
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingFieldId(field.id);
+                                      setEditingFieldValue(field.value);
+                                    }}
+                                    title="Editar ou renomear este campo"
+                                    className="text-indigo-300 hover:text-white p-1 hover:bg-white/10 rounded transition-colors cursor-pointer shrink-0"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+
+                                {field.isUnifiedModulo && (
+                                  <span className="text-[10px] text-sky-300 font-semibold block leading-tight">
+                                    ✓ "Módulo 2" e "Módulo II" unificados neste campo
+                                  </span>
+                                )}
+
+                                {field.type === 'subtopico' && /^\d+(?:\.\d+)*$/.test(field.value) && (
+                                  <span className="text-[10px] text-emerald-300 font-semibold block leading-tight">
+                                    ✓ Subtópico numerado ({field.value}) pronto para salvar
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="pt-2 border-t border-white/10 flex items-center justify-between gap-2">
+                            <span className="text-[10px] text-slate-400">
+                              {isConfirmed ? 'Pronto para o banco' : 'Aguardando revisão'}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => handleToggleConfirmField(field.id)}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                isConfirmed
+                                  ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 shadow-sm'
+                                  : 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-sm'
+                              }`}
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              {isConfirmed ? 'Confirmado ✓' : 'Confirmar Campo'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Banner de Validação de Integridade das Alternativas */}
               {extractedQuestions.some((q) => !q.alternativas.some((a) => a.letra === 'A')) ? (
@@ -1821,12 +3048,12 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                           <span className="text-[11px] text-sky-700">Qtd.</span>
                         </div>
                         <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                          {hierarchyBreakdown.materias.map(({ name, count }) => {
+                          {hierarchyBreakdown.materias.map(({ name, count }, idx) => {
                             const isFiltered = hierarchyFilter?.type === 'materia' && hierarchyFilter.value === name;
                             const pct = Math.round((count / extractedQuestions.length) * 100);
                             return (
                               <div
-                                key={name}
+                                key={`${name}-${idx}`}
                                 onClick={() =>
                                   setHierarchyFilter((prev) =>
                                     prev?.type === 'materia' && prev.value === name ? null : { type: 'materia', value: name }
@@ -1861,15 +3088,27 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                             <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
                             Módulos
                           </span>
-                          <span className="text-[11px] text-indigo-700">Qtd.</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              id="btn-unir-modulos-breakdown"
+                              type="button"
+                              onClick={() => handleOpenMergeModal('modulo')}
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-100/70 hover:bg-indigo-200 border border-indigo-300 px-1.5 py-0.5 rounded cursor-pointer transition-colors shadow-2xs"
+                              title="Unir módulos desta lista (ex: 'Módulo' e 'Módulo II')"
+                            >
+                              <GitMerge className="w-3 h-3 text-indigo-600" />
+                              Unir Módulos
+                            </button>
+                            <span className="text-[11px] text-indigo-700">Qtd.</span>
+                          </div>
                         </div>
                         <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                          {hierarchyBreakdown.modulos.map(({ name, count }) => {
+                          {hierarchyBreakdown.modulos.map(({ name, count }, idx) => {
                             const isFiltered = hierarchyFilter?.type === 'modulo' && hierarchyFilter.value === name;
                             const pct = Math.round((count / extractedQuestions.length) * 100);
                             return (
                               <div
-                                key={name}
+                                key={`${name}-${idx}`}
                                 onClick={() =>
                                   setHierarchyFilter((prev) =>
                                     prev?.type === 'modulo' && prev.value === name ? null : { type: 'modulo', value: name }
@@ -1884,6 +3123,17 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                               >
                                 <span className="truncate flex-1 font-semibold">{name}</span>
                                 <div className="flex items-center gap-1.5 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenMergeModal('modulo', name);
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-indigo-700 hover:bg-indigo-100 rounded transition-colors"
+                                    title={`Unir o módulo "${name}" com outro`}
+                                  >
+                                    <GitMerge className="w-3 h-3" />
+                                  </button>
                                   <span className="text-[10px] text-slate-500">{pct}%</span>
                                   <span className="px-2 py-0.5 rounded-full bg-indigo-600 text-white font-extrabold text-[11px]">
                                     {count} q.
@@ -1907,12 +3157,12 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                           <span className="text-[11px] text-amber-700">Qtd.</span>
                         </div>
                         <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                          {hierarchyBreakdown.capitulos.map(({ name, count }) => {
+                          {hierarchyBreakdown.capitulos.map(({ name, count }, idx) => {
                             const isFiltered = hierarchyFilter?.type === 'capitulo' && hierarchyFilter.value === name;
                             const pct = Math.round((count / extractedQuestions.length) * 100);
                             return (
                               <div
-                                key={name}
+                                key={`${name}-${idx}`}
                                 onClick={() =>
                                   setHierarchyFilter((prev) =>
                                     prev?.type === 'capitulo' && prev.value === name ? null : { type: 'capitulo', value: name }
@@ -1950,12 +3200,12 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                           <span className="text-[11px] text-emerald-700">Qtd.</span>
                         </div>
                         <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                          {hierarchyBreakdown.subtopicos.map(({ name, count }) => {
+                          {hierarchyBreakdown.subtopicos.map(({ name, count }, idx) => {
                             const isFiltered = hierarchyFilter?.type === 'subtopico' && hierarchyFilter.value === name;
                             const pct = Math.round((count / extractedQuestions.length) * 100);
                             return (
                               <div
-                                key={name}
+                                key={`${name}-${idx}`}
                                 onClick={() =>
                                   setHierarchyFilter((prev) =>
                                     prev?.type === 'subtopico' && prev.value === name ? null : { type: 'subtopico', value: name }
@@ -1993,12 +3243,12 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                           <span className="text-[11px] text-purple-700">Qtd.</span>
                         </div>
                         <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                          {hierarchyBreakdown.temas.map(({ name, count }) => {
+                          {hierarchyBreakdown.temas.map(({ name, count }, idx) => {
                             const isFiltered = hierarchyFilter?.type === 'tema' && hierarchyFilter.value === name;
                             const pct = Math.round((count / extractedQuestions.length) * 100);
                             return (
                               <div
-                                key={name}
+                                key={`${name}-${idx}`}
                                 onClick={() =>
                                   setHierarchyFilter((prev) =>
                                     prev?.type === 'tema' && prev.value === name ? null : { type: 'tema', value: name }
@@ -2469,6 +3719,32 @@ Comentário: Apenas a alternativa B atende ao comando...`}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {/* Botão de Unir Módulos */}
+              <button
+                id="btn-unir-modulos"
+                type="button"
+                onClick={() => handleOpenMergeModal('modulo')}
+                disabled={saving || existingQuestions.length === 0}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
+                title="Unir módulos parecidos ou duplicados (ex: 'Módulo' e 'Módulo II') em um único módulo no banco de dados"
+              >
+                <GitMerge className="w-3.5 h-3.5" />
+                Unir Módulos
+              </button>
+
+              {/* Botão de Desunir Módulos */}
+              <button
+                id="btn-desunir-modulos"
+                type="button"
+                onClick={() => handleOpenDesunirModal()}
+                disabled={saving || existingQuestions.length === 0}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
+                title="Desunir módulos agrupados: desfazer a mesclagem ou separar questões de volta entre Módulo I e Módulo II"
+              >
+                <Split className="w-3.5 h-3.5" />
+                Desunir Módulos
+              </button>
+
               {/* Botão de Remover Duplicadas */}
               {existingQuestions.length > 0 && (
                 <button
@@ -2565,7 +3841,7 @@ Comentário: Apenas a alternativa B atende ao comando...`}
 
                 return (
                   <div
-                    key={q.id || idx}
+                    key={`${q.id || 'q'}-${idx}`}
                     className={`p-3 sm:p-4 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                       isSelected ? 'bg-blue-50/40' : 'hover:bg-slate-50/80'
                     }`}
@@ -2700,6 +3976,958 @@ Comentário: Apenas a alternativa B atende ao comando...`}
           </div>
         </div>
       )}
+
+      {/* Modal para Unir Módulos / Padronizar Hierarquia */}
+      {mergeModal && mergeModal.isOpen && (
+        <div
+          id="merge-modules-modal-overlay"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+        >
+          <div
+            id="merge-modules-modal-card"
+            className="bg-white rounded-2xl max-w-2xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 animate-in zoom-in-95 max-h-[92vh] flex flex-col"
+          >
+            {/* Cabeçalho do Modal */}
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 shadow-2xs">
+                  <GitMerge className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    Unir &amp; Padronizar{' '}
+                    {mergeModal.type === 'modulo'
+                      ? 'Módulos'
+                      : mergeModal.type === 'materia'
+                      ? 'Matérias'
+                      : mergeModal.type === 'capitulo'
+                      ? 'Capítulos'
+                      : mergeModal.type === 'subtopico'
+                      ? 'Subtópicos'
+                      : 'Temas'}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Mescle nomes parecidos ou duplicados (ex: &ldquo;Módulo&rdquo; e &ldquo;Módulo II&rdquo;) em um único nome no banco de dados.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => !saving && setMergeModal(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                disabled={saving}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Abas de Modo: 1. Unir Apenas Nomes Iguais (Seguro) vs 2. Unir Manualmente */}
+            {mergeModal.type === 'modulo' && (
+              <div className="flex items-center gap-2 p-1 bg-indigo-100/70 rounded-xl text-xs">
+                <button
+                  type="button"
+                  onClick={() => setMergeModal((prev) => (prev ? { ...prev, mode: 'equivalent' } : null))}
+                  className={`flex-1 py-1.5 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    mergeModal.mode === 'equivalent'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-indigo-900 hover:bg-white/60'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  1. Unir Apenas Nomes Iguais / Variantes (Recomendado)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMergeModal((prev) => (prev ? { ...prev, mode: 'manual' } : null))}
+                  className={`flex-1 py-1.5 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    mergeModal.mode === 'manual'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-indigo-900 hover:bg-white/60'
+                  }`}
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  2. Unir Manualmente (Módulos Específicos)
+                </button>
+              </div>
+            )}
+
+            {/* MODO 1: UNIR APENAS NOMES EQUIVALENTES / VARIANTES */}
+            {mergeModal.mode === 'equivalent' && mergeModal.type === 'modulo' ? (
+              <div className="space-y-4 overflow-y-auto pr-1 flex-1">
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-950 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-emerald-900">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    Proteção Ativa: Módulo I e Módulo II NÃO serão misturados!
+                  </div>
+                  <p className="text-slate-700 leading-relaxed">
+                    Este modo agrupa <strong>apenas as grafias equivalentes</strong> de cada módulo separadamente (ex: junta &ldquo;Módulo&rdquo;, &ldquo;Módulo 1&rdquo; e &ldquo;Módulo I&rdquo; no <strong>Módulo I</strong>; e junta &ldquo;Módulo 2&rdquo; e &ldquo;Módulo II&rdquo; no <strong>Módulo II</strong>).
+                  </p>
+                </div>
+
+                {equivalentGroups.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200 space-y-1">
+                    <p className="font-bold text-slate-700">Todos os módulos já estão com nomes padronizados!</p>
+                    <p>Não há nomes variantes pendentes de união.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    <span className="text-xs font-bold text-slate-800 block">
+                      Grupos com Nomes Equivalentes Detectados para Padronizar:
+                    </span>
+                    {equivalentGroups.map((group, gIdx) => (
+                      <div
+                        key={gIdx}
+                        className="p-3 bg-white border border-indigo-200 rounded-xl space-y-2 shadow-2xs"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-xs text-indigo-950 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
+                            Destino:{' '}
+                            <span className="text-indigo-700 bg-indigo-50 border border-indigo-300 px-2 py-0.5 rounded font-black">
+                              {group.target}
+                            </span>
+                          </span>
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                            {group.totalQuestions} questões
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-600 flex flex-wrap items-center gap-1.5">
+                          <span className="text-slate-500 font-semibold">Nomes que serão unificados nele:</span>
+                          {group.sources.map((s, sIdx) => (
+                            <span
+                              key={sIdx}
+                              className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 font-mono text-[11px]"
+                            >
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* MODO 2: UNIR MANUALMENTE */
+              <>
+            {/* Abas de Tipo (Módulo como destaque principal) */}
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs">
+              {(
+                [
+                  { type: 'modulo', label: '1. Módulos (Recomendado)' },
+                  { type: 'materia', label: '2. Matérias' },
+                  { type: 'capitulo', label: '3. Capítulos' },
+                  { type: 'subtopico', label: '4. Subtópicos' },
+                  { type: 'tema', label: '5. Temas' },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.type}
+                  type="button"
+                  onClick={() =>
+                    setMergeModal((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            type: tab.type,
+                            selectedItems: [],
+                            targetValue: '',
+                            searchFilter: '',
+                          }
+                        : null
+                    )
+                  }
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                    mergeModal.type === tab.type
+                      ? 'bg-white text-indigo-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Seletor de Escopo: Banco de Dados / Lote Extraído / Ambos */}
+            <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+              <span className="font-bold text-indigo-950 flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-indigo-600" />
+                Onde aplicar a união:
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex items-center gap-1.5 cursor-pointer bg-white px-2.5 py-1 rounded-lg border border-indigo-200 font-semibold text-slate-800 shadow-2xs hover:bg-indigo-50">
+                  <input
+                    type="radio"
+                    name="mergeScope"
+                    checked={mergeModal.scope === 'banco'}
+                    onChange={() => setMergeModal((prev) => (prev ? { ...prev, scope: 'banco' } : null))}
+                    className="text-indigo-600 focus:ring-indigo-500"
+                  />
+                  Banco no Firestore ({existingQuestions.length} questões)
+                </label>
+                {extractedQuestions.length > 0 && (
+                  <>
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer bg-white px-2.5 py-1 rounded-lg border border-indigo-200 font-semibold text-slate-800 shadow-2xs hover:bg-indigo-50">
+                      <input
+                        type="radio"
+                        name="mergeScope"
+                        checked={mergeModal.scope === 'lote'}
+                        onChange={() => setMergeModal((prev) => (prev ? { ...prev, scope: 'lote' } : null))}
+                        className="text-indigo-600 focus:ring-indigo-500"
+                      />
+                      Lote Extraído ({extractedQuestions.length} questões)
+                    </label>
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer bg-white px-2.5 py-1 rounded-lg border border-indigo-200 font-semibold text-slate-800 shadow-2xs hover:bg-indigo-50">
+                      <input
+                        type="radio"
+                        name="mergeScope"
+                        checked={mergeModal.scope === 'ambos'}
+                        onChange={() => setMergeModal((prev) => (prev ? { ...prev, scope: 'ambos' } : null))}
+                        className="text-indigo-600 focus:ring-indigo-500"
+                      />
+                      Ambos
+                    </label>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Sugestões Automáticas Inteligentes (ex: Detectou 'Módulo' e 'Módulo II') */}
+            {smartSuggestions.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2 text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                  <Sparkles className="w-4 h-4 text-amber-600" />
+                  Sugestão Automática Detectada:
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {smartSuggestions.map((sug, sIdx) => (
+                    <button
+                      key={sIdx}
+                      type="button"
+                      onClick={() =>
+                        setMergeModal((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                selectedItems: sug.items,
+                                targetValue: sug.suggestedTarget,
+                              }
+                            : null
+                        )
+                      }
+                      className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-lg font-bold transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                      {sug.label} ➔ Padronizar como &ldquo;{sug.suggestedTarget}&rdquo;
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Conteúdo com rolagem: Lista de Itens a Unir e Campo de Destino */}
+            <div className="space-y-4 overflow-y-auto pr-1 flex-1">
+              {/* Passo 1: Selecionar os Módulos / Itens */}
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">
+                      1
+                    </span>
+                    Selecione os{' '}
+                    {mergeModal.type === 'modulo'
+                      ? 'Módulos'
+                      : mergeModal.type === 'materia'
+                      ? 'Matérias'
+                      : 'Itens'}{' '}
+                    que você quer unir:
+                  </label>
+                  <div className="flex items-center gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setMergeModal((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                selectedItems: mergeCandidates.map((c) => c.name),
+                              }
+                            : null
+                        )
+                      }
+                      className="text-indigo-600 hover:text-indigo-800 font-bold hover:underline cursor-pointer"
+                    >
+                      Marcar Todos
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setMergeModal((prev) => (prev ? { ...prev, selectedItems: [] } : null))
+                      }
+                      className="text-slate-500 hover:text-slate-800 font-semibold hover:underline cursor-pointer"
+                    >
+                      Limpar
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filtro de Busca de Módulos */}
+                {mergeCandidates.length > 5 && (
+                  <input
+                    type="text"
+                    value={mergeModal.searchFilter || ''}
+                    onChange={(e) =>
+                      setMergeModal((prev) => (prev ? { ...prev, searchFilter: e.target.value } : null))
+                    }
+                    placeholder={`Filtrar ${mergeModal.type}...`}
+                    className="w-full text-xs p-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  />
+                )}
+
+                {/* Lista de Checkboxes */}
+                {mergeCandidates.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                    Nenhum {mergeModal.type} encontrado no escopo selecionado.
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-44 overflow-y-auto p-2 bg-slate-50/70 border border-slate-200 rounded-xl divide-y divide-slate-100">
+                    {mergeCandidates
+                      .filter((c) => {
+                        if (!mergeModal.searchFilter) return true;
+                        return c.name
+                          .toLowerCase()
+                          .includes(mergeModal.searchFilter.toLowerCase());
+                      })
+                      .map((item, iIdx) => {
+                        const isChecked = mergeModal.selectedItems.includes(item.name);
+                        return (
+                          <label
+                            key={`${item.name}-${iIdx}`}
+                            className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${
+                              isChecked
+                                ? 'bg-indigo-50/80 font-bold text-indigo-950 border border-indigo-200'
+                                : 'hover:bg-white text-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  setMergeModal((prev) => {
+                                    if (!prev) return null;
+                                    const nextSelected = isChecked
+                                      ? prev.selectedItems.filter((x) => x !== item.name)
+                                      : [...prev.selectedItems, item.name];
+                                    const nextTarget =
+                                      !prev.targetValue && nextSelected.length > 0
+                                        ? nextSelected[0]
+                                        : prev.targetValue;
+                                    return {
+                                      ...prev,
+                                      selectedItems: nextSelected,
+                                      targetValue: nextTarget,
+                                    };
+                                  });
+                                }}
+                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                              />
+                              <span className="text-xs truncate">{item.name}</span>
+                            </div>
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-200/80 text-slate-700 shrink-0">
+                              {item.count} q.
+                            </span>
+                          </label>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+
+              {/* Passo 2: Definir o Nome Final do Módulo Unificado */}
+              <div className="space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">
+                      2
+                    </span>
+                    Nome Final do {mergeModal.type === 'modulo' ? 'Módulo' : 'Item'} Unificado:
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-normal">
+                    (Escolha um dos nomes acima ou digite)
+                  </span>
+                </label>
+
+                {/* Chips rápidos dos itens selecionados */}
+                {mergeModal.selectedItems.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] text-slate-500 font-semibold">
+                      Sugestões dos selecionados:
+                    </span>
+                    {mergeModal.selectedItems.map((name, nIdx) => (
+                      <button
+                        key={`${name}-${nIdx}`}
+                        type="button"
+                        onClick={() =>
+                          setMergeModal((prev) => (prev ? { ...prev, targetValue: name } : null))
+                        }
+                        className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition-all cursor-pointer ${
+                          mergeModal.targetValue === name
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                            : 'bg-white text-indigo-800 border-indigo-200 hover:bg-indigo-50'
+                        }`}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <input
+                  type="text"
+                  value={mergeModal.targetValue}
+                  onChange={(e) =>
+                    setMergeModal((prev) => (prev ? { ...prev, targetValue: e.target.value } : null))
+                  }
+                  placeholder={`Digite o nome padrão unificado do ${mergeModal.type}...`}
+                  className="w-full text-xs sm:text-sm p-2.5 bg-white border border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 shadow-2xs"
+                />
+              </div>
+
+              {/* Pré-visualização do Impacto */}
+              {mergeModal.selectedItems.length > 0 && mergeModal.targetValue.trim() && (
+                <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl text-xs space-y-1 text-indigo-950">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    Resumo da Alteração:
+                  </div>
+                  <p className="leading-relaxed text-slate-700">
+                    Todas as <strong>{affectedMergeCount} questões</strong> com os nomes{' '}
+                    <span className="font-bold text-indigo-900">
+                      [{mergeModal.selectedItems.join(', ')}]
+                    </span>{' '}
+                    serão unificadas no {mergeModal.type === 'modulo' ? 'módulo' : 'item'}{' '}
+                    <span className="font-extrabold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                      &ldquo;{mergeModal.targetValue.trim()}&rdquo;
+                    </span>
+                    .
+                  </p>
+                </div>
+              )}
+            </div>
+            </>
+            )}
+
+            {/* Rodapé com Botões de Ação */}
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 shrink-0">
+              <button
+                type="button"
+                onClick={() => setMergeModal(null)}
+                disabled={saving}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              {mergeModal.mode === 'equivalent' && mergeModal.type === 'modulo' ? (
+                <button
+                  id="btn-confirmar-uniao-equivalente"
+                  type="button"
+                  onClick={handleExecuteEquivalentMerge}
+                  disabled={saving || equivalentGroups.length === 0}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {saving
+                    ? 'Padronizando...'
+                    : `Unir Apenas Nomes Iguais (${totalEquivalentCount} Questões)`}
+                </button>
+              ) : (
+                <button
+                  id="btn-confirmar-uniao-modulos"
+                  type="button"
+                  onClick={handleExecuteMerge}
+                  disabled={
+                    saving ||
+                    mergeModal.selectedItems.length === 0 ||
+                    !mergeModal.targetValue.trim()
+                  }
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+                >
+                  <GitMerge className="w-4 h-4" />
+                  {saving
+                    ? 'Unificando no Banco...'
+                    : `Confirmar e Unir (${affectedMergeCount} Questões)`}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para Desunir / Separar Módulos */}
+      {desunirModal && desunirModal.isOpen && (
+        <div
+          id="desunir-modules-modal-overlay"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+        >
+          <div
+            id="desunir-modules-modal-card"
+            className="bg-white rounded-2xl max-w-2xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 animate-in zoom-in-95 max-h-[92vh] flex flex-col"
+          >
+            {/* Cabeçalho do Modal */}
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 shadow-2xs">
+                  <Split className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    Desunir &amp; Separar Módulos
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Desfaça uniões indevidas ou separe questões de volta entre Módulo I e Módulo II.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => !saving && setDesunirModal(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                disabled={saving}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Abas do Desunir */}
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs">
+              <button
+                type="button"
+                onClick={() => setDesunirModal((prev) => (prev ? { ...prev, tab: 'undo' } : null))}
+                className={`flex-1 py-1.5 px-3 rounded-lg font-bold transition-all cursor-pointer ${
+                  desunirModal.tab === 'undo'
+                    ? 'bg-white text-amber-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                1. Desfazer Última Mesclagem
+              </button>
+              <button
+                type="button"
+                onClick={() => setDesunirModal((prev) => (prev ? { ...prev, tab: 'auto_split' } : null))}
+                className={`flex-1 py-1.5 px-3 rounded-lg font-bold transition-all cursor-pointer ${
+                  desunirModal.tab === 'auto_split'
+                    ? 'bg-white text-amber-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                2. Separar Automaticamente (Módulo I / II)
+              </button>
+              <button
+                type="button"
+                onClick={() => setDesunirModal((prev) => (prev ? { ...prev, tab: 'manual_split' } : null))}
+                className={`flex-1 py-1.5 px-3 rounded-lg font-bold transition-all cursor-pointer ${
+                  desunirModal.tab === 'manual_split'
+                    ? 'bg-white text-amber-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                3. Separar Manualmente por Capítulos
+              </button>
+            </div>
+
+            {/* Conteúdo Aba 1: Desfazer Última Mesclagem */}
+            {desunirModal.tab === 'undo' && (
+              <div className="space-y-4 overflow-y-auto pr-1 flex-1">
+                {lastMergeInfo ? (
+                  <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3">
+                    <div className="flex items-center gap-2 font-bold text-amber-950 text-xs sm:text-sm">
+                      <RotateCcw className="w-4 h-4 text-amber-600" />
+                      Mesclagem Registrada para Desfazer:
+                    </div>
+                    <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                      {lastMergeInfo.details}
+                    </p>
+                    <div className="text-xs text-slate-600 flex flex-wrap items-center gap-3">
+                      <span>Horário: <strong>{lastMergeInfo.timestamp}</strong></span>
+                      <span>Questões impactadas: <strong>{lastMergeInfo.questionCount}</strong></span>
+                    </div>
+                    <button
+                      id="btn-restaurar-modulos-originais"
+                      type="button"
+                      onClick={handleUndoLastMerge}
+                      disabled={saving}
+                      className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      {saving ? 'Restaurando...' : 'Restaurar Módulos Originais de Cada Questão Agora'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-6 bg-slate-50 border border-slate-200 rounded-xl text-center space-y-2 text-xs">
+                    <p className="font-bold text-slate-700">Nenhum histórico recente salvo na sessão.</p>
+                    <p className="text-slate-500">
+                      Você pode usar a aba <strong>&ldquo;2. Separar Automaticamente&rdquo;</strong> ao lado para separar as questões entre <strong>Módulo I</strong> e <strong>Módulo II</strong> com base nos capítulos!
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Conteúdo Aba 2: Separar Automaticamente */}
+            {desunirModal.tab === 'auto_split' && (
+              <div className="space-y-4 overflow-y-auto pr-1 flex-1">
+                <div className="p-3.5 bg-sky-50 border border-sky-200 rounded-xl text-xs space-y-2 text-sky-950">
+                  <div className="font-bold flex items-center gap-1.5 text-sky-900">
+                    <Sparkles className="w-4 h-4 text-sky-600" />
+                    Como funciona a Separação Inteligente:
+                  </div>
+                  <ul className="list-disc pl-4 space-y-1 text-slate-700 leading-relaxed">
+                    <li>
+                      Questões dos <strong>Capítulos 1, 2 e 3</strong> serão direcionadas para o <strong>Módulo I</strong>.
+                    </li>
+                    <li>
+                      Questões do <strong>Capítulo 4 em diante</strong> (Peças de Polícia Judiciária, Auto Circunstanciado, Termo de Declarações) serão direcionadas para o <strong>Módulo II</strong>.
+                    </li>
+                    <li>
+                      Se a questão possuir registro do módulo original gravado no banco, ele será restaurado com prioridade máxima.
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-800 block">
+                    Módulo que contém as questões misturadas para separar:
+                  </label>
+                  <select
+                    value={desunirModal.targetModulo}
+                    onChange={(e) =>
+                      setDesunirModal((prev) => (prev ? { ...prev, targetModulo: e.target.value } : null))
+                    }
+                    className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="">(Todas as Questões do Banco)</option>
+                    {existingModulos.map((mod, mIdx) => (
+                      <option key={`${mod}-${mIdx}`} value={mod}>
+                        {mod}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="font-bold text-indigo-900 block">Destino do Grupo 1:</span>
+                    <span className="text-emerald-700 font-extrabold text-sm block">Módulo I</span>
+                    <span className="text-[11px] text-slate-500">Capítulos 1, 2 e 3</span>
+                  </div>
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="font-bold text-indigo-900 block">Destino do Grupo 2:</span>
+                    <span className="text-emerald-700 font-extrabold text-sm block">Módulo II</span>
+                    <span className="text-[11px] text-slate-500">Capítulo 4 e seguintes</span>
+                  </div>
+                </div>
+
+                <button
+                  id="btn-confirmar-separacao-auto"
+                  type="button"
+                  onClick={() => handleAutoSplitModule(desunirModal.targetModulo)}
+                  disabled={saving}
+                  className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Split className="w-4 h-4" />
+                  {saving ? 'Separando Questões...' : 'Confirmar e Separar Questões (Módulo I e Módulo II)'}
+                </button>
+              </div>
+            )}
+
+            {/* Conteúdo Aba 3: Separar Manualmente por Capítulos */}
+            {desunirModal.tab === 'manual_split' && (
+              <div className="space-y-4 overflow-y-auto pr-1 flex-1">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-800 block">
+                    1. Escolha o módulo que deseja dividir:
+                  </label>
+                  <select
+                    value={desunirModal.targetModulo}
+                    onChange={(e) =>
+                      setDesunirModal((prev) =>
+                        prev ? { ...prev, targetModulo: e.target.value, selectedCapitulos: [] } : null
+                      )
+                    }
+                    className="w-full text-xs p-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900"
+                  >
+                    {existingModulos.map((mod, mIdx) => (
+                      <option key={`${mod}-${mIdx}`} value={mod}>
+                        {mod}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 block">
+                    2. Selecione os Capítulos que você quer mover para outro módulo:
+                  </label>
+                  <div className="space-y-1 max-h-40 overflow-y-auto p-2 bg-slate-50 border border-slate-200 rounded-xl">
+                    {Array.from(
+                      new Set(
+                        existingQuestions
+                          .filter(
+                            (q) =>
+                              !desunirModal.targetModulo ||
+                              getQuestionModulo(q).toLowerCase() === desunirModal.targetModulo.toLowerCase()
+                          )
+                          .map((q) => q.capitulo || '(Geral)')
+                      )
+                    ).map((cap, cIdx) => {
+                      const isChecked = desunirModal.selectedCapitulos.includes(cap);
+                      const qCount = existingQuestions.filter(
+                        (q) =>
+                          (!desunirModal.targetModulo ||
+                            getQuestionModulo(q).toLowerCase() === desunirModal.targetModulo.toLowerCase()) &&
+                          (q.capitulo || '(Geral)') === cap
+                      ).length;
+                      return (
+                        <label
+                          key={`${cap}-${cIdx}`}
+                          className={`flex items-center justify-between p-2 rounded-lg cursor-pointer text-xs ${
+                            isChecked
+                              ? 'bg-amber-100 font-bold text-amber-950 border border-amber-300'
+                              : 'hover:bg-white text-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() =>
+                                setDesunirModal((prev) => {
+                                  if (!prev) return null;
+                                  const nextCaps = isChecked
+                                    ? prev.selectedCapitulos.filter((c) => c !== cap)
+                                    : [...prev.selectedCapitulos, cap];
+                                  return { ...prev, selectedCapitulos: nextCaps };
+                                })
+                              }
+                              className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                            />
+                            <span>{cap}</span>
+                          </div>
+                          <span className="font-semibold text-slate-500">{qCount} q.</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 block">
+                    3. Novo Módulo para onde os capítulos selecionados serão movidos:
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDesunirModal((prev) => (prev ? { ...prev, newModuloDestination: 'Módulo I' } : null))
+                      }
+                      className="px-2.5 py-1 text-xs font-bold bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg hover:bg-indigo-100 cursor-pointer"
+                    >
+                      Módulo I
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDesunirModal((prev) => (prev ? { ...prev, newModuloDestination: 'Módulo II' } : null))
+                      }
+                      className="px-2.5 py-1 text-xs font-bold bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg hover:bg-indigo-100 cursor-pointer"
+                    >
+                      Módulo II
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={desunirModal.newModuloDestination}
+                    onChange={(e) =>
+                      setDesunirModal((prev) => (prev ? { ...prev, newModuloDestination: e.target.value } : null))
+                    }
+                    placeholder="Ex: Módulo I..."
+                    className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                <button
+                  id="btn-confirmar-mover-capitulos"
+                  type="button"
+                  onClick={() =>
+                    handleManualSplitModule(
+                      desunirModal.targetModulo,
+                      desunirModal.selectedCapitulos,
+                      desunirModal.newModuloDestination
+                    )
+                  }
+                  disabled={
+                    saving ||
+                    desunirModal.selectedCapitulos.length === 0 ||
+                    !desunirModal.newModuloDestination.trim()
+                  }
+                  className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Split className="w-4 h-4" />
+                  {saving
+                    ? 'Movendo Capítulos...'
+                    : `Mover Capítulos Selecionados para "${desunirModal.newModuloDestination}"`}
+                </button>
+              </div>
+            )}
+
+            {/* Rodapé */}
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 shrink-0">
+              <button
+                type="button"
+                onClick={() => setDesunirModal(null)}
+                disabled={saving}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edição de Hierarquia do Cartão em Massa */}
+      {cardHierarchyModal && (
+        <div
+          id="card-hierarchy-modal-overlay"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+        >
+          <div
+            id="card-hierarchy-modal-card"
+            className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in zoom-in-95"
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                  <SlidersHorizontal className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Editar Hierarquia do Cartão
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Altera a classificação de {cardHierarchyModal.indices.length} questão(ões) deste cartão
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCardHierarchyModal(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Matéria:</label>
+                <input
+                  type="text"
+                  value={cardHierarchyModal.materia}
+                  onChange={(e) =>
+                    setCardHierarchyModal((prev) => (prev ? { ...prev, materia: e.target.value } : null))
+                  }
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Módulo:</label>
+                <input
+                  type="text"
+                  value={cardHierarchyModal.modulo}
+                  onChange={(e) =>
+                    setCardHierarchyModal((prev) => (prev ? { ...prev, modulo: e.target.value } : null))
+                  }
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Capítulo:</label>
+                <input
+                  type="text"
+                  value={cardHierarchyModal.capitulo}
+                  onChange={(e) =>
+                    setCardHierarchyModal((prev) => (prev ? { ...prev, capitulo: e.target.value } : null))
+                  }
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Subtópico:</label>
+                <input
+                  type="text"
+                  value={cardHierarchyModal.subtopico}
+                  onChange={(e) =>
+                    setCardHierarchyModal((prev) => (prev ? { ...prev, subtopico: e.target.value } : null))
+                  }
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Tema (Subtópico do Subtópico):</label>
+                <input
+                  type="text"
+                  value={cardHierarchyModal.tema}
+                  onChange={(e) =>
+                    setCardHierarchyModal((prev) => (prev ? { ...prev, tema: e.target.value } : null))
+                  }
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-medium"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setCardHierarchyModal(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyCardHierarchyModal}
+                className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+              >
+                Salvar Alterações
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Gerador de Estrutura Base para NotebookLM */}
+      <NotebookLMModal
+        isOpen={isNotebookModalOpen}
+        onClose={() => setIsNotebookModalOpen(false)}
+        defaultMateria={nomeMateria || 'IPO-II'}
+        defaultModulo={moduloMateria || 'MÓDULO II – FORMALIZAÇÃO DE DADOS DE INTERESSE (UNIDADE 1)'}
+        defaultCapitulo={capituloMateria || 'Capítulo 1 – INTRODUÇÃO'}
+        defaultSubtopico={subtopico || '4.6.1'}
+        defaultTema={tema || 'DA INFORMAÇÃO DE POLÍCIA JUDICIÁRIA (IPJ)'}
+        onLoadExampleToImporter={(sampleText) => {
+          setRawText(sampleText);
+          setRawCommentsText('');
+        }}
+      />
     </div>
   );
 };

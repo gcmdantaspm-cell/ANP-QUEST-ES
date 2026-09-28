@@ -47,16 +47,32 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   // Accordion para Fórum de Dúvidas
   const [showForum, setShowForum] = useState<boolean>(false);
 
-  // Normalizar alternativas para AlternativeItem[]
+  // Normalizar alternativas para AlternativeItem[] garantindo letras e chaves estritamente únicas
   const rawAlts = question.alternativas || [];
+  const seenLetters = new Set<string>();
   const alternativas: AlternativeItem[] = rawAlts.map((alt, i) => {
-    if (typeof alt === 'object' && 'letra' in alt && 'texto' in alt) {
-      return alt as AlternativeItem;
+    let letter = String.fromCharCode(65 + i);
+    let texto = '';
+    if (typeof alt === 'object' && alt !== null && 'letra' in alt && 'texto' in alt) {
+      const parsedLetter = String(alt.letra || '').toUpperCase().trim();
+      texto = String(alt.texto || '');
+      if (parsedLetter && !seenLetters.has(parsedLetter)) {
+        letter = parsedLetter;
+      } else {
+        // Se a letra for repetida (ex: duas alternativas C), encontra a próxima letra livre no alfabeto
+        let nextCode = 65 + i;
+        while (seenLetters.has(String.fromCharCode(nextCode)) && nextCode <= 90) {
+          nextCode++;
+        }
+        letter = nextCode <= 90 ? String.fromCharCode(nextCode) : `${parsedLetter || 'X'}_${i + 1}`;
+      }
+    } else {
+      texto = String(alt || '');
     }
-    const letter = String.fromCharCode(65 + i);
+    seenLetters.add(letter);
     return {
       letra: letter,
-      texto: String(alt),
+      texto,
     };
   });
 
@@ -216,7 +232,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                         }
 
                         return (
-                          <React.Fragment key={seg.type}>
+                          <React.Fragment key={`${seg.type}-${sIdx}`}>
                             <span
                               className={`text-[11px] sm:text-xs px-2.5 py-0.5 rounded-lg border shadow-2xs ${badgeClass}`}
                               title={`${seg.label}: ${seg.value}`}
@@ -245,7 +261,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
           {/* Alternativas de Resposta: Linhas limpas com botões Radio circulares e indicador de acerto (✓) */}
           <div className="space-y-1.5">
-            {alternativas.map((alt) => {
+            {alternativas.map((alt, altIdx) => {
               const letter = alt.letra.toUpperCase().trim();
               const lowercaseLetter = letter.toLowerCase();
               const isChecked = answered
@@ -255,8 +271,8 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
               return (
                 <label
-                  key={letter}
-                  id={`label-alt-${question.id || index}-${letter}`}
+                  key={`${letter}-${altIdx}`}
+                  id={`label-alt-${question.id || index}-${letter}-${altIdx}`}
                   onClick={() => handleSelectRadio(letter)}
                   className={`flex items-start gap-2.5 sm:gap-3 p-2 sm:p-2.5 rounded-xl transition-colors text-xs sm:text-[14px] leading-relaxed select-none ${
                     !answered

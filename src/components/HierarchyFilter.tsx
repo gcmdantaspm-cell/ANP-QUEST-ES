@@ -217,8 +217,8 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 font-medium transition-colors"
           >
             <option value="">Todas as Matérias</option>
-            {materias.map((m) => (
-              <option key={m} value={m}>
+            {materias.map((m, idx) => (
+              <option key={`${m}-${idx}`} value={m}>
                 {m}
               </option>
             ))}
@@ -243,8 +243,8 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             <option value="">
               {modulos.length === 0 ? '(Sem módulos específicos)' : '(Todos os Módulos)'}
             </option>
-            {modulos.map((m) => (
-              <option key={m} value={m}>
+            {modulos.map((m, idx) => (
+              <option key={`${m}-${idx}`} value={m}>
                 {m}
               </option>
             ))}
@@ -267,8 +267,8 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
           >
             <option value="">(Em branco / Todos os Capítulos)</option>
-            {capitulos.map((c) => (
-              <option key={c} value={c}>
+            {capitulos.map((c, idx) => (
+              <option key={`${c}-${idx}`} value={c}>
                 {c}
               </option>
             ))}
@@ -291,8 +291,8 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
           >
             <option value="">(Em branco / Todos os Subtópicos)</option>
-            {subtopicos.map((s) => (
-              <option key={s} value={s}>
+            {subtopicos.map((s, idx) => (
+              <option key={`${s}-${idx}`} value={s}>
                 {s}
               </option>
             ))}
@@ -315,8 +315,8 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
           >
             <option value="">(Em branco / Todos os Temas)</option>
-            {temas.map((t) => (
-              <option key={t} value={t}>
+            {temas.map((t, idx) => (
+              <option key={`${t}-${idx}`} value={t}>
                 {t}
               </option>
             ))}
