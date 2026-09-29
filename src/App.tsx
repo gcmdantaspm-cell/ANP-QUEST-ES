@@ -14,7 +14,15 @@ import { ThemeSelectorModal } from './components/ThemeSelectorModal';
 import { EagleShieldLogo } from './components/EagleShieldLogo';
 import { db } from './firebase/config';
 import { collection, onSnapshot } from 'firebase/firestore';
-import { getQuestionMateria, getQuestionModulo } from './utils/parser';
+import {
+  getQuestionMateria,
+  getQuestionModulo,
+  normalizeCapituloName,
+  areModulosEquivalent,
+  areCapitulosEquivalent,
+  areSubtopicosEquivalent,
+  areTemasEquivalent,
+} from './utils/parser';
 import {
   BookOpen,
   Sparkles,
@@ -161,22 +169,22 @@ function MainApp() {
       }
 
       // Filtro de Módulo
-      if (filters.modulo && getQuestionModulo(q) !== filters.modulo) {
+      if (filters.modulo && !areModulosEquivalent(getQuestionModulo(q), filters.modulo)) {
         return false;
       }
 
       // Filtro de Capítulo
-      if (filters.capitulo && q.capitulo !== filters.capitulo) {
+      if (filters.capitulo && !areCapitulosEquivalent(q.capitulo, filters.capitulo)) {
         return false;
       }
 
       // Filtro de Subtópico
-      if (filters.subtopico && q.subtopico !== filters.subtopico) {
+      if (filters.subtopico && !areSubtopicosEquivalent(q.subtopico, filters.subtopico)) {
         return false;
       }
 
       // Filtro de Tema
-      if (filters.tema_subtopico && q.tema_subtopico !== filters.tema_subtopico) {
+      if (filters.tema_subtopico && !areTemasEquivalent(q.tema_subtopico, filters.tema_subtopico)) {
         return false;
       }
 

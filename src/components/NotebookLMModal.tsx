@@ -26,11 +26,11 @@ interface NotebookLMModalProps {
 export const NotebookLMModal: React.FC<NotebookLMModalProps> = ({
   isOpen,
   onClose,
-  defaultMateria = 'IPO-II',
+  defaultMateria = 'IPO-2',
   defaultModulo = 'MÓDULO II – FORMALIZAÇÃO DE DADOS DE INTERESSE (UNIDADE 1)',
-  defaultCapitulo = 'Capítulo 1 – INTRODUÇÃO',
-  defaultSubtopico = '4.6.1',
-  defaultTema = 'DA INFORMAÇÃO DE POLÍCIA JUDICIÁRIA (IPJ)',
+  defaultCapitulo = '',
+  defaultSubtopico = '2.2.2 – FONTES ABERTAS',
+  defaultTema = '2.2.2.2 – CONCEITO',
   onLoadExampleToImporter,
 }) => {
   const [materia, setMateria] = useState(defaultMateria);
@@ -47,14 +47,14 @@ export const NotebookLMModal: React.FC<NotebookLMModalProps> = ({
   const cleanSubtopico = useMemo(() => {
     let s = subtopico.trim();
     s = s.replace(/^[\(\[]\s*([^()]+?)\s*[\)\]]$/, '$1').trim();
-    return s || '1.1.2 - CONCEITO DE INVESTIGAÇÃO';
+    return s || '2.2.2 – FONTES ABERTAS';
   }, [subtopico]);
 
   // Mantém limpo: Tema sem parênteses externos desnecessários
   const cleanTema = useMemo(() => {
     let t = tema.trim();
     t = t.replace(/^[\(\[]\s*([^()]+?)\s*[\)\]]$/, '$1').trim();
-    return t || '1.1.2.1 - INVESTIGAÇÃO PATRIMONIAL PARALELA';
+    return t || '2.2.2.2 – CONCEITO';
   }, [tema]);
 
   // Gera o prompt completo para o NotebookLM / IA
@@ -66,7 +66,7 @@ Para que o sistema importe automaticamente as ${qtdQuestoes} questões com 100% 
 
 ========================================
 CABEÇALHO OBRIGATÓRIO (coloque exatamente na 1ª linha do texto gerado):
-Matéria: ${materia.trim() || 'IPO-II'} > Módulo: ${modulo.trim() || 'MÓDULO II – FORMALIZAÇÃO DE DADOS DE INTERESSE (UNIDADE 1)'} > Capítulo: ${capitulo.trim() || 'Capítulo 1 – INTRODUÇÃO'} > Subtópico: ${cleanSubtopico} > Tema: ${cleanTema}
+Matéria: ${materia.trim() || 'IPO-2'} > Módulo: ${modulo.trim() || 'MÓDULO II – FORMALIZAÇÃO DE DADOS DE INTERESSE (UNIDADE 1)'} > Capítulo: ${capitulo.trim() || 'Capítulo 2'} > Subtópico: ${cleanSubtopico} > Tema: ${cleanTema}
 ========================================
 
 REGRAS ESTRITAS DE FORMATAÇÃO:
@@ -84,7 +84,7 @@ D) ...
 ========================================
 EXEMPLO DA ESTRUTURA ESPERADA:
 
-Matéria: ${materia.trim() || 'IPO-II'} > Módulo: ${modulo.trim() || 'MÓDULO II – FORMALIZAÇÃO DE DADOS DE INTERESSE (UNIDADE 1)'} > Capítulo: ${capitulo.trim() || 'Capítulo 1 – INTRODUÇÃO'} > Subtópico: ${cleanSubtopico} > Tema: ${cleanTema}
+Matéria: ${materia.trim() || 'IPO-2'} > Módulo: ${modulo.trim() || 'MÓDULO II – FORMALIZAÇÃO DE DADOS DE INTERESSE (UNIDADE 1)'} > Capítulo: ${capitulo.trim() || 'Capítulo 2'} > Subtópico: ${cleanSubtopico} > Tema: ${cleanTema}
 
 Questão 1
 No que tange à formalização de atos e rotinas no âmbito da investigação policial, avalie as assertivas a seguir:
@@ -110,7 +110,7 @@ Questão 2
 
   // Gera um lote de 50 questões de exemplo completo para teste no importador
   const templateExemploPronto = useMemo(() => {
-    let t = `Matéria: ${materia.trim() || 'IPO-II'} > Módulo: ${modulo.trim() || 'MÓDULO II – FORMALIZAÇÃO DE DADOS DE INTERESSE (UNIDADE 1)'} > Capítulo: ${capitulo.trim() || 'Capítulo 1 – INTRODUÇÃO'} > Subtópico: ${cleanSubtopico} > Tema: ${cleanTema}\n\n`;
+    let t = `Matéria: ${materia.trim() || 'IPO-2'} > Módulo: ${modulo.trim() || 'MÓDULO II – FORMALIZAÇÃO DE DADOS DE INTERESSE (UNIDADE 1)'} > Capítulo: ${capitulo.trim() || 'Capítulo 2'} > Subtópico: ${cleanSubtopico} > Tema: ${cleanTema}\n\n`;
 
     for (let i = 1; i <= qtdQuestoes; i++) {
       t += `Questão ${i}\n`;
@@ -240,33 +240,33 @@ Questão 2
                 type="text"
                 value={capitulo}
                 onChange={(e) => setCapitulo(e.target.value)}
-                placeholder="Ex: Capítulo 1 – INTRODUÇÃO"
+                placeholder="Ex: Capítulo 2"
                 className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-medium focus:ring-2 focus:ring-sky-500 text-xs"
               />
             </div>
 
             <div>
               <label className="block text-[11px] font-semibold text-emerald-300 mb-1">
-                Subtópico (Apenas o número):
+                Subtópico (Número e Nome):
               </label>
               <input
                 type="text"
                 value={subtopico}
                 onChange={(e) => setSubtopico(e.target.value)}
-                placeholder="Ex: 4.6.1"
+                placeholder="Ex: 2.2.2 – FONTES ABERTAS"
                 className="w-full px-2.5 py-1.5 bg-slate-900 border border-emerald-500/60 rounded-lg text-emerald-300 font-bold focus:ring-2 focus:ring-emerald-400 text-xs"
               />
             </div>
 
             <div>
               <label className="block text-[11px] font-semibold text-purple-300 mb-1">
-                Tema (Nome do Assunto):
+                Tema / Detalhe (Número e Nome):
               </label>
               <input
                 type="text"
                 value={tema}
                 onChange={(e) => setTema(e.target.value)}
-                placeholder="Ex: DA INFORMAÇÃO DE POLÍCIA JUDICIÁRIA (IPJ)"
+                placeholder="Ex: 2.2.2.2 – CONCEITO"
                 className="w-full px-2.5 py-1.5 bg-slate-900 border border-purple-500/60 rounded-lg text-purple-200 font-medium focus:ring-2 focus:ring-purple-400 text-xs"
               />
             </div>

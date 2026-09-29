@@ -191,7 +191,7 @@ export const SimuladoImporter: React.FC<SimuladoImporterProps> = ({
 
     extractedQuestions.forEach((q) => {
       const mod = normalizeModuloName(q.modulo || moduloMateria || '');
-      const cap = q.capitulo || capituloMateria || '';
+      let cap = q.capitulo || capituloMateria || '';
       const sub = q.subtopico || subtopico || '';
       const tm = q.tema_subtopico || tema || '';
       const mat = q.materia || nomeMateria || 'IPO-2';
@@ -236,8 +236,9 @@ export const SimuladoImporter: React.FC<SimuladoImporterProps> = ({
 
       // Capítulo
       if (cap) {
+        cap = normalizeCapituloName(cap);
         const isExisting = existingQuestions.some(
-          (eq) => eq.capitulo && eq.capitulo.trim().toLowerCase() === cap.trim().toLowerCase()
+          (eq) => eq.capitulo && normalizeCapituloName(eq.capitulo).toLowerCase() === cap.toLowerCase()
         );
         if (!isExisting) {
           const id = `cap:${cap.toLowerCase()}`;
@@ -1057,9 +1058,9 @@ Peso: 1
         onClose={() => setIsNotebookModalOpen(false)}
         defaultMateria={nomeMateria || 'IPO-2'}
         defaultModulo={moduloMateria || 'MÓDULO II – FORMALIZAÇÃO DE DADOS DE INTERESSE (UNIDADE 1)'}
-        defaultCapitulo={capituloMateria || 'Capítulo 1 – INTRODUÇÃO'}
-        defaultSubtopico={subtopico || '4.6.1'}
-        defaultTema={tema || 'DA INFORMAÇÃO DE POLÍCIA JUDICIÁRIA (IPJ)'}
+        defaultCapitulo={capituloMateria || ''}
+        defaultSubtopico={subtopico || ''}
+        defaultTema={tema || ''}
         onLoadExampleToImporter={(sampleText) => {
           setRawText(sampleText);
           // Automaticamente organiza as questões

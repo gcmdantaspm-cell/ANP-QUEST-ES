@@ -1,7 +1,15 @@
 import React from 'react';
 import { FilterOptions, Question } from '../types/question';
 import { Filter, Search, X, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
-import { getQuestionMateria, getQuestionModulo } from '../utils/parser';
+import {
+  getQuestionMateria,
+  getQuestionModulo,
+  normalizeCapituloName,
+  areModulosEquivalent,
+  areCapitulosEquivalent,
+  areSubtopicosEquivalent,
+  areTemasEquivalent,
+} from '../utils/parser';
 
 interface HierarchyFilterProps {
   questions: Question[];
@@ -34,49 +42,82 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
   ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   // 3. Capítulos da matéria e módulo selecionados
-  const capitulos = Array.from(
+  const rawCapitulos = Array.from(
     new Set(
       questions
         .filter(
           (q) =>
             (!filters.materia || getQuestionMateria(q) === filters.materia) &&
-            (!filters.modulo || getQuestionModulo(q) === filters.modulo)
+            (!filters.modulo || areModulosEquivalent(getQuestionModulo(q), filters.modulo))
         )
-        .map((q) => q.capitulo)
+        .map((q) => normalizeCapituloName(q.capitulo))
         .filter(Boolean)
     )
-  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  );
+
+  const capitulos: string[] = [];
+  rawCapitulos.forEach((cap) => {
+    const existingIdx = capitulos.findIndex((c) => areCapitulosEquivalent(c, cap));
+    if (existingIdx === -1) {
+      capitulos.push(cap);
+    } else if (cap.length > capitulos[existingIdx].length) {
+      capitulos[existingIdx] = cap;
+    }
+  });
+  capitulos.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   // 4. Subtópicos do capítulo selecionado
-  const subtopicos = Array.from(
+  const rawSubtopicos = Array.from(
     new Set(
       questions
         .filter(
           (q) =>
             (!filters.materia || getQuestionMateria(q) === filters.materia) &&
-            (!filters.modulo || getQuestionModulo(q) === filters.modulo) &&
-            (!filters.capitulo || q.capitulo === filters.capitulo)
+            (!filters.modulo || areModulosEquivalent(getQuestionModulo(q), filters.modulo)) &&
+            (!filters.capitulo || areCapitulosEquivalent(q.capitulo, filters.capitulo))
         )
-        .map((q) => q.subtopico)
+        .map((q) => q.subtopico?.trim())
         .filter((s): s is string => Boolean(s))
     )
-  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  );
+
+  const subtopicos: string[] = [];
+  rawSubtopicos.forEach((sub) => {
+    const existingIdx = subtopicos.findIndex((s) => areSubtopicosEquivalent(s, sub));
+    if (existingIdx === -1) {
+      subtopicos.push(sub);
+    } else if (sub.length > subtopicos[existingIdx].length) {
+      subtopicos[existingIdx] = sub;
+    }
+  });
+  subtopicos.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   // 5. Temas do subtópico selecionado
-  const temas = Array.from(
+  const rawTemas = Array.from(
     new Set(
       questions
         .filter(
           (q) =>
             (!filters.materia || getQuestionMateria(q) === filters.materia) &&
-            (!filters.modulo || getQuestionModulo(q) === filters.modulo) &&
-            (!filters.capitulo || q.capitulo === filters.capitulo) &&
-            (!filters.subtopico || q.subtopico === filters.subtopico)
+            (!filters.modulo || areModulosEquivalent(getQuestionModulo(q), filters.modulo)) &&
+            (!filters.capitulo || areCapitulosEquivalent(q.capitulo, filters.capitulo)) &&
+            (!filters.subtopico || areSubtopicosEquivalent(q.subtopico, filters.subtopico))
         )
-        .map((q) => q.tema_subtopico)
+        .map((q) => q.tema_subtopico?.trim())
         .filter((t): t is string => Boolean(t))
     )
-  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  );
+
+  const temas: string[] = [];
+  rawTemas.forEach((tema) => {
+    const existingIdx = temas.findIndex((t) => areTemasEquivalent(t, tema));
+    if (existingIdx === -1) {
+      temas.push(tema);
+    } else if (tema.length > temas[existingIdx].length) {
+      temas[existingIdx] = tema;
+    }
+  });
+  temas.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   const handleMateriaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onChangeFilters({

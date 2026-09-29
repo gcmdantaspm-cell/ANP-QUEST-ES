@@ -81,73 +81,51 @@ export function normalizeCapituloName(cap?: string): string {
   let c = cap.trim();
   if (!c) return '';
 
-  // Se já for apenas dígitos: "1" -> "Capítulo 1"
-  if (/^\d+$/.test(c)) {
-    return `Capítulo ${c}`;
-  }
+  // Remover marcações markdown (** ou __)
+  c = c.replace(/[*_#]+/g, '').trim();
 
-  // Se for "1.1" puro
-  if (/^\d+(?:\.\d+)+$/.test(c)) {
-    return `Capítulo ${c}`;
-  }
+  // Limpar prefixo "Capítulo" / "Cap." com ou sem dois-pontos/traço
+  const capPrefixMatch = c.match(/^(?:cap[íi]tulo|cap\.?)\b(?:\s*[:.\-–—]\s*|\s+)?(.*)$/i);
+  let afterPrefix = capPrefixMatch ? capPrefixMatch[1].trim() : c;
 
-  // Se for "1º", "1°", "1o", "1.0", "1.":
-  if (/^(\d+)(?:[ºª°o]|\.0|\.)?$/i.test(c)) {
-    const m = c.match(/^(\d+)/);
-    return m ? `Capítulo ${m[1]}` : `Capítulo ${c}`;
-  }
-
-  // Se for numeral romano puro: "I", "II", "III", "IV"...
-  const romanMap: Record<string, string> = {
-    'I': '1', 'II': '2', 'III': '3', 'IV': '4', 'V': '5',
-    'VI': '6', 'VII': '7', 'VIII': '8', 'IX': '9', 'X': '10'
-  };
-  if (romanMap[c.toUpperCase()]) {
-    return `Capítulo ${romanMap[c.toUpperCase()]}`;
-  }
-
-  // Se for "Capítulo 1.1", "Capítulo 1", "Capítulo 1º", "Capítulo 1o", "Capítulo 1.0", "Capítulo 01" com ou sem título
-  const capMatch = c.match(/^cap[íi]tulo\s*(?:n[º°o]\.?|n[uú]mero)?\s*(\d+(?:\.\d+)*|[IVXLCDM]+)(?:[ºª°o]|\.0|\.)?(?:\s*[:.\-–—]\s*(.*))?$/i);
-  if (capMatch) {
-    const rawNum = capMatch[1];
-    const norm = normalizeChapterNumber(rawNum);
-    const num = norm ? norm.num : rawNum;
-    let title = (capMatch[2] || '').trim();
-    // Limpar restos ordinais ou traços deixados no início do título
-    title = title.replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
+  // 1. Se começar com número decimal: "1.1 INTRODUÇÃO" ou "1.1 - Ação de..." ou "1.1"
+  const decMatch = afterPrefix.match(/^(\d+(?:\.\d+)+)(?:[ºª°]|\.0|\.)?(?:\s*[:.\-–—]\s*|\s+)?(.*)$/i);
+  if (decMatch) {
+    const num = decMatch[1].replace(/\.+$/, '');
+    let title = (decMatch[2] || '').trim().replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
     return title ? `Capítulo ${num} – ${title}` : `Capítulo ${num}`;
   }
 
-  // Se for "Capítulo I", "Capítulo Iº", "Capítulo Io", "Capítulo II – Título"
-  const romanCapMatch = c.match(/^cap[íi]tulo\s*([IVXLCDM]+)(?:[ºª°o])?(?:\s*[:.\-–—]\s*(.*))?$/i);
-  if (romanCapMatch) {
-    const rNum = romanCapMatch[1].toUpperCase();
+  // 2. Se for "INTRODUÇÃO" isolado (sem número explícito)
+  if (/^introdu[çc][ãa]o\b/i.test(afterPrefix)) {
+    return 'INTRODUÇÃO';
+  }
+
+  // 3. Se for numeral romano puro ou com título: "I", "II – Título", "II Título"
+  const romanMap: Record<string, string> = {
+    'I': '1', 'II': '2', 'III': '3', 'IV': '4', 'V': '5',
+    'VI': '6', 'VII': '7', 'VIII': '8', 'IX': '9', 'X': '10',
+    'XI': '11', 'XII': '12', 'XIII': '13', 'XIV': '14', 'XV': '15'
+  };
+  const romanMatch = afterPrefix.match(/^([IVXLCDM]+)\b(?:[ºª°o])?(?:\s*[:.\-–—]\s*|\s+)?(.*)$/i);
+  if (romanMatch) {
+    const rNum = romanMatch[1].toUpperCase();
     const mapped = romanMap[rNum] || rNum;
-    let title = (romanCapMatch[2] || '').trim();
-    title = title.replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
+    let title = (romanMatch[2] || '').trim().replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
     return title ? `Capítulo ${mapped} – ${title}` : `Capítulo ${mapped}`;
   }
 
-  // Se começar com número decimal: "1.1 - Ação de..." -> "Capítulo 1.1 – Ação de..."
-  const decimalMatch = c.match(/^(\d+(?:\.\d+)+)(?:[ºª°o]|\.0|\.)?\s*[:.\-–—]\s*(.*)$/i);
-  if (decimalMatch) {
-    const num = decimalMatch[1];
-    let title = decimalMatch[2].trim().replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
-    return title ? `Capítulo ${num} – ${title}` : `Capítulo ${num}`;
-  }
-
-  // Se começar com número seguido de hífen/ponto: "1 - Peças..." -> "Capítulo 1 – Peças..."
-  const numTitleMatch = c.match(/^0?(\d+)(?:[ºª°o]|\.0|\.)?\s*[:.\-–—]\s*(.*)$/i);
+  // 4. Se começar com número inteiro: "1 INTRODUÇÃO", "1 - INTRODUÇÃO", "1: INTRODUÇÃO", "1", "01"
+  const numTitleMatch = afterPrefix.match(/^(?:n[º°o]\.?|n[uú]mero)?\s*0?(\d+)(?:[ºª°o]|\.0|\.)?(?:\s*[:.\-–—]\s*|\s+)?(.*)$/i);
   if (numTitleMatch) {
     const num = numTitleMatch[1];
-    let title = numTitleMatch[2].trim();
-    title = title.replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
+    let title = (numTitleMatch[2] || '').trim().replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
     return title ? `Capítulo ${num} – ${title}` : `Capítulo ${num}`;
   }
 
-  // Normalizar prefixo "Capítulo"
-  if (/^cap[íi]tulo\b/i.test(c)) {
-    c = c.replace(/^cap[íi]tulo\b/i, 'Capítulo');
+  // 5. Se já tinha prefixo Capítulo
+  if (capPrefixMatch && afterPrefix) {
+    return `Capítulo – ${afterPrefix}`;
   }
 
   return sanitizeEtiquetaField(c);
@@ -268,6 +246,79 @@ export function areModulosEquivalent(a?: string, b?: string): boolean {
 }
 
 /**
+ * Normaliza strings hierárquicas para comparações seguras:
+ * Remove variações de traços (hífen, en-dash, em-dash), reduz espaços e converte para minúsculas.
+ */
+export function normalizeHierarchicalString(str?: string): string {
+  if (!str) return '';
+  return str
+    .trim()
+    .toLowerCase()
+    .replace(/[\u2010-\u2015\u2212]/g, '-')
+    .replace(/\s+/g, ' ');
+}
+
+/**
+ * Compara se dois capítulos são equivalentes (ex: com ou sem título descritivo, variações de traço).
+ */
+export function areCapitulosEquivalent(a?: string, b?: string): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  const normA = normalizeHierarchicalString(normalizeCapituloName(a));
+  const normB = normalizeHierarchicalString(normalizeCapituloName(b));
+  if (normA === normB) return true;
+
+  const numA = normA.match(/\b0?(\d+)\b/);
+  const numB = normB.match(/\b0?(\d+)\b/);
+  if (numA && numB && numA[1] === numB[1]) {
+    const isPureNumA = /^cap[íi]tulo\s*\d+$/i.test(normA) || /^\d+$/.test(normA);
+    const isPureNumB = /^cap[íi]tulo\s*\d+$/i.test(normB) || /^\d+$/.test(normB);
+    if (isPureNumA || isPureNumB) return true;
+  }
+  return false;
+}
+
+/**
+ * Compara se dois subtópicos são equivalentes (ex: "2.2.2" e "2.2.2 - FONTES ABERTAS", ou variações de traço).
+ */
+export function areSubtopicosEquivalent(a?: string, b?: string): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  const normA = normalizeHierarchicalString(a);
+  const normB = normalizeHierarchicalString(b);
+  if (normA === normB) return true;
+
+  const numA = normA.match(/^(\d+(?:\.\d+)*)/);
+  const numB = normB.match(/^(\d+(?:\.\d+)*)/);
+  if (numA && numB && numA[1] === numB[1]) {
+    const isPureNumA = /^\d+(?:\.\d+)*$/.test(normA);
+    const isPureNumB = /^\d+(?:\.\d+)*$/.test(normB);
+    if (isPureNumA || isPureNumB) return true;
+  }
+  return false;
+}
+
+/**
+ * Compara se dois temas são equivalentes (ex: "2.2.2.2" e "2.2.2.2 - CONCEITO", ou variações de traço).
+ */
+export function areTemasEquivalent(a?: string, b?: string): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  const normA = normalizeHierarchicalString(a);
+  const normB = normalizeHierarchicalString(b);
+  if (normA === normB) return true;
+
+  const numA = normA.match(/^(\d+(?:\.\d+)*)/);
+  const numB = normB.match(/^(\d+(?:\.\d+)*)/);
+  if (numA && numB && numA[1] === numB[1]) {
+    const isPureNumA = /^\d+(?:\.\d+)*$/.test(normA);
+    const isPureNumB = /^\d+(?:\.\d+)*$/.test(normB);
+    if (isPureNumA || isPureNumB) return true;
+  }
+  return false;
+}
+
+/**
  * Limpa qualquer menção a Modelo 1, Modelo 2, Múltipla Escolha, Julgamento de Itens
  * e remove duplicações de termos ("Módulo Módulo 1", "Capítulo Capítulo 1", "Questão 1", etc.)
  * e prefixos indesejados como "QUESTÕES INÉDITAS — BLOCO" ou "BLOCO"
@@ -311,6 +362,9 @@ export interface RawHierarchyMatch {
   temaNum?: string;
   temaTitle?: string;
   isTopico?: boolean;
+  clearTopico?: boolean;
+  clearSubtopico?: boolean;
+  clearTema?: boolean;
 }
 
 /**
@@ -327,6 +381,17 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
   const rawClean = line.trim();
   if (!rawClean) return null;
 
+  // 1. Linhas que NÃO podem ser cabeçalho hierárquico sob hipótese alguma:
+  // Alternativas de questões: a) ..., b) ..., c) ..., d) ..., e) ..., A) ..., (a) ..., a. ...
+  if (/^[ \t]*(?:\(?[a-eA-E]\)|[a-eA-E][\.\-–—\)]|\([a-eA-E]\))\s+/i.test(rawClean)) {
+    return null;
+  }
+
+  // Enunciados, início de questão, assertivas, gabaritos, comentários, dicas
+  if (/^[ \t]*(?:quest[ãa]o\s*\d+|item\s+[IVXLCDM\d]+|assertiva\s+[IVXLCDM\d]+|gabarito\b|coment[áa]rio\b|dica\b|macete\b|bizu\b)/i.test(rawClean)) {
+    return null;
+  }
+
   // Linhas que são títulos de seção de questões (ex: "### QUESTÕES DO TÓPICO 1 (EVOLUÇÃO E CONCEITO)") NÃO são hierarquia
   if (/^[#*=_~-]*\s*quest(?:[ãa]o|[õo]es)\s+d[oa]\s+/i.test(rawClean)) {
     return null;
@@ -338,6 +403,17 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
     .replace(/__/g, '')
     .trim();
 
+  // Tags vazias explícitas no texto (ex: "TÓPICO:\nSUBTÓPICO:\nTEMA / DETALHE:")
+  if (/^(?:t[óo]pico|assunto)\s*[:=-]\s*$/i.test(cleanLine)) {
+    return { clearTopico: true };
+  }
+  if (/^(?:subt[óo]pico|subassunto|sub-t[óo]pico)\s*[:=-]\s*$/i.test(cleanLine)) {
+    return { clearSubtopico: true };
+  }
+  if (/^(?:tema(?:\s*[\/\-–—]\s*detalhe)?|detalhe|subtema)\s*[:=-]\s*$/i.test(cleanLine)) {
+    return { clearTema: true };
+  }
+
   // 1. Padrão Composto em linha única (delimitado por |, ;, •, >, / ou múltiplos colchetes [...])
   // Ex: Matéria: Direito Penal | Módulo: 1 | Capítulo: 4 | Subtópico: 4.6 | Tema: 4.6.2 (Auto Circunstanciado)
   // Ex: Matéria: IPO-2 > Módulo 1 > Capítulo 4 > Subtópico 4.6 > Tema 4.6.2
@@ -346,11 +422,19 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
   const bracketMatches = cleanLine.match(/\[([^\]]+)\]/g);
   const hasMultipleBrackets = Boolean(bracketMatches && bracketMatches.length >= 2);
   const hasSlashSeparators = /\s+\/\s+|\/(?=(?:mat[ée]ria|m[óo]dulo|cap[íi]tulo|t[óo]pico|subt[óo]pico|tema|detalhe)\b)/i.test(cleanLine);
-  const isDelimited = /[>|;•]/.test(cleanLine) || hasMultipleBrackets || hasSlashSeparators;
+  
+  // Semicolon (;) SÓ deve ser considerado delimitador de hierarquia se a linha explicitamente tiver tags de hierarquia
+  const hasSemicolonWithHierarchy = cleanLine.includes(';') && /(?:mat[ée]ria|disciplina|m[óo]dulo|cap[íi]tulo|t[óo]pico|subt[óo]pico|tema|detalhe)\s*[:=-]/i.test(cleanLine);
+
+  // Exige que a linha delimitada contenha pelo menos um termo chave hierárquico
+  const hasHierarchyKeyword = /(?:mat[ée]ria|disciplina|m[óo]dulo|cap[íi]tulo|cap\.?|t[óo]pico|subt[óo]pico|sub-t[óo]pico|tema|detalhe|subtema|bloco)\b/i.test(cleanLine);
+
+  const isDelimited = ((cleanLine.includes('>') || cleanLine.includes('|') || cleanLine.includes('•') || hasMultipleBrackets || hasSlashSeparators) && hasHierarchyKeyword) || hasSemicolonWithHierarchy;
 
   if (isDelimited) {
     const res: RawHierarchyMatch = {};
     let foundAny = false;
+    let foundExplicitTag = false;
 
     let segments: string[] = [];
     if (hasMultipleBrackets && bracketMatches) {
@@ -378,6 +462,7 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
         if (matM) {
           res.materia = sanitizeEtiquetaField(matM[1]);
           foundAny = true;
+          foundExplicitTag = true;
           continue;
         }
 
@@ -396,25 +481,34 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
             res.modulo = 'Módulo';
           }
           foundAny = true;
+          foundExplicitTag = true;
           continue;
         }
 
         // 3. Capítulo
-        const capM = seg.match(/^(?:cap[íi]tulo|cap\.?)\b(?:\s*(?:n[º°o]\.?|n[uú]mero)?\s*(\d+(?:\.\d+)*|[IVXLCDM]+))?(?:[ºª°o]|\.0|\.)?\b(?:\s*[:.\-–—]\s*|\s+)?(.+)?$/i);
+        const capM = seg.match(/^(?:cap[íi]tulo|cap\.?)\b(?:\s*[:.\-–—]\s*|\s+)?(?:\s*(?:n[º°o]\.?|n[uú]mero)?\s*(\d+(?:\.\d+)*|[IVXLCDM]+))?(?:[ºª°o]|\.0|\.)?\b(?:\s*[:.\-–—]\s*|\s+)?(.+)?$/i);
         if (capM) {
           const capNumRaw = capM[1]?.trim();
           let capTitle = (capM[2] || '').trim();
           capTitle = capTitle.replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
           const norm = normalizeChapterNumber(capNumRaw);
-          const capNum = norm ? norm.num : capNumRaw;
-          if (capNum) {
+          let capNum = norm ? norm.num : capNumRaw;
+          if (capNum && capTitle) {
             res.capituloNum = capNum;
-            res.capituloTitle = capTitle || undefined;
-            res.capitulo = capTitle ? `Capítulo ${capNum} – ${capTitle}` : `Capítulo ${capNum}`;
+            res.capituloTitle = capTitle;
+            res.capitulo = `Capítulo ${capNum} – ${capTitle}`;
+          } else if (capNum) {
+            res.capituloNum = capNum;
+            res.capitulo = `Capítulo ${capNum}`;
           } else if (capTitle) {
-            res.capitulo = normalizeCapituloName(capTitle);
+            const normCap = normalizeCapituloName(capTitle);
+            const numM = normCap.match(/\b(\d+)\b/);
+            if (numM) res.capituloNum = numM[1];
+            res.capitulo = normCap;
+            res.capituloTitle = capTitle;
           }
           foundAny = true;
+          foundExplicitTag = true;
           continue;
         }
 
@@ -426,6 +520,7 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
           const isTop = Boolean(subPrefixMatch[1]);
           const rawNum = (subPrefixMatch[3] || subPrefixMatch[4] || '').trim();
           const cleanNum = rawNum.replace(/\.+$/, '');
+          const parts = cleanNum ? cleanNum.split('.').filter(Boolean) : [];
           let title = (subPrefixMatch[5] || '').trim().replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
           title = title.replace(/^[\(\[]\s*([^()]+?)\s*[\)\]]$/, '$1').trim();
 
@@ -436,8 +531,15 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
             res.subtopico = fullSub;
             res.topicoNum = cleanNum || undefined;
             res.topicoTitle = title || undefined;
-          } else if (res.subtopico && !res.tema) {
-            // Se já tem subtópico no mesmo cabeçalho (ex: Tópico 1.1.1 / Subtópico 1.1.1.1), o segundo vira Tema!
+          } else if (res.isTopico || parts.length === 3 || (!res.subtopico)) {
+            // Subtópico legítimo (Nível 3, ex: 2.2.2 - FONTES ABERTAS)
+            // Se anteriormente havia apenas Tópico (ex: 2.2), o Subtópico assume a posição de subtópico!
+            res.isTopico = false;
+            res.subtopico = fullSub;
+            res.topicoNum = cleanNum || undefined;
+            res.topicoTitle = title || undefined;
+          } else if (parts.length >= 4 && res.subtopico && !res.tema) {
+            // Nível 4 (ex: 2.2.2.2): Tema!
             res.tema = fullSub;
             res.temaNum = cleanNum || undefined;
             res.temaTitle = title || undefined;
@@ -447,11 +549,12 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
             res.topicoTitle = title || undefined;
           }
           foundAny = true;
+          foundExplicitTag = true;
           continue;
         }
 
         // 5. Tema / Detalhe / Subtópico do Subtópico
-        const temaM = seg.match(/^(?:\btema\b(?:\s*\([^)]*\))?|detalhe|subt[óo]pico\s+do\s+subt[óo]pico|subtopico\s+do\s+subtopico|sub-subt[óo]pico|\bsubtema\b)\s*(?:(\d+(?:\.\d+)*))?\b(?:\s*[:.\-–—]\s*|\s+)?(.+)?$/i);
+        const temaM = seg.match(/^(?:\btema\b(?:\s*\([^)]*\))?(?:\s*[\/\-–—]\s*detalhe)?|detalhe|subt[óo]pico\s+do\s+subt[óo]pico|subtopico\s+do\s+subtopico|sub-subt[óo]pico|\bsubtema\b)\s*(?:(\d+(?:\.\d+)*))?\b(?:\s*[:.\-–—]\s*|\s+)?(.+)?$/i);
         if (temaM) {
           const temaNum = temaM[1]?.trim();
           let temaTitle = (temaM[2] || '').trim();
@@ -466,13 +569,17 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
             res.temaNum = temaNum;
           }
           foundAny = true;
+          foundExplicitTag = true;
           continue;
         }
 
-        // Segmento posicional sem rótulo explícito:
-        if (sIdx === 0 && !res.materia && !res.modulo && !res.capitulo) {
-          res.materia = sanitizeEtiquetaField(seg);
-          foundAny = true;
+        // Segmento posicional sem rótulo explícito (SOMENTE se houver uma tag explícita prévia no cabeçalho):
+        if (sIdx === 0 && !res.materia && !res.modulo && !res.capitulo && !/^(?:\(?[a-eA-E]\)|[a-eA-E][\.\-–—\)])/i.test(seg)) {
+          // Apenas se o segmento tiver formato claro de matéria (curto, sem verbos de oração)
+          if (seg.length <= 40 && !/\b(?:deve|podem?|exige|são|estão|foram|rejeitando)\b/i.test(seg)) {
+            res.materia = sanitizeEtiquetaField(seg);
+            foundAny = true;
+          }
         } else if (!res.modulo && (/^m[óo]dulo/i.test(seg) || /^[0-9IVXLCDM]+$/i.test(seg))) {
           res.modulo = normalizeModuloName(seg);
           foundAny = true;
@@ -490,20 +597,11 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
             res.subtopico = sanitizeEtiquetaField(seg);
           }
           foundAny = true;
-        } else if (res.subtopico && !res.tema) {
-          // O subtópico já foi definido (ex: Subtópico: 4.6.1...) e este é o próximo elemento da cadeia: é o Tema!
-          res.tema = sanitizeEtiquetaField(seg);
-          foundAny = true;
-        } else if (!res.subtopico) {
-          res.subtopico = sanitizeEtiquetaField(seg);
-          foundAny = true;
-        } else if (!res.tema) {
-          res.tema = sanitizeEtiquetaField(seg);
-          foundAny = true;
         }
       }
 
-      if (foundAny) {
+      // Linha só é considerada válida se encontrou pelo menos uma tag explícita ou estrutura válida de cabeçalho
+      if (foundExplicitTag || (foundAny && (res.materia || res.modulo || res.capitulo))) {
         return res;
       }
     }
@@ -532,19 +630,26 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
     }
 
     // Capítulo
-    const capM = cleanLine.match(/(?:cap[íi]tulo|cap\.?)\b(?:\s*(?:n[º°o]\.?|n[uú]mero)?\s*(\d+(?:\.\d+)*|[IVXLCDM]+))?(?:[ºª°o]|\.0|\.)?\b(?:\s*[:.\-–—]\s*|\s+)?([^|;•\n\r>\]]+)?/i);
+    const capM = cleanLine.match(/(?:cap[íi]tulo|cap\.?)\b(?:\s*[:.\-–—]\s*|\s+)?(?:\s*(?:n[º°o]\.?|n[uú]mero)?\s*(\d+(?:\.\d+)*|[IVXLCDM]+))?(?:[ºª°o]|\.0|\.)?\b(?:\s*[:.\-–—]\s*|\s+)?([^|;•\n\r>\]]+)?/i);
     if (capM) {
       const capNumRaw = capM[1]?.trim();
       let capTitle = (capM[2] || '').trim();
       capTitle = capTitle.replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
       const norm = normalizeChapterNumber(capNumRaw);
-      const capNum = norm ? norm.num : capNumRaw;
-      if (capNum) {
+      let capNum = norm ? norm.num : capNumRaw;
+      if (capNum && capTitle) {
         res.capituloNum = capNum;
-        res.capituloTitle = capTitle || undefined;
-        res.capitulo = capTitle ? `Capítulo ${capNum} – ${capTitle}` : `Capítulo ${capNum}`;
+        res.capituloTitle = capTitle;
+        res.capitulo = `Capítulo ${capNum} – ${capTitle}`;
+      } else if (capNum) {
+        res.capituloNum = capNum;
+        res.capitulo = `Capítulo ${capNum}`;
       } else if (capTitle) {
-        res.capitulo = normalizeCapituloName(capTitle);
+        const normCap = normalizeCapituloName(capTitle);
+        const numM = normCap.match(/\b(\d+)\b/);
+        if (numM) res.capituloNum = numM[1];
+        res.capitulo = normCap;
+        res.capituloTitle = capTitle;
       }
       foundAny = true;
     }
@@ -572,7 +677,7 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
     }
 
     // Tema / Detalhe / Subtópico do Subtópico
-    const temaM = cleanLine.match(/(?:(?:\btema\b(?:\s*\([^)]*\))?|detalhe|subt[óo]pico\s+do\s+subt[óo]pico|subtopico\s+do\s+subtopico|sub-subt[óo]pico|\bsubtema\b))\s*(?:(\d+(?:\.\d+)*))?\s*[:.\-–—]?\s*([^|;•\n\r>\]]+)?/i);
+    const temaM = cleanLine.match(/(?:(?:\btema\b(?:\s*\([^)]*\))?(?:\s*[\/\-–—]\s*detalhe)?|detalhe|subt[óo]pico\s+do\s+subt[óo]pico|subtopico\s+do\s+subtopico|sub-subt[óo]pico|\bsubtema\b))\s*(?:(\d+(?:\.\d+)*))?\s*[:.\-–—]?\s*([^|;•\n\r>\]]+)?/i);
     if (temaM) {
       const temaNum = temaM[1]?.trim();
       let temaTitle = (temaM[2] || '').trim();
@@ -647,7 +752,7 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
   // Ex: Subtópico do subtópico: Peças Iniciais
   // Ex: Tema: Inquérito Policial
   const temaMatch = cleanLine.match(
-    /^(?:[#*=_~-]+\s*)?(?:\btema\b(?:\s*\([^)]*\))?|detalhe|subt[óo]pico\s+do\s+subt[óo]pico|subtopico\s+do\s+subtopico|sub-subt[óo]pico|\bsubtema\b)\s*(?:(\d+(?:\.\d+)*))?\s*[:.\-–—]?\s*([^\n\r]+)?$/i
+    /^(?:[#*=_~-]+\s*)?(?:\btema\b(?:\s*\([^)]*\))?(?:\s*[\/\-–—]\s*detalhe)?|detalhe|subt[óo]pico\s+do\s+subt[óo]pico|subtopico\s+do\s+subtopico|sub-subt[óo]pico|\bsubtema\b)\s*(?:(\d+(?:\.\d+)*))?\s*[:.\-–—]?\s*([^\n\r]+)?$/i
   );
   if (temaMatch) {
     const tNum = temaMatch[1]?.trim();
@@ -735,7 +840,7 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
   // Ex: Capítulo I
   // Ex: Capítulo: Peças de Polícia
   const capMatch = cleanLine.match(
-    /^(?:[#*=_~-]+\s*)?cap[íi]tulo(?:\s*(?:n[º°o]\.?|n[uú]mero)?\s*(\d+(?:\.\d+)*|[IVXLCDM]+))?(?:[ºª°o]|\.0|\.)?\b(?:\s*[:.\-–—]\s*|\s+)?([^\n\r]+)?/i
+    /^(?:[#*=_~-]+\s*)?cap[íi]tulo\b(?:\s*[:.\-–—]\s*|\s+)?(?:\s*(?:n[º°o]\.?|n[uú]mero)?\s*(\d+(?:\.\d+)*|[IVXLCDM]+))?(?:[ºª°o]|\.0|\.)?\b(?:\s*[:.\-–—]\s*|\s+)?([^\n\r]+)?/i
   );
   if (capMatch) {
     const capNumRaw = capMatch[1]?.trim();
@@ -751,7 +856,7 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
     }
 
     const norm = normalizeChapterNumber(capNumRaw);
-    const capNum = norm ? norm.num : capNumRaw;
+    let capNum = norm ? norm.num : capNumRaw;
     const cleanCapTitle = sanitizeEtiquetaField(capTitle);
 
     let finalCap = '';
@@ -761,13 +866,17 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
       finalCap = `Capítulo ${capNum}`;
     } else if (cleanCapTitle) {
       finalCap = normalizeCapituloName(cleanCapTitle);
+      const parsedNumM = finalCap.match(/\b(\d+)\b/);
+      if (parsedNumM && !capNum) {
+        capNum = parsedNumM[1];
+      }
     } else {
       finalCap = 'Capítulo';
     }
 
     return {
       capitulo: finalCap,
-      capituloNum: capNum,
+      capituloNum: capNum || undefined,
       capituloTitle: cleanCapTitle || undefined,
     };
   }
@@ -803,7 +912,13 @@ export function resolveHierarchyWithExisting(
 
   // 2. Resolver Capítulo com base existente
   const capNum = detected.capituloNum;
-  if (capNum) {
+  if (detected.capituloTitle) {
+    capitulo = capNum
+      ? `Capítulo ${capNum} – ${detected.capituloTitle}`
+      : `Capítulo – ${detected.capituloTitle}`;
+  } else if (detected.capitulo) {
+    capitulo = normalizeCapituloName(detected.capitulo);
+  } else if (capNum) {
     // Procurar capítulo existente com o mesmo número (ex: "Capítulo 4", "Capítulo 4 – ...", "4")
     const matchExistingCap = existingQuestions.find((q) => {
       if (!q.capitulo) return false;
@@ -812,19 +927,11 @@ export function resolveHierarchyWithExisting(
       return numMatch && numMatch[1] === capNum;
     });
 
-    if (matchExistingCap && matchExistingCap.capitulo) {
+    if (matchExistingCap && matchExistingCap.capitulo && !/introdu[çc][ãa]o/i.test(matchExistingCap.capitulo)) {
       capitulo = normalizeCapituloName(matchExistingCap.capitulo);
     } else {
-      capitulo = detected.capituloTitle
-        ? `Capítulo ${capNum} – ${detected.capituloTitle}`
-        : `Capítulo ${capNum}`;
+      capitulo = `Capítulo ${capNum}`;
     }
-  } else if (detected.capitulo) {
-    const cleanCap = normalizeCapituloName(detected.capitulo);
-    const matchExistingCap = existingQuestions.find(
-      (q) => q.capitulo && normalizeCapituloName(q.capitulo).toLowerCase() === cleanCap.toLowerCase()
-    );
-    capitulo = matchExistingCap?.capitulo ? normalizeCapituloName(matchExistingCap.capitulo) : cleanCap;
   } else if (context?.capitulo) {
     capitulo = normalizeCapituloName(context.capitulo);
   }
@@ -926,7 +1033,7 @@ export function getHierarchySegments(q: {
   const segments: HierarchySegment[] = [];
   const mat = sanitizeEtiquetaField(getQuestionMateria(q));
   const mod = sanitizeEtiquetaField(getQuestionModulo(q));
-  const cap = sanitizeEtiquetaField(q.capitulo);
+  const cap = sanitizeEtiquetaField(normalizeCapituloName(q.capitulo));
   const sub = sanitizeEtiquetaField(q.subtopico);
   const tema = sanitizeEtiquetaField(q.tema_subtopico);
 
@@ -952,7 +1059,7 @@ export function formatEtiqueta(q: {
   const parts: string[] = [];
   const mat = sanitizeEtiquetaField(getQuestionMateria(q));
   const mod = sanitizeEtiquetaField(getQuestionModulo(q));
-  const cap = sanitizeEtiquetaField(q.capitulo);
+  const cap = sanitizeEtiquetaField(normalizeCapituloName(q.capitulo));
   const sub = sanitizeEtiquetaField(q.subtopico);
   const tema = sanitizeEtiquetaField(q.tema_subtopico);
 
@@ -1604,13 +1711,10 @@ export function parseRawQuestionText(
       const rawSubVal = (subM[1] || subM[2]).trim().replace(/^[\-–—:]+/, '').trim();
       const numM = rawSubVal.match(/^(\d+(?:\.\d+)*)\.?\s*[:.\-–—]?\s*(.+)?$/);
       if (numM) {
-        subtopico = numM[1].trim();
         let subTitle = (numM[2] || '').trim().replace(/^[ºª°\.\s\-–—:]+/i, '').trim();
         subTitle = subTitle.replace(/^(\d+(?:\.\d+)*)\.?\s*[:.\-–—]?\s*/, '').trim();
         subTitle = subTitle.replace(/^[\(\[]\s*([^()]+?)\s*[\)\]]$/, '$1').trim();
-        if (subTitle && !tema_subtopico) {
-          tema_subtopico = sanitizeEtiquetaField(subTitle);
-        }
+        subtopico = subTitle ? `${numM[1].trim()} - ${sanitizeEtiquetaField(subTitle)}` : numM[1].trim();
       } else {
         subtopico = sanitizeEtiquetaField(rawSubVal);
       }
@@ -1625,12 +1729,18 @@ export function parseRawQuestionText(
   // Padrões de hierarquia no cabeçalho do texto bruto
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
+
+    // Linha de tag hierárquica vazia (ex: "TÓPICO:\nSUBTÓPICO:\nTEMA / DETALHE:") — NÃO deve ir para o enunciado
+    if (/^(?:mat[ée]ria|disciplina|m[óo]dulo|cap[íi]tulo|cap\.?|t[óo]pico|subt[óo]pico|sub-t[óo]pico|tema(?:\s*[\/\-–—]\s*detalhe)?|detalhe|subtema):\s*$/i.test(line)) {
+      continue;
+    }
+
     const matMatch = line.match(/^(?:mat[ée]ria|disciplina|nome da mat[ée]ria):\s*(.+)$/i);
     const modMatch = line.match(/^(?:m[óo]dulo):\s*(.+)$/i);
     const capMatch = line.match(/^(?:cap[íi]tulo|cap[íi]tulo da mat[ée]ria):\s*(.+)$/i);
     const topMatch = line.match(/^(?:t[óo]pico|assunto):\s*(.+)$/i);
     const subMatch = line.match(/^(?:subt[óo]pico|subassunto):\s*(.+)$/i);
-    const temaMatch = line.match(/^(?:tema(?:\s*\([^)]*\))?|detalhe|tema_subt[óo]pico|subtema|subt[óo]pico\s+do\s+subt[óo]pico):\s*(.+)$/i);
+    const temaMatch = line.match(/^(?:tema(?:\s*\([^)]*\))?(?:\s*[\/\-–—]\s*detalhe)?|detalhe|tema_subt[óo]pico|subtema|subt[óo]pico\s+do\s+subt[óo]pico):\s*(.+)$/i);
     const pesoMatch = line.match(/^(?:peso|pontos?|valor(?:\s+em\s+pontos)?):\s*(\d+(?:[.,]\d+)?)/i);
 
     // Também detectar cabeçalhos tipo QUESTÕES INÉDITAS — BLOCO 4.6.2 (AUTO CIRCUNSTANCIADO)
@@ -2177,6 +2287,27 @@ export function parseBatchRawQuestions(
     const line = lines[i];
     const detected = extractHierarchyFromHeaderLine(line);
 
+    if (detected) {
+      if (detected.clearTopico) {
+        delete activeHierarchy.subtopico;
+        delete activeHierarchy.topicoNum;
+        delete activeHierarchy.topicoTitle;
+      }
+      if (detected.clearSubtopico) {
+        // Se NÃO há um Tópico ativo na hierarquia atual, limpa o subtópico.
+        // Mas se foi definido um Tópico (ex: TÓPICO: 2.3), ele permanece como subtopico!
+        if (!activeHierarchy.topicoNum) {
+          delete activeHierarchy.subtopico;
+          delete activeHierarchy.topicoTitle;
+        }
+      }
+      if (detected.clearTema) {
+        delete activeHierarchy.tema;
+        delete activeHierarchy.temaNum;
+        delete activeHierarchy.temaTitle;
+      }
+    }
+
     if (
       detected &&
       (detected.materia ||
@@ -2260,35 +2391,50 @@ export function parseBatchRawQuestions(
         const currParts = currNum ? currNum.split('.').filter(Boolean) : [];
         const isChildOfPrevious = Boolean(prevNum && currNum && currNum !== prevNum && currNum.startsWith(prevNum) && currParts.length > prevParts.length);
 
-        if (isChildOfPrevious && !detected.isTopico) {
-          // É o Tema filho do Subtópico anterior (ex: SUBTÓPICO: 1.1.1 -> TEMA / SUBTÓPICO: 1.1.1.1)!
+        if (detected.isTopico) {
+          // Nível 2 (ex: Tópico 2.2)
+          activeHierarchy.subtopico = detected.subtopico;
+          activeHierarchy.topicoNum = currNum;
+          activeHierarchy.topicoTitle = detected.topicoTitle;
+          activeHierarchy.isTopico = true;
+        } else if (activeHierarchy.isTopico || currParts.length === 3 || prevParts.length <= 2) {
+          // Nível 3: Subtópico legítimo (ex: Subtópico 2.2.2 – FONTES ABERTAS)
+          activeHierarchy.subtopico = detected.subtopico;
+          activeHierarchy.topicoNum = currNum;
+          activeHierarchy.topicoTitle = detected.topicoTitle;
+          activeHierarchy.isTopico = false;
+          if (detected.tema || detected.temaNum) {
+            activeHierarchy.tema = detected.tema;
+            activeHierarchy.temaNum = detected.temaNum;
+            activeHierarchy.temaTitle = detected.temaTitle;
+          } else {
+            delete activeHierarchy.tema;
+            delete activeHierarchy.temaNum;
+            delete activeHierarchy.temaTitle;
+          }
+        } else if (currParts.length >= 4 || (prevParts.length >= 3 && isChildOfPrevious)) {
+          // Nível 4 (ex: 2.2.2.2 ou Tema filho de Subtópico)
           activeHierarchy.tema = detected.tema || detected.subtopico;
           activeHierarchy.temaNum = currNum || detected.temaNum;
           activeHierarchy.temaTitle = detected.topicoTitle || detected.temaTitle;
         } else if (detected.subtopico && detected.tema) {
-          // A linha já forneceu ambos os campos explicitamente (ex: SUBTÓPICO: 1.1.2 / TEMA: 1.1.2.1)
           activeHierarchy.subtopico = detected.subtopico;
           activeHierarchy.topicoNum = detected.topicoNum;
           activeHierarchy.topicoTitle = detected.topicoTitle;
           activeHierarchy.tema = detected.tema;
           activeHierarchy.temaNum = detected.temaNum;
           activeHierarchy.temaTitle = detected.temaTitle;
-        } else if (currParts.length >= 4 && !detected.isTopico) {
-          // Nível 4 (ex: 2.2.2.2 ou 1.1.1.1): Tema!
-          activeHierarchy.tema = detected.tema || detected.subtopico;
-          activeHierarchy.temaNum = currNum || detected.temaNum;
-          activeHierarchy.temaTitle = detected.topicoTitle || detected.temaTitle;
+          activeHierarchy.isTopico = false;
         } else {
-          // Novo Subtópico (nível 3 ou padrão)
           activeHierarchy.subtopico = detected.subtopico;
           activeHierarchy.topicoNum = detected.topicoNum;
           activeHierarchy.topicoTitle = detected.topicoTitle;
+          activeHierarchy.isTopico = false;
           if (detected.tema || detected.temaNum) {
             activeHierarchy.tema = detected.tema;
             activeHierarchy.temaNum = detected.temaNum;
             activeHierarchy.temaTitle = detected.temaTitle;
           } else {
-            // Limpa qualquer tema anterior
             delete activeHierarchy.tema;
             delete activeHierarchy.temaNum;
             delete activeHierarchy.temaTitle;
@@ -2301,6 +2447,9 @@ export function parseBatchRawQuestions(
         activeHierarchy.temaNum = detected.temaNum;
         activeHierarchy.temaTitle = detected.temaTitle;
       }
+    } else if (detected && (detected.clearTopico || detected.clearSubtopico || detected.clearTema)) {
+      // Linha de tag de cabeçalho vazia: não vai para o corpo da questão
+      continue;
     } else {
       currentLines.push(line);
     }

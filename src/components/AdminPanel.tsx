@@ -1338,7 +1338,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
     extractedQuestions.forEach((q) => {
       const mod = normalizeModuloName(q.modulo || moduloMateria || '');
-      const cap = q.capitulo || capituloMateria || '';
+      let cap = q.capitulo || capituloMateria || '';
       const sub = q.subtopico || subtopico || '';
       const tm = q.tema_subtopico || tema || '';
 
@@ -1362,8 +1362,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       // Capítulo
       if (cap) {
+        cap = normalizeCapituloName(cap);
         const isExisting = existingQuestions.some(
-          (eq) => eq.capitulo && eq.capitulo.trim().toLowerCase() === cap.trim().toLowerCase()
+          (eq) => eq.capitulo && normalizeCapituloName(eq.capitulo).toLowerCase() === cap.toLowerCase()
         );
         if (!isExisting) {
           const id = `cap:${cap.toLowerCase()}`;
@@ -3522,6 +3523,11 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                                       {q.subtopico}
                                     </span>
                                   )}
+                                  {q.tema_subtopico && (
+                                    <span className="text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded">
+                                      {q.tema_subtopico}
+                                    </span>
+                                  )}
                                 </>
                               );
                             })()}
@@ -3875,6 +3881,11 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                           {q.subtopico && (
                             <span className="px-2 py-0.5 rounded bg-slate-50 text-slate-600 border border-slate-200 text-[11px]">
                               {q.subtopico}
+                            </span>
+                          )}
+                          {q.tema_subtopico && (
+                            <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[11px]">
+                              {q.tema_subtopico}
                             </span>
                           )}
                           <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200/60 text-[11px] font-bold">
@@ -4918,11 +4929,11 @@ Comentário: Apenas a alternativa B atende ao comando...`}
       <NotebookLMModal
         isOpen={isNotebookModalOpen}
         onClose={() => setIsNotebookModalOpen(false)}
-        defaultMateria={nomeMateria || 'IPO-II'}
+        defaultMateria={nomeMateria || 'IPO-2'}
         defaultModulo={moduloMateria || 'MÓDULO II – FORMALIZAÇÃO DE DADOS DE INTERESSE (UNIDADE 1)'}
-        defaultCapitulo={capituloMateria || 'Capítulo 1 – INTRODUÇÃO'}
-        defaultSubtopico={subtopico || '4.6.1'}
-        defaultTema={tema || 'DA INFORMAÇÃO DE POLÍCIA JUDICIÁRIA (IPJ)'}
+        defaultCapitulo={capituloMateria || ''}
+        defaultSubtopico={subtopico || ''}
+        defaultTema={tema || ''}
         onLoadExampleToImporter={(sampleText) => {
           setRawText(sampleText);
           setRawCommentsText('');
