@@ -177,9 +177,37 @@ const MODULO_ARABIC_MAP: Record<string, string> = {
   'XX': '20',
 };
 
+export const STANDARD_MODULOS: string[] = [
+  'Módulo I',
+  'Módulo II',
+  'Módulo V',
+  'Módulo VI',
+  'Módulo VII',
+  'Módulo VIII',
+  'Módulo IX',
+];
+
+export function getModuloOrderIndex(moduloName?: string): number {
+  if (!moduloName) return 999;
+  const norm = normalizeModuloName(moduloName);
+  const m = norm.match(/m[óo]dulo\s*([ivxlcdm]+|[0-9]+)/i);
+  if (!m) return 999;
+  const id = m[1].toUpperCase();
+  const arabicStr = MODULO_ARABIC_MAP[id] || id;
+  const num = parseInt(arabicStr, 10);
+  return isNaN(num) ? 999 : num;
+}
+
+export function compareModulosRoman(a: string, b: string): number {
+  const orderA = getModuloOrderIndex(a);
+  const orderB = getModuloOrderIndex(b);
+  if (orderA !== orderB) return orderA - orderB;
+  return a.localeCompare(b, undefined, { numeric: true });
+}
+
 /**
- * Normaliza o nome do Módulo para garantir que "modulo 2" e "modulo II"
- * sejam rigorosamente o mesmo módulo canônico ("Módulo II").
+ * Normaliza o nome do Módulo para garantir que variações como "modulo 5", "Módulo 5" e "módulo V"
+ * sejam rigorosamente o mesmo módulo canônico ("Módulo V").
  * Trata variações de numerais arábicos e romanos, maiúsculas/minúsculas e pontuação.
  */
 export function normalizeModuloName(raw?: string): string {
@@ -268,18 +296,17 @@ export function areCapitulosEquivalent(a?: string, b?: string): boolean {
   const normB = normalizeHierarchicalString(normalizeCapituloName(b));
   if (normA === normB) return true;
 
-  const numA = normA.match(/\b0?(\d+)\b/);
-  const numB = normB.match(/\b0?(\d+)\b/);
+  // Extrair numeração de seção ou capítulo (ex: 2.1, 4.2, 5.5.6, 3)
+  const numA = normA.match(/\b0?(\d+(?:\.\d+)*)\b/);
+  const numB = normB.match(/\b0?(\d+(?:\.\d+)*)\b/);
   if (numA && numB && numA[1] === numB[1]) {
-    const isPureNumA = /^cap[íi]tulo\s*\d+$/i.test(normA) || /^\d+$/.test(normA);
-    const isPureNumB = /^cap[íi]tulo\s*\d+$/i.test(normB) || /^\d+$/.test(normB);
-    if (isPureNumA || isPureNumB) return true;
+    return true;
   }
   return false;
 }
 
 /**
- * Compara se dois subtópicos são equivalentes (ex: "2.2.2" e "2.2.2 - FONTES ABERTAS", ou variações de traço).
+ * Compara se dois subtópicos são equivalentes (ex: "4.6.1", "Subtópico 4.6.1: IPJ", ou variações de traço).
  */
 export function areSubtopicosEquivalent(a?: string, b?: string): boolean {
   if (!a && !b) return true;
@@ -288,12 +315,10 @@ export function areSubtopicosEquivalent(a?: string, b?: string): boolean {
   const normB = normalizeHierarchicalString(b);
   if (normA === normB) return true;
 
-  const numA = normA.match(/^(\d+(?:\.\d+)*)/);
-  const numB = normB.match(/^(\d+(?:\.\d+)*)/);
+  const numA = normA.match(/(?:subt[óo]pico\s*)?(\d+(?:\.\d+)*)/i);
+  const numB = normB.match(/(?:subt[óo]pico\s*)?(\d+(?:\.\d+)*)/i);
   if (numA && numB && numA[1] === numB[1]) {
-    const isPureNumA = /^\d+(?:\.\d+)*$/.test(normA);
-    const isPureNumB = /^\d+(?:\.\d+)*$/.test(normB);
-    if (isPureNumA || isPureNumB) return true;
+    return true;
   }
   return false;
 }
@@ -918,19 +943,18 @@ export function resolveHierarchyWithExisting(
     subtopico = topNum;
   }
 
-  // Se o subtópico possui numeração (ex: 3.2 -> Capítulo 3; 4.6 -> Capítulo 4; 1.1 -> Capítulo 1),
-  // o capítulo é determinado com prioridade absoluta pelo número do subtópico!
-  const subNumMatch = subtopico.match(/^(?:subt[óo]pico\s*)?(\d+)\./i);
-  if (subNumMatch) {
-    const subMajor = subNumMatch[1];
-    if (subMajor === '3') {
-      capitulo = 'Capítulo 3 – MEIOS ORDINÁRIOS DE INVESTIGAÇÃO';
-    } else if (subMajor === '4') {
-      capitulo = 'Capítulo 4 – FORMALIZAÇÃO DOS DADOS DE INTERESSE OBTIDOS NO CURSO DA INVESTIGAÇÃO POLICIAL';
-    } else if (subMajor === '1') {
-      capitulo = 'Capítulo 1 – INTRODUÇÃO';
-    } else if (subMajor === '2') {
-      capitulo = 'Capítulo 2';
+  // Se o subtópico possui numeração (ex: 3.1.2 -> Capítulo 3.1; 4.6.1 -> Capítulo 4.6; 5.5.6.1 -> Capítulo 5.5.6),
+  // o capítulo é determinado com prioridade pela numeração de seção oficial!
+  const subSecMatch = subtopico.match(/\b(5\.5\.6|\d+\.\d+)\b/);
+  if (subSecMatch && CANONICAL_CAPITULOS_MAP[subSecMatch[1]]) {
+    capitulo = CANONICAL_CAPITULOS_MAP[subSecMatch[1]];
+  } else {
+    const subNumMatch = subtopico.match(/^(?:subt[óo]pico\s*)?(\d+)\./i);
+    if (subNumMatch) {
+      const subMajor = subNumMatch[1];
+      if (CANONICAL_CAPITULOS_MAP[subMajor]) {
+        capitulo = CANONICAL_CAPITULOS_MAP[subMajor];
+      }
     }
   }
 
@@ -962,38 +986,44 @@ export function resolveHierarchyWithExisting(
     }
   }
 
-  // 3. Resolver Módulo: Módulo I contém os Capítulos 1, 2 e 3; Módulo II contém exclusivamente o Capítulo 4
-  const capMajorMatch = capitulo.match(/\b([1-4])\b/);
-  const capMajorNum = capMajorMatch ? parseInt(capMajorMatch[1], 10) : 0;
-
-  if (capMajorNum >= 1 && capMajorNum <= 3) {
-    // Capítulos 1, 2 e 3 NUNCA podem pertencer ao Módulo II! Pertencem estritamente ao Módulo I
-    modulo = 'Módulo I';
-  } else if (capMajorNum >= 4) {
-    // Capítulo 4 pertence ao Módulo II
-    if (detected.modulo && /m[óo]dulo\s*(?:2|ii)\b/i.test(detected.modulo)) {
-      modulo = normalizeModuloName(detected.modulo);
-    } else {
-      modulo = 'Módulo II – Formalização de Dados de Interesse';
-    }
-  } else if (detected.modulo) {
-    const cleanMod = normalizeModuloName(detected.modulo);
-    const matchExistingMod = existingQuestions.find((q) => {
-      const m = getQuestionModulo(q);
-      return areModulosEquivalent(m, cleanMod);
-    });
-
-    modulo = matchExistingMod ? normalizeModuloName(getQuestionModulo(matchExistingMod)) : cleanMod;
-  } else if (!modulo && capitulo) {
+  // 3. Resolver Módulo: Respeita módulo informado (I, II, V, VI, VII, VIII, IX...) ou existente no banco
+  if (detected.modulo) {
+    modulo = normalizeModuloName(detected.modulo);
+  } else if (context?.modulo) {
+    modulo = normalizeModuloName(context.modulo);
+  } else if (capitulo) {
     // Se o módulo não veio no texto, verificar se o Capítulo já possui um Módulo associado no banco
     const sameCapQuestion = existingQuestions.find(
       (q) =>
         q.capitulo &&
-        q.capitulo.trim().toLowerCase() === capitulo.toLowerCase() &&
+        areCapitulosEquivalent(q.capitulo, capitulo) &&
         getQuestionModulo(q)
     );
     if (sameCapQuestion) {
       modulo = normalizeModuloName(getQuestionModulo(sameCapQuestion));
+    } else {
+      // Tenta inferir pela numeração de seção ou capítulo
+      const secMatch = `${capitulo} ${subtopico}`.match(/\b(5\.5\.6|\d+\.\d+)\b/);
+      if (secMatch) {
+        const s = secMatch[1];
+        if (s.startsWith('2.') || s === '1' || s === '2') modulo = 'Módulo I';
+        else if (s.startsWith('4.') || s === '4') modulo = 'Módulo II';
+        else if (s === '3.1') modulo = 'Módulo V';
+        else if (s === '3.2') modulo = 'Módulo VI';
+        else if (s === '3.4') modulo = 'Módulo VII';
+        else if (s === '3.3') modulo = 'Módulo VIII';
+        else if (s === '3.5' || s === '3.6' || s === '5.5.6') modulo = 'Módulo IX';
+      } else {
+        const capNumMatch = capitulo.match(/\b(\d+)\b/);
+        const capNum = capNumMatch ? parseInt(capNumMatch[1], 10) : 0;
+        if (capNum >= 1 && capNum <= 3) modulo = 'Módulo I';
+        else if (capNum === 4) modulo = 'Módulo II';
+        else if (capNum === 5) modulo = 'Módulo V';
+        else if (capNum === 6) modulo = 'Módulo VI';
+        else if (capNum === 7) modulo = 'Módulo VII';
+        else if (capNum === 8) modulo = 'Módulo VIII';
+        else if (capNum === 9) modulo = 'Módulo IX';
+      }
     }
   }
 
@@ -1012,6 +1042,20 @@ export function resolveHierarchyWithExisting(
     tema_subtopico: tema,
     peso: context?.peso !== undefined ? context.peso : 1,
   };
+}
+
+export function isMateriaMatch(q: { materia?: string; modulo?: string }, filterMat: string): boolean {
+  if (!filterMat) return true;
+  const qMat = getQuestionMateria(q).toLowerCase();
+  const fMat = filterMat.toLowerCase();
+  if (qMat === fMat) return true;
+  if (
+    (qMat.includes('ipo') && fMat.includes('ipo')) ||
+    (qMat.includes('investiga') && fMat.includes('investiga'))
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -1040,67 +1084,102 @@ export function getQuestionMateria(q: { materia?: string; modulo?: string }): st
  *   - Capítulo 4 – FORMALIZAÇÃO DOS DADOS DE INTERESSE OBTIDOS NO CURSO DA INVESTIGAÇÃO POLICIAL
  */
 export const CANONICAL_CAPITULOS_MAP: Record<string, string> = {
+  // Módulo I: Obtenção de Elementos de Informação
+  '2.1': 'Capítulo 2.1: Critérios para a seleção de técnicas investigativas',
+  '2.2': 'Capítulo 2.2: Encadeamento e integração de técnicas',
+  '2.3': 'Capítulo 2.3: Gestão de dados sensíveis e aspectos práticos de formalização',
+  '2.4': 'Capítulo 2.4: Processo investigativo, etapas da coleta de provas',
+
+  // Módulo II: Formalização de Elementos de Informação
+  '4.1': 'Capítulo 4.1: Fundamentação normativa',
+  '4.2': 'Capítulo 4.2: Formalização da IN 255/2023',
+  '4.3': 'Capítulo 4.3: Formalização de audiências',
+  '4.4': 'Capítulo 4.4: Formalização de reconhecimento',
+  '4.5': 'Capítulo 4.5: Formalização de exame pericial',
+  '4.6': 'Capítulo 4.6: Formalização de outros atos de investigação',
+
+  // Módulo V: Fontes Abertas
+  '3.1': 'Capítulo 3.1: Pesquisas em fontes abertas (OSINT)',
+
+  // Módulo VI: Pesquisa e Análise Cadastral
+  '3.2': 'Capítulo 3.2: Pesquisa em bancos de dados',
+
+  // Módulo VII: Análise de Vínculos
+  '3.4': 'Capítulo 3.4: Análise de vínculos',
+
+  // Módulo VIII: RIF, Relatório de Inteligência Financeira
+  '3.3': 'Capítulo 3.3: Análise de Relatórios de Inteligência Financeira',
+
+  // Módulo IX: Ações Encobertas
+  '3.5': 'Capítulo 3.5: Ações encobertas',
+  '3.6': 'Capítulo 3.6: Obtenção de dados oriundos de fontes humanas',
+  '5.5.6': 'Capítulo 5.5.6: Infiltração policial',
+
+  // Mapeamentos genéricos de fallback
   '1': 'Capítulo 1 – INTRODUÇÃO',
   '2': 'Capítulo 2',
   '3': 'Capítulo 3 – MEIOS ORDINÁRIOS DE INVESTIGAÇÃO',
   '4': 'Capítulo 4 – FORMALIZAÇÃO DOS DADOS DE INTERESSE OBTIDOS NO CURSO DA INVESTIGAÇÃO POLICIAL',
+  '5': 'Capítulo 5',
+  '6': 'Capítulo 6',
+  '7': 'Capítulo 7',
+  '8': 'Capítulo 8',
+  '9': 'Capítulo 9',
 };
 
 /**
  * Retorna o capítulo canônico rigoroso de uma questão com base na numeração de seus subtópicos ou capítulo.
- * Garante que:
- * - Subtópicos 3.X (ex: 3.2, 3.1) pertençam obrigatoriamente ao Capítulo 3 e NUNCA ao Capítulo 1!
- * - Subtópicos 1.X pertençam ao Capítulo 1!
- * - Subtópicos 4.X pertençam ao Capítulo 4!
  */
 export function getCanonicalCapituloForQuestion(q: {
   capitulo?: string;
   subtopico?: string;
   tema_subtopico?: string;
 }): string {
-  // 1. Prioridade absoluta: número extraído do subtópico (ex: "3.2", "3.2.1", "Subtópico 3.2")
-  let derivedNum = '';
-  if (q.subtopico) {
-    const m = q.subtopico.trim().match(/^(?:subt[óo]pico\s*)?(\d+)(?:\.|$)/i);
-    if (m) derivedNum = m[1];
-  }
-  if (!derivedNum && q.tema_subtopico) {
-    const m = q.tema_subtopico.trim().match(/^(?:tema\s*)?(\d+)(?:\.|$)/i);
-    if (m) derivedNum = m[1];
-  }
-
-  // Se o subtópico é 3.X (ex: 3.2), O CAPÍTULO É ESTRITAMENTE O CAPÍTULO 3!
-  if (derivedNum === '3') {
-    return CANONICAL_CAPITULOS_MAP['3'];
-  }
-  if (derivedNum === '4') {
-    return CANONICAL_CAPITULOS_MAP['4'];
-  }
-  if (derivedNum === '1') {
-    return CANONICAL_CAPITULOS_MAP['1'];
-  }
-  if (derivedNum === '2') {
-    return CANONICAL_CAPITULOS_MAP['2'];
-  }
-
-  // 2. Se o subtópico não tiver número 1-4, analisar o capítulo atual
-  if (q.capitulo) {
-    const capNorm = normalizeCapituloName(q.capitulo);
-    const capNumMatch = capNorm.match(/\b([1-4])\b/);
-    if (capNumMatch && CANONICAL_CAPITULOS_MAP[capNumMatch[1]]) {
-      return capNorm.length > 15 ? capNorm : CANONICAL_CAPITULOS_MAP[capNumMatch[1]];
+  // 1. Se a questão já tiver capítulo explícito, normaliza e preserva!
+  if (q.capitulo && q.capitulo.trim()) {
+    const rawCap = q.capitulo.trim();
+    // Verifica se o texto do capítulo contém uma seção conhecida (ex: 2.1, 4.6, 5.5.6)
+    const secM = rawCap.match(/\b(5\.5\.6|\d+\.\d+)\b/);
+    if (secM && CANONICAL_CAPITULOS_MAP[secM[1]]) {
+      return CANONICAL_CAPITULOS_MAP[secM[1]];
     }
-    return capNorm;
+    return normalizeCapituloName(rawCap);
+  }
+
+  // 2. Se não veio capítulo, extrai do subtópico (ex: "3.1.2" -> "3.1", "4.6.1" -> "4.6", "5.5.6.1" -> "5.5.6")
+  let derivedSec = '';
+  const subCandidate = q.subtopico || q.tema_subtopico || '';
+  if (subCandidate) {
+    const mSpecial = subCandidate.match(/\b(5\.5\.6)\b/);
+    if (mSpecial) {
+      derivedSec = mSpecial[1];
+    } else {
+      const mSec = subCandidate.match(/(?:subt[óo]pico\s*|tema\s*)?(\d+\.\d+)(?:\.|$)/i);
+      if (mSec) {
+        derivedSec = mSec[1];
+      } else {
+        const mMajor = subCandidate.match(/(?:subt[óo]pico\s*|tema\s*)?(\d+)(?:\.|$)/i);
+        if (mMajor) {
+          derivedSec = mMajor[1];
+        }
+      }
+    }
+  }
+
+  if (derivedSec) {
+    if (CANONICAL_CAPITULOS_MAP[derivedSec]) {
+      return CANONICAL_CAPITULOS_MAP[derivedSec];
+    }
+    return `Capítulo ${derivedSec}`;
   }
 
   return '';
 }
 
 /**
- * Retorna o módulo canônico rigoroso de uma questão com base no seu capítulo ou subtópico:
- * - Módulo I contém os Capítulos 1, 2 e 3 (e todos os subtópicos 1.X, 2.X, 3.X).
- * - Módulo II contém exclusivamente o Capítulo 4 (e todos os subtópicos 4.X).
- * Garante que Capítulos 1, 2 e 3 NUNCA fiquem no Módulo II!
+ * Retorna o módulo canônico rigoroso de uma questão com suporte aos Módulos I, II, V, VI, VII, VIII, IX:
+ * - Se a questão já tiver módulo especificado (ex: Módulo V, Módulo VI...), preserva e normaliza!
+ * - Se não tiver módulo, infere a partir do capítulo ou subtópico conforme o plano de aula do IPO-2.
  */
 export function getCanonicalModuloForQuestion(q: {
   modulo?: string;
@@ -1108,24 +1187,43 @@ export function getCanonicalModuloForQuestion(q: {
   subtopico?: string;
   tema_subtopico?: string;
 }): string {
-  const cap = getCanonicalCapituloForQuestion(q) || q.capitulo || '';
-  const capMatch = cap.match(/\b([1-4])\b/);
-  const capNum = capMatch ? parseInt(capMatch[1], 10) : 0;
+  // 1. Prioridade máxima: se o módulo já foi especificado, normaliza e respeita
+  if (q.modulo && q.modulo.trim()) {
+    return normalizeModuloName(q.modulo.trim());
+  }
 
-  if (capNum >= 1 && capNum <= 3) {
+  // 2. Inferência detalhada a partir do código de seção (subtópico ou capítulo)
+  const fullText = `${q.subtopico || ''} ${q.capitulo || ''} ${q.tema_subtopico || ''}`;
+
+  if (/\b5\.5\.6\b/.test(fullText)) return 'Módulo IX';
+  if (/\b3\.1(?:\.|\b)/.test(fullText)) return 'Módulo V';
+  if (/\b3\.2(?:\.|\b)/.test(fullText)) return 'Módulo VI';
+  if (/\b3\.4(?:\.|\b)/.test(fullText)) return 'Módulo VII';
+  if (/\b3\.3(?:\.|\b)/.test(fullText)) return 'Módulo VIII';
+  if (/\b3\.5(?:\.|\b)/.test(fullText) || /\b3\.6(?:\.|\b)/.test(fullText)) return 'Módulo IX';
+
+  if (/\b2\.[1-4](?:\.|\b)/.test(fullText) || /\b(?:cap[íi]tulo\s*)?2\b/i.test(fullText) || /\b(?:cap[íi]tulo\s*)?1\b/i.test(fullText)) {
     return 'Módulo I';
   }
-  if (capNum >= 4) {
-    if (q.modulo && /m[óo]dulo\s*(?:2|ii)\b/i.test(q.modulo)) {
-      return normalizeModuloName(q.modulo);
-    }
-    return 'Módulo II – Formalização de Dados de Interesse';
+
+  if (/\b4\.[1-6](?:\.|\b)/.test(fullText) || /\b(?:cap[íi]tulo\s*)?4\b/i.test(fullText)) {
+    return 'Módulo II';
   }
 
-  if (q.modulo && q.modulo.trim()) {
-    return normalizeModuloName(q.modulo);
+  // 3. Fallback numérico por major number
+  const majorMatch = fullText.match(/\b([1-9])\b/);
+  if (majorMatch) {
+    const num = parseInt(majorMatch[1], 10);
+    if (num >= 1 && num <= 2) return 'Módulo I';
+    if (num === 4) return 'Módulo II';
+    if (num === 5) return 'Módulo V';
+    if (num === 6) return 'Módulo VI';
+    if (num === 7) return 'Módulo VII';
+    if (num === 8) return 'Módulo VIII';
+    if (num === 9) return 'Módulo IX';
   }
-  return 'Módulo I';
+
+  return '';
 }
 
 /**
@@ -1166,6 +1264,7 @@ export function getHierarchySegments(q: {
   modulo?: string;
   capitulo?: string;
   subtopico?: string;
+  tema?: string;
   tema_subtopico?: string;
 }): HierarchySegment[] {
   const segments: HierarchySegment[] = [];
@@ -1173,7 +1272,7 @@ export function getHierarchySegments(q: {
   const mod = sanitizeEtiquetaField(getQuestionModulo(q));
   const cap = sanitizeEtiquetaField(normalizeCapituloName(q.capitulo));
   const sub = sanitizeEtiquetaField(q.subtopico);
-  const tema = sanitizeEtiquetaField(q.tema_subtopico);
+  const tema = sanitizeEtiquetaField(q.tema || q.tema_subtopico);
 
   if (mat) segments.push({ type: 'materia', label: 'Matéria', value: mat });
   if (mod && mod !== mat) segments.push({ type: 'modulo', label: 'Módulo', value: mod });
@@ -1192,6 +1291,7 @@ export function formatEtiqueta(q: {
   modulo?: string;
   capitulo?: string;
   subtopico?: string;
+  tema?: string;
   tema_subtopico?: string;
 }): string {
   const parts: string[] = [];
@@ -1199,7 +1299,7 @@ export function formatEtiqueta(q: {
   const mod = sanitizeEtiquetaField(getQuestionModulo(q));
   const cap = sanitizeEtiquetaField(normalizeCapituloName(q.capitulo));
   const sub = sanitizeEtiquetaField(q.subtopico);
-  const tema = sanitizeEtiquetaField(q.tema_subtopico);
+  const tema = sanitizeEtiquetaField(q.tema || q.tema_subtopico);
 
   if (mat) parts.push(mat);
   if (mod && mod !== mat) parts.push(mod);
@@ -2742,10 +2842,6 @@ export function parseBatchRawQuestions(
   });
 
   // Harmonização e consolidação uniforme do Capítulo e Módulo:
-  // - Subtópicos 3.X (ex: 3.2) pertencem ESTRITAMENTE ao Capítulo 3 e Módulo I (NUNCA ao Capítulo 1 nem Módulo II!)
-  // - Subtópicos 4.X pertencem ao Capítulo 4 e Módulo II
-  // - Subtópicos 1.X pertencem ao Capítulo 1 e Módulo I
-  // - Módulo I contém exclusivamente os Capítulos 1, 2 e 3; Módulo II contém exclusivamente o Capítulo 4
   realQuestions.forEach((q) => {
     const canonicalCap = getCanonicalCapituloForQuestion(q);
     if (canonicalCap) {
@@ -2756,8 +2852,14 @@ export function parseBatchRawQuestions(
       q.capitulo = normalizeCapituloName(q.capitulo);
     }
 
-    // Atribuir o módulo canônico correto de acordo com o capítulo
-    q.modulo = getCanonicalModuloForQuestion(q);
+    // Atribuir o módulo preservando quando informado (I, II, V, VI, VII, VIII, IX...)
+    if (q.modulo && q.modulo.trim()) {
+      q.modulo = normalizeModuloName(q.modulo);
+    } else if (context?.modulo && context.modulo.trim()) {
+      q.modulo = normalizeModuloName(context.modulo);
+    } else {
+      q.modulo = getCanonicalModuloForQuestion(q);
+    }
   });
 
   return realQuestions;

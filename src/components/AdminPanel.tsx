@@ -15,7 +15,17 @@ import {
   normalizeCapituloName,
   normalizeModuloName,
   areModulosEquivalent,
+  areCapitulosEquivalent,
+  areSubtopicosEquivalent,
+  compareModulosRoman,
+  STANDARD_MODULOS,
 } from '../utils/parser';
+import {
+  OFFICIAL_HIERARCHY_TREE,
+  OFFICIAL_MATERIA,
+  mapQuestionToOfficialHierarchy,
+} from '../types/hierarchyTree';
+import { classifyQuestionsWithAI } from '../services/aiClassifier';
 import { db, handleFirestoreError, OperationType } from '../firebase/config';
 import {
   collection,
@@ -23,6 +33,7 @@ import {
   deleteDoc,
   doc,
   writeBatch,
+  getDocs,
 } from 'firebase/firestore';
 import {
   ShieldAlert,
@@ -60,6 +71,7 @@ import {
   Bot,
   Clipboard,
   RefreshCw,
+  Search,
 } from 'lucide-react';
 import { MatriculaManager } from './MatriculaManager';
 import { NotebookLMModal } from './NotebookLMModal';
@@ -103,70 +115,93 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   }, [existingQuestions]);
 
   // 2. Módulos existentes já cadastrados (filtrados pela matéria selecionada ou todos)
+  // 2. Módulos oficiais (I, II, V, VI, VII, VIII, IX) + existentes no banco
   const existingModulos = useMemo(() => {
-    const filtered = existingQuestions.filter((q) => {
-      if (!nomeMateria) return true;
-      return getQuestionMateria(q).toLowerCase() === nomeMateria.trim().toLowerCase();
-    });
-    const pool = filtered.length > 0 ? filtered : existingQuestions;
     const set = new Set<string>();
-    pool.forEach((q) => {
-      const mod = getQuestionModulo(q);
-      if (mod && mod.trim()) set.add(mod.trim());
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [existingQuestions, nomeMateria]);
+    STANDARD_MODULOS.forEach((m) => set.add(m));
+    OFFICIAL_HIERARCHY_TREE.forEach((m) => set.add(m.id));
 
-  // 3. Capítulos existentes já cadastrados (filtrados por matéria e/ou módulo selecionados)
-  const existingCapitulos = useMemo(() => {
-    const filtered = existingQuestions.filter((q) => {
-      const matchMat = !nomeMateria || getQuestionMateria(q).toLowerCase() === nomeMateria.trim().toLowerCase();
-      const matchMod = !moduloMateria || getQuestionModulo(q).toLowerCase() === moduloMateria.trim().toLowerCase();
-      return matchMat && matchMod;
+    existingQuestions.forEach((q) => {
+      const mod = getQuestionModulo(q);
+      if (mod && mod.trim()) set.add(normalizeModuloName(mod.trim()));
     });
-    const pool = filtered.length > 0 ? filtered : existingQuestions;
+    return Array.from(set).sort(compareModulosRoman);
+  }, [existingQuestions]);
+
+  // 3. Capítulos oficiais do módulo selecionado (ou de todos) + existentes no banco
+  const existingCapitulos = useMemo(() => {
     const set = new Set<string>();
-    pool.forEach((q) => {
-      if (q.capitulo && q.capitulo.trim()) {
+
+    if (moduloMateria) {
+      const tree = OFFICIAL_HIERARCHY_TREE.find((m) =>
+        areModulosEquivalent(m.id, moduloMateria)
+      );
+      tree?.capitulos?.forEach((c) => set.add(c.label));
+    } else {
+      OFFICIAL_HIERARCHY_TREE.forEach((m) => {
+        m.capitulos?.forEach((c) => set.add(c.label));
+      });
+    }
+
+    existingQuestions.forEach((q) => {
+      const matchMod = !moduloMateria || areModulosEquivalent(getQuestionModulo(q), moduloMateria);
+      if (matchMod && q.capitulo && q.capitulo.trim()) {
         set.add(q.capitulo.trim());
       }
     });
-    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [existingQuestions, nomeMateria, moduloMateria]);
 
-  // 4. Subtópicos existentes já cadastrados (filtrados pelo capítulo selecionado)
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [existingQuestions, moduloMateria]);
+
+  // 4. Subtópicos oficiais do capítulo selecionado + existentes no banco
   const relatedSubtopicos = useMemo(() => {
-    const filtered = existingQuestions.filter((q) => {
-      if (capituloMateria) {
-        return q.capitulo?.trim().toLowerCase() === capituloMateria.trim().toLowerCase();
-      }
-      const matchMat = !nomeMateria || getQuestionMateria(q).toLowerCase() === nomeMateria.trim().toLowerCase();
-      const matchMod = !moduloMateria || getQuestionModulo(q).toLowerCase() === moduloMateria.trim().toLowerCase();
-      return matchMat && matchMod;
-    });
-    const pool = filtered.length > 0 ? filtered : existingQuestions;
     const set = new Set<string>();
-    pool.forEach((q) => {
-      if (q.subtopico && q.subtopico.trim()) {
+
+    if (capituloMateria) {
+      OFFICIAL_HIERARCHY_TREE.forEach((m) => {
+        const found = m.capitulos?.find((c) => areCapitulosEquivalent(c.label, capituloMateria));
+        found?.subtopicos?.forEach((s) => set.add(s.label));
+      });
+    }
+
+    existingQuestions.forEach((q) => {
+      const matchCap = !capituloMateria || areCapitulosEquivalent(q.capitulo, capituloMateria);
+      if (matchCap && q.subtopico && q.subtopico.trim()) {
         set.add(q.subtopico.trim());
       }
     });
-    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [existingQuestions, capituloMateria, moduloMateria, nomeMateria]);
 
-  // 5. Temas existentes vinculados ao capítulo e subtópico
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [existingQuestions, capituloMateria]);
+
+  // 5. Temas existentes vinculados ao capítulo e subtópico + oficiais
   const relatedTemas = useMemo(() => {
-    const filtered = existingQuestions.filter((q) => {
-      const matchCap = !capituloMateria || q.capitulo?.trim().toLowerCase() === capituloMateria.trim().toLowerCase();
-      const matchSub = !subtopico || q.subtopico?.trim().toLowerCase() === subtopico.trim().toLowerCase();
-      return matchCap && matchSub;
-    });
     const set = new Set<string>();
-    filtered.forEach((q) => {
-      if (q.tema_subtopico && q.tema_subtopico.trim()) {
+
+    if (capituloMateria) {
+      OFFICIAL_HIERARCHY_TREE.forEach((m) => {
+        const foundCap = m.capitulos?.find((c) => areCapitulosEquivalent(c.label, capituloMateria));
+        if (foundCap) {
+          if (subtopico && foundCap.subtopicos) {
+            const foundSub = foundCap.subtopicos.find((s) =>
+              areSubtopicosEquivalent(s.label, subtopico)
+            );
+            foundSub?.temas?.forEach((t) => set.add(t));
+          } else if (!subtopico && foundCap.temas) {
+            foundCap.temas.forEach((t) => set.add(t));
+          }
+        }
+      });
+    }
+
+    existingQuestions.forEach((q) => {
+      const matchCap = !capituloMateria || areCapitulosEquivalent(q.capitulo, capituloMateria);
+      const matchSub = !subtopico || areSubtopicosEquivalent(q.subtopico, subtopico);
+      if (matchCap && matchSub && q.tema_subtopico && q.tema_subtopico.trim()) {
         set.add(q.tema_subtopico.trim());
       }
     });
+
     return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [existingQuestions, capituloMateria, subtopico]);
 
@@ -224,6 +259,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Estados de salvamento
   const [saving, setSaving] = useState(false);
   const [saveProgress, setSaveProgress] = useState<{ current: number; total: number } | null>(null);
+  const [reorganizeProgress, setReorganizeProgress] = useState<{
+    percent: number;
+    current: number;
+    total: number;
+    phase: 'fetching' | 'classifying' | 'writing' | 'completed';
+    statusText: string;
+  } | null>(null);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [forceSaveAll, setForceSaveAll] = useState<boolean>(false);
@@ -249,6 +291,83 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       return (targetCap && targetCap !== currentCap) || (targetMod && !areModulosEquivalent(currentMod, targetMod));
     }).length;
   }, [existingQuestions]);
+
+  // Filtros da aba "Gerenciar Questões" no banco de dados (Módulos I, II, V, VI, VII, VIII, IX, Capítulos e Subtópicos)
+  const [manageFilterModulo, setManageFilterModulo] = useState<string>('');
+  const [manageFilterCapitulo, setManageFilterCapitulo] = useState<string>('');
+  const [manageFilterSubtopico, setManageFilterSubtopico] = useState<string>('');
+  const [manageSearchText, setManageSearchText] = useState<string>('');
+
+  // Capítulos disponíveis para o filtro de gestão de questões
+  const manageAvailableCapitulos = useMemo(() => {
+    const set = new Set<string>();
+    if (manageFilterModulo) {
+      const tree = OFFICIAL_HIERARCHY_TREE.find((m) =>
+        areModulosEquivalent(m.id, manageFilterModulo)
+      );
+      tree?.capitulos?.forEach((c) => set.add(c.label));
+    } else {
+      OFFICIAL_HIERARCHY_TREE.forEach((m) => {
+        m.capitulos?.forEach((c) => set.add(c.label));
+      });
+    }
+
+    existingQuestions.forEach((q) => {
+      const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
+      const matchMod = !manageFilterModulo || areModulosEquivalent(qMod, manageFilterModulo);
+      if (matchMod) {
+        const qCap = getCanonicalCapituloForQuestion(q) || normalizeCapituloName(q.capitulo);
+        if (qCap && qCap.trim()) set.add(qCap.trim());
+      }
+    });
+
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [existingQuestions, manageFilterModulo]);
+
+  // Subtópicos disponíveis para o filtro de gestão de questões
+  const manageAvailableSubtopicos = useMemo(() => {
+    const set = new Set<string>();
+    if (manageFilterCapitulo) {
+      OFFICIAL_HIERARCHY_TREE.forEach((m) => {
+        const found = m.capitulos?.find((c) => areCapitulosEquivalent(c.label, manageFilterCapitulo));
+        found?.subtopicos?.forEach((s) => set.add(s.label));
+      });
+    }
+
+    existingQuestions.forEach((q) => {
+      const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
+      const matchMod = !manageFilterModulo || areModulosEquivalent(qMod, manageFilterModulo);
+      const qCap = getCanonicalCapituloForQuestion(q) || normalizeCapituloName(q.capitulo);
+      const matchCap = !manageFilterCapitulo || areCapitulosEquivalent(qCap, manageFilterCapitulo);
+      if (matchMod && matchCap && q.subtopico && q.subtopico.trim()) {
+        set.add(q.subtopico.trim());
+      }
+    });
+
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [existingQuestions, manageFilterModulo, manageFilterCapitulo]);
+
+  const filteredManageQuestions = useMemo(() => {
+    return existingQuestions.filter((q) => {
+      if (manageFilterModulo) {
+        const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
+        if (!areModulosEquivalent(qMod, manageFilterModulo)) return false;
+      }
+      if (manageFilterCapitulo) {
+        const qCap = getCanonicalCapituloForQuestion(q) || normalizeCapituloName(q.capitulo);
+        if (!areCapitulosEquivalent(qCap, manageFilterCapitulo)) return false;
+      }
+      if (manageFilterSubtopico) {
+        if (!areSubtopicosEquivalent(q.subtopico, manageFilterSubtopico)) return false;
+      }
+      if (manageSearchText.trim()) {
+        const term = manageSearchText.toLowerCase();
+        const text = `${q.enunciado || ''} ${q.gabarito_comentado || ''} ${q.subtopico || ''} ${q.tema_subtopico || ''} ${q.numero_questao || ''}`.toLowerCase();
+        if (!text.includes(term)) return false;
+      }
+      return true;
+    });
+  }, [existingQuestions, manageFilterModulo, manageFilterCapitulo, manageFilterSubtopico, manageSearchText]);
 
   // Restaurar backup do último lote importado caso precise recuperar
   const handleRestoreBackup = () => {
@@ -911,99 +1030,192 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  // Organização Completa do Banco de Dados:
-  // - Subtópicos 3.X (ex: 3.2) -> Capítulo 3 – MEIOS ORDINÁRIOS DE INVESTIGAÇÃO
-  // - Subtópicos 1.X -> Capítulo 1 – INTRODUÇÃO
-  // - Subtópicos 4.X -> Capítulo 4 – FORMALIZAÇÃO DOS DADOS DE INTERESSE OBTIDOS NO CURSO DA INVESTIGAÇÃO POLICIAL
-  // - Módulo I: contém exclusivamente os Capítulos 1, 2 e 3
-  // - Módulo II: contém exclusivamente o Capítulo 4 (Capítulos 1, 2 e 3 nunca ficam no Módulo II!)
-  const handleOrganizarBancoCompleto = async () => {
-    if (existingQuestions.length === 0) return;
+  // Reorganizar Banco de Dados aplicando rigorosamente a nova estrutura hierárquica oficial de 5 níveis com Inteligência Artificial:
+  // Matéria > Módulo > Capítulo > Subtópico > Tema
+  const handleReorganizeDatabase = async () => {
     if (!user || !isUserAdminEmail(user.email)) {
-      setErrorMessage(`Permissão negada. Apenas o administrador oficial (${ADMIN_EMAIL}) pode organizar o banco de dados.`);
+      setErrorMessage(`Permissão negada. Apenas o administrador oficial (${ADMIN_EMAIL}) pode reorganizar o banco de dados.`);
       return;
     }
 
     setSaving(true);
+    setSaveProgress(null);
+    setReorganizeProgress({
+      percent: 5,
+      current: 0,
+      total: 0,
+      phase: 'fetching',
+      statusText: 'Carregando questões do banco de dados Firestore...',
+    });
     setErrorMessage(null);
     setSaveSuccessMsg(null);
 
     try {
       const questionsCol = collection(db, 'questions');
-      const toUpdate: {
-        id: string;
-        oldModulo: string;
-        newModulo: string;
-        oldCapitulo: string;
-        newCapitulo: string;
-      }[] = [];
+      const snap = await getDocs(questionsCol);
+      const allDocs = snap.docs;
 
-      existingQuestions.forEach((q) => {
-        if (!q.id) return;
-        const currentCap = normalizeCapituloName(q.capitulo || '');
-        const currentMod = normalizeModuloName(q.modulo || '');
-
-        const canonicalCap = getCanonicalCapituloForQuestion(q);
-        const targetCap = canonicalCap || currentCap;
-        const targetMod = getCanonicalModuloForQuestion({
-          ...q,
-          capitulo: targetCap,
-        });
-
-        const capChanged = Boolean(targetCap && targetCap !== currentCap);
-        const modChanged = Boolean(targetMod && !areModulosEquivalent(currentMod, targetMod));
-
-        if (capChanged || modChanged) {
-          toUpdate.push({
-            id: q.id,
-            oldModulo: currentMod,
-            newModulo: targetMod,
-            oldCapitulo: currentCap,
-            newCapitulo: targetCap,
-          });
-        }
-      });
-
-      if (toUpdate.length === 0) {
-        setSaveSuccessMsg(
-          'O banco de dados já está 100% organizado de acordo com a hierarquia correta (Módulo I: Capítulos 1, 2, 3 | Módulo II: Capítulo 4 exclusivamente).'
-        );
-        setTimeout(() => setSaveSuccessMsg(null), 5000);
+      if (allDocs.length === 0) {
+        setErrorMessage('Nenhuma questão encontrada no banco de dados Firestore para reorganizar.');
         setSaving(false);
+        setReorganizeProgress(null);
         return;
       }
 
-      // Atualizar em lotes atômicos com writeBatch
+      setSaveProgress({ current: 0, total: allDocs.length });
+      setReorganizeProgress({
+        percent: 10,
+        current: 0,
+        total: allDocs.length,
+        phase: 'classifying',
+        statusText: `Iniciando análise com Inteligência Artificial (0 de ${allDocs.length} questões)...`,
+      });
+
+      // Preparar questões para classificação com IA / Heurística Avançada
+      const questionsToProcess = allDocs.map((docSnap) => {
+        const raw = docSnap.data() as Question;
+        return {
+          id: docSnap.id,
+          enunciado: raw.enunciado || '',
+          capitulo: raw.capitulo || '',
+          subtopico: raw.subtopico || '',
+          modulo: raw.modulo || '',
+          tema: raw.tema || '',
+          tema_subtopico: raw.tema_subtopico || '',
+          gabarito_comentado: raw.gabarito_comentado || '',
+        };
+      });
+
+      // Classificação com IA (Gemini 3.8 Flash e fallback heurístico neural dos 5 níveis oficiais)
+      // Fase 1: IA analisa e classifica de 10% até 60% da barra de progresso
+      const aiResults = await classifyQuestionsWithAI(questionsToProcess, (current, total) => {
+        const percentAI = Math.round(10 + (current / total) * 50);
+        setSaveProgress({ current: Math.floor(current * 0.5), total });
+        setReorganizeProgress({
+          percent: percentAI,
+          current,
+          total,
+          phase: 'classifying',
+          statusText: `Inteligência Artificial analisando conteúdo: ${current} de ${total} questões (${Math.round((current / total) * 100)}%)...`,
+        });
+      });
+
+      const updates: {
+        id: string;
+        data: {
+          materia: string;
+          modulo: string;
+          capitulo: string;
+          subtopico: string;
+          tema: string;
+          tema_subtopico: string;
+        };
+      }[] = [];
+
+      allDocs.forEach((docSnap) => {
+        const raw = docSnap.data() as Question;
+        const aiMapped = aiResults.get(docSnap.id);
+        const mapped = aiMapped || mapQuestionToOfficialHierarchy({
+          materia: raw.materia,
+          modulo: raw.modulo,
+          capitulo: raw.capitulo,
+          subtopico: raw.subtopico,
+          tema: raw.tema,
+          tema_subtopico: raw.tema_subtopico,
+          enunciado: raw.enunciado,
+          gabarito_comentado: raw.gabarito_comentado,
+        });
+
+        updates.push({
+          id: docSnap.id,
+          data: {
+            materia: mapped.materia,
+            modulo: mapped.modulo,
+            capitulo: mapped.capitulo,
+            subtopico: mapped.subtopico,
+            tema: mapped.tema,
+            tema_subtopico: mapped.tema,
+          },
+        });
+      });
+
+      // Atualizar em lotes atômicos com writeBatch (limite seguro de 400 por lote, respeitando o teto de 500)
+      // Fase 2: Gravação atômica no Firestore de 60% até 100%
       const batchSize = 400;
-      let updatedCount = 0;
-      for (let i = 0; i < toUpdate.length; i += batchSize) {
-        const chunk = toUpdate.slice(i, i + batchSize);
+      let committedCount = 0;
+
+      for (let i = 0; i < updates.length; i += batchSize) {
+        const chunk = updates.slice(i, i + batchSize);
         const batch = writeBatch(db);
 
         chunk.forEach((item) => {
           const docRef = doc(questionsCol, item.id);
           batch.update(docRef, {
-            modulo: item.newModulo,
-            capitulo: item.newCapitulo,
+            materia: item.data.materia,
+            modulo: item.data.modulo,
+            capitulo: item.data.capitulo,
+            subtopico: item.data.subtopico,
+            tema: item.data.tema,
+            tema_subtopico: item.data.tema_subtopico,
           });
         });
 
         await batch.commit();
-        updatedCount += chunk.length;
+        committedCount += chunk.length;
+        const writePct = Math.round(60 + (committedCount / updates.length) * 40);
+        setSaveProgress({
+          current: Math.floor(allDocs.length * 0.5) + Math.floor((committedCount / updates.length) * (allDocs.length * 0.5)),
+          total: allDocs.length,
+        });
+        setReorganizeProgress({
+          percent: writePct,
+          current: committedCount,
+          total: updates.length,
+          phase: 'writing',
+          statusText: `Sincronizando no Firestore: ${committedCount} de ${updates.length} questões gravadas...`,
+        });
       }
+
+      setReorganizeProgress({
+        percent: 100,
+        current: committedCount,
+        total: updates.length,
+        phase: 'completed',
+        statusText: `Concluído com sucesso! Todas as ${committedCount} questões organizadas na hierarquia oficial.`,
+      });
 
       onQuestionAdded();
       setSaveSuccessMsg(
-        `🎉 Banco de dados organizado com sucesso absoluto! ${updatedCount} questão(ões) foram reestruturadas: Subtópicos 3.X alinhados no Capítulo 3, Capítulos 1, 2 e 3 organizados no Módulo I e Capítulo 4 exclusivamente no Módulo II!`
+        `🎉 Inteligência Artificial aplicou com sucesso a Nova Hierarquia Oficial! ${committedCount} questão(ões) foram organizadas e sincronizadas nos 5 níveis: Matéria > Módulo > Capítulo > Subtópico > Tema.`
       );
-      setTimeout(() => setSaveSuccessMsg(null), 8000);
+      setTimeout(() => {
+        setSaveSuccessMsg(null);
+        setReorganizeProgress(null);
+      }, 9000);
     } catch (err: unknown) {
-      console.error('Erro ao organizar banco de dados:', err);
+      console.error('Erro ao reorganizar hierarquia do banco com IA:', err);
       const errMsg = err instanceof Error ? err.message : String(err);
-      setErrorMessage(`Erro ao organizar o banco de dados: ${errMsg}`);
+      setErrorMessage(`Erro ao reorganizar hierarquia do banco de dados com IA: ${errMsg}`);
     } finally {
       setSaving(false);
+      setSaveProgress(null);
     }
+  };
+
+  const handleOpenReorganizeModal = () => {
+    setConfirmModal({
+      title: 'Reorganizar Banco com Inteligência Artificial',
+      description: `Esta operação utilizará Inteligência Artificial e a base oficial de conhecimento para analisar o enunciado, gabarito e tags de todas as ${existingQuestions.length} questões gravadas no Firestore, reorganizando-as com precisão cirúrgica na estrutura hierárquica oficial de 5 níveis:\n\n• Matéria: "Investigação Policial II (IPO II – APF)"\n• Módulo: Módulos I, II, V, VI, VII, VIII, IX\n• Capítulo: Seção X.Y oficial do livro\n• Subtópico: Nível X.Y.Z oficial\n• Tema: Pontos temáticos oficiais (sem o nível "Tópico")\n\nDeseja iniciar a análise e reorganização agora?`,
+      confirmLabel: 'Sim, Reorganizar com IA Agora',
+      onConfirm: async () => {
+        setConfirmModal(null);
+        await handleReorganizeDatabase();
+      },
+    });
+  };
+
+  const handleOrganizarBancoCompleto = async () => {
+    handleOpenReorganizeModal();
   };
 
   // Mover capítulos selecionados de um módulo para outro módulo
@@ -2187,16 +2399,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     });
   };
 
-  // Selecionar ou desmarcar todas do Firestore
+  // Selecionar ou desmarcar todas do Firestore (respeitando o filtro ativo)
   const handleToggleSelectAll = () => {
-    if (selectedQuestionIds.size === existingQuestions.length) {
-      setSelectedQuestionIds(new Set());
-    } else {
-      const allIds = new Set<string>();
-      existingQuestions.forEach((q) => {
-        if (q.id) allIds.add(q.id);
+    const targetList = filteredManageQuestions;
+    const allTargetIds = targetList.map((q) => q.id).filter(Boolean) as string[];
+    const allSelected = allTargetIds.length > 0 && allTargetIds.every((id) => selectedQuestionIds.has(id));
+
+    if (allSelected) {
+      setSelectedQuestionIds((prev) => {
+        const next = new Set(prev);
+        allTargetIds.forEach((id) => next.delete(id));
+        return next;
       });
-      setSelectedQuestionIds(allIds);
+    } else {
+      setSelectedQuestionIds((prev) => {
+        const next = new Set(prev);
+        allTargetIds.forEach((id) => next.add(id));
+        return next;
+      });
     }
   };
 
@@ -2332,6 +2552,114 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       </div>
 
+      {/* Barra de Porcentagem e Status da Reorganização com Inteligência Artificial */}
+      {reorganizeProgress && (
+        <div
+          id="reorganize-progress-card"
+          className="mb-5 p-4 sm:p-5 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 border-2 border-sky-500/50 rounded-2xl shadow-2xl text-white animate-in fade-in slide-in-from-top-2"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400 shrink-0">
+                {reorganizeProgress.phase === 'completed' ? (
+                  <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                ) : (
+                  <Bot className="w-6 h-6 text-sky-400 animate-pulse" />
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm sm:text-base font-black text-white tracking-wide">
+                    {reorganizeProgress.phase === 'completed'
+                      ? 'Reorganização Concluída!'
+                      : 'Reorganizando Hierarquia do Banco de Questões com IA'}
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-500/20 text-sky-300 border border-sky-400/30">
+                    5 Níveis Oficiais
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5 font-medium">
+                  {reorganizeProgress.statusText}
+                </p>
+              </div>
+            </div>
+
+            {/* Indicador de Porcentagem em Destaque */}
+            <div className="flex items-baseline gap-1 self-end sm:self-auto bg-slate-900/90 px-3.5 py-1.5 rounded-xl border border-sky-500/30 shrink-0 shadow-inner">
+              <span className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-teal-300 to-emerald-400">
+                {reorganizeProgress.percent}%
+              </span>
+              <span className="text-[11px] font-bold text-slate-400 uppercase">
+                {reorganizeProgress.total > 0
+                  ? `(${reorganizeProgress.current}/${reorganizeProgress.total})`
+                  : 'calculando'}
+              </span>
+            </div>
+          </div>
+
+          {/* Barra de Progresso Visual Animada */}
+          <div className="w-full bg-slate-800/80 rounded-full h-4 sm:h-5 p-0.5 border border-slate-700/80 overflow-hidden shadow-inner relative">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ease-out relative overflow-hidden ${
+                reorganizeProgress.phase === 'completed'
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                  : 'bg-gradient-to-r from-sky-500 via-cyan-400 to-emerald-400'
+              }`}
+              style={{ width: `${Math.max(4, Math.min(100, reorganizeProgress.percent))}%` }}
+            >
+              {/* Efeito de brilho animado */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
+            </div>
+          </div>
+
+          {/* Etapas do Processo */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-800/80 text-[11px]">
+            <div
+              className={`flex items-center gap-1.5 font-semibold ${
+                reorganizeProgress.percent >= 10 ? 'text-sky-300' : 'text-slate-500'
+              }`}
+            >
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  reorganizeProgress.percent >= 10 ? 'bg-sky-400 shadow-sm shadow-sky-400' : 'bg-slate-700'
+                }`}
+              />
+              <span>1. Leitura do Banco Firestore</span>
+            </div>
+
+            <div
+              className={`flex items-center gap-1.5 font-semibold ${
+                reorganizeProgress.percent >= 20 && reorganizeProgress.percent < 100
+                  ? 'text-cyan-300'
+                  : reorganizeProgress.percent >= 60
+                  ? 'text-teal-300'
+                  : 'text-slate-500'
+              }`}
+            >
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  reorganizeProgress.percent >= 20 ? 'bg-cyan-400 shadow-sm shadow-cyan-400' : 'bg-slate-700'
+                }`}
+              />
+              <span>2. Classificação IA Gemini (5 Níveis)</span>
+            </div>
+
+            <div
+              className={`flex items-center gap-1.5 font-semibold ${
+                reorganizeProgress.percent >= 60 ? 'text-emerald-300' : 'text-slate-500'
+              }`}
+            >
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  reorganizeProgress.percent >= 60 ? 'bg-emerald-400 shadow-sm shadow-emerald-400' : 'bg-slate-700'
+                }`}
+              />
+              <span>3. Gravação Atômica nos Documentos</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mensagens de Sucesso e Erro */}
       {saveSuccessMsg && (
         <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs sm:text-sm text-emerald-800 font-semibold animate-in fade-in">
@@ -2367,22 +2695,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
             <div className="space-y-1">
               <h4 className="text-sm font-black text-white flex items-center gap-2">
-                Organização Necessária: {misalignedCount} questão(ões) com Módulo ou Capítulo desalinhados
+                Hierarquia Oficial: {misalignedCount} questão(ões) para alinhar aos 5 níveis oficiais
               </h4>
               <p className="text-xs text-amber-200 leading-relaxed">
-                No Módulo II existe <strong>apenas o Capítulo 4</strong>. Os Capítulos 1, 2 e 3 pertencem ao <strong>Módulo I</strong>, e o <strong>Subtópico 3.2</strong> pertence ao <strong>Capítulo 3</strong> (e não ao Capítulo 1).
+                A nova árvore oficial estrutura o conteúdo em: <strong>Matéria &gt; Módulo &gt; Capítulo &gt; Subtópico &gt; Tema</strong> (Módulos I, II, V, VI, VII, VIII, IX).
               </p>
             </div>
           </div>
           <button
             id="btn-organizar-banco-completo"
             type="button"
-            onClick={handleOrganizarBancoCompleto}
+            onClick={handleOpenReorganizeModal}
             disabled={saving}
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg transition-all cursor-pointer shrink-0"
           >
-            <Sparkles className="w-4 h-4 text-slate-950" />
-            {saving ? 'Organizando Banco...' : `Organizar Banco de Dados Agora (${misalignedCount})`}
+            <Bot className="w-4 h-4 text-slate-950" />
+            {saving && reorganizeProgress
+              ? `Reorganizando com IA (${reorganizeProgress.percent}%)...`
+              : saving
+              ? 'Reorganizando com IA...'
+              : `Reorganizar Banco com Inteligência Artificial`}
           </button>
         </div>
       )}
@@ -4097,17 +4429,21 @@ Comentário: Apenas a alternativa B atende ao comando...`}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {/* Botão de Organizar Módulos e Capítulos */}
+              {/* Botão Reorganizar Banco (Aplicar Nova Hierarquia com IA) */}
               <button
-                id="btn-organizar-banco-action"
+                id="btn-reorganizar-hierarquia-oficial"
                 type="button"
-                onClick={handleOrganizarBancoCompleto}
+                onClick={handleOpenReorganizeModal}
                 disabled={saving || existingQuestions.length === 0}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
-                title="Organizar o banco de dados: Módulo I (Capítulos 1, 2 e 3) e Módulo II (Capítulo 4 exclusivamente); Subtópico 3.2 no Capítulo 3"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:from-emerald-500 hover:to-sky-500 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
+                title="Reorganizar as categorias de todas as questões no Firestore aplicando Inteligência Artificial e a estrutura hierárquica oficial de 5 níveis: Matéria > Módulo > Capítulo > Subtópico > Tema"
               >
-                <FolderTree className="w-3.5 h-3.5" />
-                {saving ? 'Organizando...' : 'Organizar Módulos e Capítulos'}
+                <Bot className="w-3.5 h-3.5 text-emerald-200" />
+                {saving && reorganizeProgress
+                  ? `Reorganizando com IA (${reorganizeProgress.percent}%)...`
+                  : saving
+                  ? 'Reorganizando com IA...'
+                  : 'Reorganizar Banco com IA (Nova Hierarquia)'}
               </button>
 
               {/* Botão de Unir Módulos */}
@@ -4196,27 +4532,148 @@ Comentário: Apenas a alternativa B atende ao comando...`}
             </div>
           </div>
 
+          {/* Barra de Filtros da Gestão de Questões (Módulos I, II, V, VI, VII, VIII, IX, Capítulos e Subtópicos) */}
+          {existingQuestions.length > 0 && (
+            <div className="p-3 sm:p-4 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-blue-600" />
+                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                    Filtrar Questões no Banco de Dados
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500">
+                    Exibindo {filteredManageQuestions.length} de {existingQuestions.length} questões
+                  </span>
+                  {(manageFilterModulo || manageFilterCapitulo || manageFilterSubtopico || manageSearchText) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setManageFilterModulo('');
+                        setManageFilterCapitulo('');
+                        setManageFilterSubtopico('');
+                        setManageSearchText('');
+                      }}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 underline cursor-pointer"
+                    >
+                      Limpar Filtros
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                {/* 1. Módulo */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    1. Módulo (I, II, V, VI, VII, VIII, IX)
+                  </label>
+                  <select
+                    id="manage-filter-modulo"
+                    value={manageFilterModulo}
+                    onChange={(e) => {
+                      setManageFilterModulo(e.target.value);
+                      setManageFilterCapitulo('');
+                      setManageFilterSubtopico('');
+                    }}
+                    className="w-full text-xs font-medium border border-slate-300 rounded-lg p-2 bg-slate-50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value="">(Todos os Módulos)</option>
+                    {existingModulos.map((m) => (
+                      <option key={`manage-mod-${m}`} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Capítulo */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    2. Capítulo (Seção X.Y)
+                  </label>
+                  <select
+                    id="manage-filter-capitulo"
+                    value={manageFilterCapitulo}
+                    onChange={(e) => {
+                      setManageFilterCapitulo(e.target.value);
+                      setManageFilterSubtopico('');
+                    }}
+                    className="w-full text-xs font-medium border border-slate-300 rounded-lg p-2 bg-slate-50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value="">(Todos os Capítulos)</option>
+                    {manageAvailableCapitulos.map((c) => (
+                      <option key={`manage-cap-${c}`} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3. Subtópico */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    3. Subtópico (Nível X.Y.Z)
+                  </label>
+                  <select
+                    id="manage-filter-subtopico"
+                    value={manageFilterSubtopico}
+                    onChange={(e) => setManageFilterSubtopico(e.target.value)}
+                    className="w-full text-xs font-medium border border-slate-300 rounded-lg p-2 bg-slate-50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value="">(Todos os Subtópicos)</option>
+                    {manageAvailableSubtopicos.map((s) => (
+                      <option key={`manage-sub-${s}`} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 4. Busca por texto */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    4. Busca no Enunciado / Gabarito
+                  </label>
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      id="manage-filter-search"
+                      type="text"
+                      placeholder="Pesquisar questões..."
+                      value={manageSearchText}
+                      onChange={(e) => setManageSearchText(e.target.value)}
+                      className="w-full text-xs font-medium border border-slate-300 rounded-lg pl-8 pr-2.5 py-2 bg-slate-50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {existingQuestions.length > 0 && (
             <div className="flex items-center justify-between px-2 text-xs text-slate-600">
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={
-                    existingQuestions.length > 0 &&
-                    selectedQuestionIds.size === existingQuestions.length
+                    filteredManageQuestions.length > 0 &&
+                    filteredManageQuestions.every((q) => q.id && selectedQuestionIds.has(q.id))
                   }
                   onChange={handleToggleSelectAll}
                   className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                 />
                 <span className="font-semibold text-slate-700">
-                  {selectedQuestionIds.size === existingQuestions.length
-                    ? 'Desmarcar todas'
-                    : 'Selecionar todas as questões'}
+                  {filteredManageQuestions.length > 0 &&
+                  filteredManageQuestions.every((q) => q.id && selectedQuestionIds.has(q.id))
+                    ? 'Desmarcar todas da listagem'
+                    : 'Selecionar todas da listagem'}
                 </span>
               </label>
 
               <span className="text-slate-400">
-                {selectedQuestionIds.size} de {existingQuestions.length} marcadas
+                {selectedQuestionIds.size} selecionada(s) &bull; {filteredManageQuestions.length} exibida(s)
               </span>
             </div>
           )}
@@ -4225,9 +4682,25 @@ Comentário: Apenas a alternativa B atende ao comando...`}
             <div className="py-8 text-center text-xs text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
               Nenhuma questão cadastrada ainda. Use a aba "Organizar &amp; Inserir Questões" acima.
             </div>
+          ) : filteredManageQuestions.length === 0 ? (
+            <div className="py-8 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200 space-y-1">
+              <p className="font-semibold">Nenhuma questão encontrada para os filtros selecionados.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setManageFilterModulo('');
+                  setManageFilterCapitulo('');
+                  setManageFilterSubtopico('');
+                  setManageSearchText('');
+                }}
+                className="text-xs text-blue-600 hover:text-blue-800 underline font-medium cursor-pointer"
+              >
+                Limpar todos os filtros
+              </button>
+            </div>
           ) : (
             <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-white">
-              {existingQuestions.map((q, idx) => {
+              {filteredManageQuestions.map((q, idx) => {
                 const isSelected = q.id ? selectedQuestionIds.has(q.id) : false;
 
                 return (
@@ -4268,9 +4741,9 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                               {q.subtopico}
                             </span>
                           )}
-                          {q.tema_subtopico && (
-                            <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[11px]">
-                              {q.tema_subtopico}
+                          {(q.tema || q.tema_subtopico) && (
+                            <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[11px]" title="Tema">
+                              {q.tema || q.tema_subtopico}
                             </span>
                           )}
                           <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200/60 text-[11px] font-bold">

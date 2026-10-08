@@ -24,6 +24,7 @@ import {
   areCapitulosEquivalent,
   areSubtopicosEquivalent,
   areTemasEquivalent,
+  isMateriaMatch,
 } from './utils/parser';
 import {
   BookOpen,
@@ -166,11 +167,11 @@ function MainApp() {
       }
 
       // Filtro de Matéria
-      if (filters.materia && getQuestionMateria(q) !== filters.materia) {
+      if (filters.materia && !isMateriaMatch(q, filters.materia)) {
         return false;
       }
 
-      // Filtro de Módulo (Módulo I: Capítulos 1, 2 e 3 | Módulo II: Capítulo 4 exclusivamente)
+      // Filtro de Módulo (Módulos I, II, V, VI, VII, VIII, IX...)
       const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
       if (filters.modulo && !areModulosEquivalent(qMod, filters.modulo)) {
         return false;

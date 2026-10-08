@@ -321,6 +321,96 @@ export function generateOfflineHtml(questions: Question[], filterTitle: string =
       white-space: pre-wrap;
       line-height: 1.6;
     }
+    .filter-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .filter-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .filter-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .filter-field label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .filter-select, .filter-input {
+      width: 100%;
+      padding: 10px 12px;
+      background: #f8fafc;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .filter-select:focus, .filter-input:focus {
+      border-color: var(--primary);
+      background: #ffffff;
+    }
+    .filter-bottom {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+    .filter-status-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .filter-status-btn {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid var(--border);
+      background: #f8fafc;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-status-btn.active {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+    }
+    .btn-clear-filters {
+      background: #fee2e2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -328,10 +418,11 @@ export function generateOfflineHtml(questions: Question[], filterTitle: string =
     <header>
       <span class="badge-offline">Modo Estudo Offline (Sem Internet)</span>
       <h1>${escapeHtml(filterTitle)}</h1>
-      <p class="subtitle">Este arquivo foi gerado para estudo offline autônomo com validação imediata e gabarito comentado.</p>
+      <p class="subtitle">Este arquivo foi gerado para estudo offline autônomo com filtros completos (Módulos I, II, V, VI, VII, VIII, IX, Capítulos e Subtópicos) e gabarito comentado.</p>
       
       <div class="stats-bar">
         <div class="stat-pill">Total: <strong id="totalCount">${questions.length}</strong></div>
+        <div class="stat-pill">Exibindo: <strong id="visibleCount">${questions.length}</strong></div>
         <div class="stat-pill">Respondidas: <strong id="answeredCount">0</strong></div>
         <div class="stat-pill correct">Acertos: <strong id="correctCount">0</strong></div>
         <div class="stat-pill wrong">Erros: <strong id="wrongCount">0</strong></div>
@@ -339,12 +430,242 @@ export function generateOfflineHtml(questions: Question[], filterTitle: string =
       </div>
     </header>
 
+    <!-- Barra de Filtros Hierárquicos Offline -->
+    <div class="filter-card">
+      <div class="filter-title">
+        <span>Filtro por Conteúdo (Módulos I, II, V, VI, VII, VIII, IX &bull; Capítulos &bull; Subtópicos)</span>
+        <button type="button" class="btn-clear-filters" id="btnClearFilters" onclick="resetFilters()">Limpar Filtros</button>
+      </div>
+
+      <div class="filter-grid">
+        <div class="filter-field">
+          <label for="selModulo">1. Módulo</label>
+          <select id="selModulo" class="filter-select" onchange="onModuloFilterChange()">
+            <option value="">(Todos os Módulos)</option>
+          </select>
+        </div>
+
+        <div class="filter-field">
+          <label for="selCapitulo">2. Capítulo (Seção X.Y)</label>
+          <select id="selCapitulo" class="filter-select" onchange="onCapituloFilterChange()">
+            <option value="">(Todos os Capítulos)</option>
+          </select>
+        </div>
+
+        <div class="filter-field">
+          <label for="selSubtopico">3. Subtópico (Nível X.Y.Z)</label>
+          <select id="selSubtopico" class="filter-select" onchange="applyFilters()">
+            <option value="">(Todos os Subtópicos)</option>
+          </select>
+        </div>
+
+        <div class="filter-field">
+          <label for="txtSearch">4. Busca por Texto</label>
+          <input type="text" id="txtSearch" class="filter-input" placeholder="Pesquisar..." oninput="applyFilters()" />
+        </div>
+      </div>
+
+      <div class="filter-bottom">
+        <div class="filter-status-group">
+          <button type="button" class="filter-status-btn active" id="btnStatus_todas" onclick="setStatusFilter('todas')">Todas</button>
+          <button type="button" class="filter-status-btn" id="btnStatus_acertos" onclick="setStatusFilter('acertos')">Acertos</button>
+          <button type="button" class="filter-status-btn" id="btnStatus_erros" onclick="setStatusFilter('erros')">Erros</button>
+          <button type="button" class="filter-status-btn" id="btnStatus_pendentes" onclick="setStatusFilter('pendentes')">Não Respondidas</button>
+        </div>
+      </div>
+    </div>
+
     <div id="questionsList"></div>
   </div>
 
   <script>
     const questionsData = ${safeData};
     const userAnswers = {}; // { [index]: { selected: 'A', status: 'correct'|'wrong' } }
+    let activeStatusFilter = 'todas';
+
+    // Módulos oficiais padrão
+    const OFFICIAL_MODULOS = [
+      'Módulo I',
+      'Módulo II',
+      'Módulo V',
+      'Módulo VI',
+      'Módulo VII',
+      'Módulo VIII',
+      'Módulo IX'
+    ];
+
+    function initFilterOptions() {
+      const selMod = document.getElementById('selModulo');
+      const modSet = new Set(OFFICIAL_MODULOS);
+
+      questionsData.forEach(q => {
+        const m = cleanField(q.modulo);
+        if (m) modSet.add(normalizeModulo(m));
+      });
+
+      const sortedMods = Array.from(modSet).sort(compareMods);
+      sortedMods.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        selMod.appendChild(opt);
+      });
+
+      updateCapitulosOptions();
+    }
+
+    function onModuloFilterChange() {
+      updateCapitulosOptions();
+      applyFilters();
+    }
+
+    function updateCapitulosOptions() {
+      const selMod = document.getElementById('selModulo').value;
+      const selCap = document.getElementById('selCapitulo');
+      const currentCap = selCap.value;
+      selCap.innerHTML = '<option value="">(Todos os Capítulos)</option>';
+
+      const capSet = new Set();
+      questionsData.forEach(q => {
+        const qMod = normalizeModulo(cleanField(q.modulo));
+        if (selMod && !areModsEq(qMod, selMod)) return;
+        const c = cleanField(q.capitulo);
+        if (c) capSet.add(c);
+      });
+
+      Array.from(capSet).sort().forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = c;
+        if (c === currentCap) opt.selected = true;
+        selCap.appendChild(opt);
+      });
+
+      updateSubtopicosOptions();
+    }
+
+    function onCapituloFilterChange() {
+      updateSubtopicosOptions();
+      applyFilters();
+    }
+
+    function updateSubtopicosOptions() {
+      const selMod = document.getElementById('selModulo').value;
+      const selCap = document.getElementById('selCapitulo').value;
+      const selSub = document.getElementById('selSubtopico');
+      const currentSub = selSub.value;
+      selSub.innerHTML = '<option value="">(Todos os Subtópicos)</option>';
+
+      const subSet = new Set();
+      questionsData.forEach(q => {
+        const qMod = normalizeModulo(cleanField(q.modulo));
+        if (selMod && !areModsEq(qMod, selMod)) return;
+        const qCap = cleanField(q.capitulo);
+        if (selCap && !areCapsEq(qCap, selCap)) return;
+        const s = cleanField(q.subtopico);
+        if (s) subSet.add(s);
+      });
+
+      Array.from(subSet).sort().forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s;
+        if (s === currentSub) opt.selected = true;
+        selSub.appendChild(opt);
+      });
+    }
+
+    function setStatusFilter(status) {
+      activeStatusFilter = status;
+      ['todas', 'acertos', 'erros', 'pendentes'].forEach(st => {
+        const btn = document.getElementById('btnStatus_' + st);
+        if (btn) btn.classList.toggle('active', st === status);
+      });
+      applyFilters();
+    }
+
+    function resetFilters() {
+      document.getElementById('selModulo').value = '';
+      document.getElementById('txtSearch').value = '';
+      activeStatusFilter = 'todas';
+      ['todas', 'acertos', 'erros', 'pendentes'].forEach(st => {
+        const btn = document.getElementById('btnStatus_' + st);
+        if (btn) btn.classList.toggle('active', st === 'todas');
+      });
+      updateCapitulosOptions();
+      applyFilters();
+    }
+
+    function applyFilters() {
+      const selMod = document.getElementById('selModulo').value;
+      const selCap = document.getElementById('selCapitulo').value;
+      const selSub = document.getElementById('selSubtopico').value;
+      const search = (document.getElementById('txtSearch').value || '').toLowerCase().trim();
+
+      let visibleCount = 0;
+
+      questionsData.forEach((q, idx) => {
+        const card = document.getElementById('q_' + idx);
+        if (!card) return;
+
+        const qMod = normalizeModulo(cleanField(q.modulo));
+        const qCap = cleanField(q.capitulo);
+        const qSub = cleanField(q.subtopico);
+
+        let match = true;
+
+        if (selMod && !areModsEq(qMod, selMod)) match = false;
+        if (match && selCap && !areCapsEq(qCap, selCap)) match = false;
+        if (match && selSub && !qSub.toLowerCase().includes(selSub.toLowerCase())) match = false;
+
+        if (match && activeStatusFilter !== 'todas') {
+          const ans = userAnswers[idx];
+          if (activeStatusFilter === 'pendentes' && ans && ans.answered) match = false;
+          if (activeStatusFilter === 'acertos' && (!ans || !ans.isCorrect)) match = false;
+          if (activeStatusFilter === 'erros' && (!ans || ans.isCorrect)) match = false;
+        }
+
+        if (match && search) {
+          const content = (q.enunciado + ' ' + (q.gabarito_comentado || '') + ' ' + (q.modulo || '') + ' ' + (q.capitulo || '')).toLowerCase();
+          if (!content.includes(search)) match = false;
+        }
+
+        card.style.display = match ? 'block' : 'none';
+        if (match) visibleCount++;
+      });
+
+      const visEl = document.getElementById('visibleCount');
+      if (visEl) visEl.textContent = visibleCount;
+    }
+
+    function normalizeModulo(m) {
+      if (!m) return '';
+      const str = String(m).trim();
+      const numMatch = str.match(/(?:m[óo]dulo\s*)?([0-9]+|[ivxlcdm]+)/i);
+      if (!numMatch) return str;
+      const val = numMatch[1].toUpperCase();
+      const map = { '1':'Módulo I', '2':'Módulo II', '3':'Módulo III', '4':'Módulo IV', '5':'Módulo V', '6':'Módulo VI', '7':'Módulo VII', '8':'Módulo VIII', '9':'Módulo IX', 'I':'Módulo I', 'II':'Módulo II', 'V':'Módulo V', 'VI':'Módulo VI', 'VII':'Módulo VII', 'VIII':'Módulo VIII', 'IX':'Módulo IX' };
+      return map[val] || ('Módulo ' + val);
+    }
+
+    function areModsEq(a, b) {
+      if (!a && !b) return true;
+      if (!a || !b) return false;
+      return normalizeModulo(a).toLowerCase() === normalizeModulo(b).toLowerCase();
+    }
+
+    function areCapsEq(a, b) {
+      if (!a && !b) return true;
+      if (!a || !b) return false;
+      const na = a.toLowerCase().replace(/[^0-9a-z]/g, '');
+      const nb = b.toLowerCase().replace(/[^0-9a-z]/g, '');
+      return na.includes(nb) || nb.includes(na);
+    }
+
+    function compareMods(a, b) {
+      const order = { 'Módulo I': 1, 'Módulo II': 2, 'Módulo V': 5, 'Módulo VI': 6, 'Módulo VII': 7, 'Módulo VIII': 8, 'Módulo IX': 9 };
+      return (order[a] || 99) - (order[b] || 99);
+    }
 
     function renderQuestions() {
       const container = document.getElementById('questionsList');
@@ -581,7 +902,10 @@ export function generateOfflineHtml(questions: Question[], filterTitle: string =
     }
 
     // Inicializar na carga
-    window.addEventListener('DOMContentLoaded', renderQuestions);
+    window.addEventListener('DOMContentLoaded', () => {
+      renderQuestions();
+      initFilterOptions();
+    });
   </script>
 </body>
 </html>`;

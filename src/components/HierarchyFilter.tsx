@@ -1,17 +1,25 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { FilterOptions, Question } from '../types/question';
-import { Filter, Search, X, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
+import { Filter, Search, X, CheckCircle2, XCircle, HelpCircle, Layers, BookOpen } from 'lucide-react';
 import {
   getQuestionMateria,
   getQuestionModulo,
   getCanonicalModuloForQuestion,
   getCanonicalCapituloForQuestion,
   normalizeCapituloName,
+  normalizeModuloName,
   areModulosEquivalent,
   areCapitulosEquivalent,
   areSubtopicosEquivalent,
   areTemasEquivalent,
+  compareModulosRoman,
+  STANDARD_MODULOS,
 } from '../utils/parser';
+import {
+  OFFICIAL_HIERARCHY_TREE,
+  OFFICIAL_MATERIA,
+  HierarchyTreeItem,
+} from '../types/hierarchyTree';
 
 interface HierarchyFilterProps {
   questions: Question[];
@@ -28,110 +36,252 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
   filteredCount,
   totalCount,
 }) => {
-  // 1. Lista de Matérias únicas
-  const materias = Array.from(
-    new Set(questions.map((q) => getQuestionMateria(q)).filter(Boolean))
-  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  // 1. Matérias: oficial IPO II + matérias das questões
+  const materias = useMemo(() => {
+    const set = new Set<string>();
+    set.add(OFFICIAL_MATERIA);
+    set.add('IPO-2');
+    questions.forEach((q) => {
+      const m = getQuestionMateria(q);
+      if (m && m.trim()) set.add(m.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [questions]);
 
-  // 2. Módulos da matéria selecionada (ou de todas)
-  const modulos = Array.from(
-    new Set(
-      questions
-        .filter((q) => !filters.materia || getQuestionMateria(q) === filters.materia)
-        .map((q) => getCanonicalModuloForQuestion(q) || getQuestionModulo(q))
-        .filter(Boolean)
-    )
-  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  // 2. Módulos: Módulos I, II, V, VI, VII, VIII, IX + módulos dinâmicos presentes nas questões
+  const modulos = useMemo(() => {
+    const list: { id: string; label: string; shortLabel: string }[] = [];
+    const addedIds = new Set<string>();
 
-  // 3. Capítulos da matéria e módulo selecionados
-  // No Módulo II, existe EXCLUSIVAMENTE o Capítulo 4!
-  // No Módulo I, existem os Capítulos 1, 2 e 3!
-  const rawCapitulos = Array.from(
-    new Set(
-      questions
-        .filter((q) => {
-          if (filters.materia && getQuestionMateria(q) !== filters.materia) return false;
-          const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
-          if (filters.modulo && !areModulosEquivalent(qMod, filters.modulo)) return false;
-          return true;
-        })
-        .map((q) => getCanonicalCapituloForQuestion(q) || normalizeCapituloName(q.capitulo))
-        .filter(Boolean)
-    )
-  );
+    // Módulos oficiais da árvore da disciplina
+    OFFICIAL_HIERARCHY_TREE.forEach((modTree) => {
+      list.push({
+        id: modTree.id,
+        label: modTree.label,
+        shortLabel: modTree.shortLabel || modTree.id,
+      });
+      addedIds.add(normalizeModuloName(modTree.id).toLowerCase());
+    });
 
-  const capitulos: string[] = [];
-  rawCapitulos.forEach((cap) => {
-    const existingIdx = capitulos.findIndex((c) => areCapitulosEquivalent(c, cap));
-    if (existingIdx === -1) {
-      capitulos.push(cap);
-    } else if (cap.length > capitulos[existingIdx].length) {
-      capitulos[existingIdx] = cap;
+    // Módulos adicionais presentes no banco de dados
+    questions.forEach((q) => {
+      const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
+      if (qMod && qMod.trim()) {
+        const norm = normalizeModuloName(qMod);
+        const normKey = norm.toLowerCase();
+        if (!addedIds.has(normKey)) {
+          addedIds.add(normKey);
+          list.push({
+            id: norm,
+            label: norm,
+            shortLabel: norm,
+          });
+        }
+      }
+    });
+
+    return list.sort((a, b) => compareModulosRoman(a.id, b.id));
+  }, [questions]);
+
+  // Contagem de questões por Módulo
+  const getModuloQuestionCount = (moduloId: string) => {
+    return questions.filter((q) => {
+      if (filters.materia && !isMateriaMatch(q, filters.materia)) return false;
+      const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
+      return areModulosEquivalent(qMod, moduloId);
+    }).length;
+  };
+
+  // 3. Capítulos: correspondentes ao módulo selecionado (ou a todos)
+  const capitulos = useMemo(() => {
+    const items: { id: string; label: string }[] = [];
+    const seen = new Set<string>();
+
+    // Se houver um módulo selecionado, busca os capítulos oficiais deste módulo
+    const selectedTree = OFFICIAL_HIERARCHY_TREE.find((m) =>
+      areModulosEquivalent(m.id, filters.modulo)
+    );
+
+    if (selectedTree && selectedTree.capitulos) {
+      selectedTree.capitulos.forEach((cap) => {
+        items.push({ id: cap.label, label: cap.label });
+        seen.add(normalizeCapituloName(cap.label).toLowerCase());
+      });
+    } else if (!filters.modulo) {
+      // Se nenhum módulo selecionado, exibe todos os capítulos oficiais de todos os módulos
+      OFFICIAL_HIERARCHY_TREE.forEach((m) => {
+        m.capitulos?.forEach((cap) => {
+          const normKey = normalizeCapituloName(cap.label).toLowerCase();
+          if (!seen.has(normKey)) {
+            items.push({ id: cap.label, label: cap.label });
+            seen.add(normKey);
+          }
+        });
+      });
     }
-  });
-  capitulos.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-  // 4. Subtópicos do capítulo selecionado
-  // Subtópicos 3.X (ex: 3.2) pertencem ESTRITAMENTE ao Capítulo 3 e NUNCA ao Capítulo 1!
-  const rawSubtopicos = Array.from(
-    new Set(
-      questions
-        .filter((q) => {
-          if (filters.materia && getQuestionMateria(q) !== filters.materia) return false;
-          const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
-          if (filters.modulo && !areModulosEquivalent(qMod, filters.modulo)) return false;
-          const qCap = getCanonicalCapituloForQuestion(q) || normalizeCapituloName(q.capitulo);
-          if (filters.capitulo && !areCapitulosEquivalent(qCap, filters.capitulo)) return false;
-          return true;
-        })
-        .map((q) => q.subtopico?.trim())
-        .filter((s): s is string => Boolean(s))
-    )
-  );
+    // Adiciona capítulos adicionais vindos das questões no banco de dados
+    questions.forEach((q) => {
+      if (filters.materia && !isMateriaMatch(q, filters.materia)) return;
+      const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
+      if (filters.modulo && !areModulosEquivalent(qMod, filters.modulo)) return;
 
-  const subtopicos: string[] = [];
-  rawSubtopicos.forEach((sub) => {
-    const existingIdx = subtopicos.findIndex((s) => areSubtopicosEquivalent(s, sub));
-    if (existingIdx === -1) {
-      subtopicos.push(sub);
-    } else if (sub.length > subtopicos[existingIdx].length) {
-      subtopicos[existingIdx] = sub;
+      const qCap = getCanonicalCapituloForQuestion(q) || normalizeCapituloName(q.capitulo);
+      if (qCap && qCap.trim()) {
+        const normKey = normalizeCapituloName(qCap).toLowerCase();
+        if (!seen.has(normKey)) {
+          const isEquivalentToOfficial = items.some((item) =>
+            areCapitulosEquivalent(item.label, qCap)
+          );
+          if (!isEquivalentToOfficial) {
+            seen.add(normKey);
+            items.push({ id: qCap, label: qCap });
+          }
+        }
+      }
+    });
+
+    return items.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
+  }, [questions, filters.materia, filters.modulo]);
+
+  const getCapituloQuestionCount = (capituloLabel: string) => {
+    return questions.filter((q) => {
+      if (filters.materia && !isMateriaMatch(q, filters.materia)) return false;
+      const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
+      if (filters.modulo && !areModulosEquivalent(qMod, filters.modulo)) return false;
+      const qCap = getCanonicalCapituloForQuestion(q) || normalizeCapituloName(q.capitulo);
+      return areCapitulosEquivalent(qCap, capituloLabel);
+    }).length;
+  };
+
+  // 4. Subtópicos: correspondentes ao capítulo selecionado
+  const subtopicos = useMemo(() => {
+    const list: string[] = [];
+    const seen = new Set<string>();
+
+    // 1. Busca subtópicos oficiais da árvore para o capítulo selecionado
+    if (filters.capitulo) {
+      for (const modTree of OFFICIAL_HIERARCHY_TREE) {
+        const foundCap = modTree.capitulos?.find((c) =>
+          areCapitulosEquivalent(c.label, filters.capitulo)
+        );
+        if (foundCap && foundCap.subtopicos) {
+          foundCap.subtopicos.forEach((sub) => {
+            const key = sub.label.toLowerCase();
+            if (!seen.has(key)) {
+              seen.add(key);
+              list.push(sub.label);
+            }
+          });
+        }
+      }
     }
-  });
-  subtopicos.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-  // 5. Temas do subtópico selecionado
-  const rawTemas = Array.from(
-    new Set(
-      questions
-        .filter(
-          (q) =>
-            (!filters.materia || getQuestionMateria(q) === filters.materia) &&
-            (!filters.modulo || areModulosEquivalent(getQuestionModulo(q), filters.modulo)) &&
-            (!filters.capitulo || areCapitulosEquivalent(q.capitulo, filters.capitulo)) &&
-            (!filters.subtopico || areSubtopicosEquivalent(q.subtopico, filters.subtopico))
-        )
-        .map((q) => q.tema_subtopico?.trim())
-        .filter((t): t is string => Boolean(t))
-    )
-  );
+    // 2. Busca subtópicos adicionais das questões no banco
+    questions.forEach((q) => {
+      if (filters.materia && !isMateriaMatch(q, filters.materia)) return;
+      const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
+      if (filters.modulo && !areModulosEquivalent(qMod, filters.modulo)) return;
+      const qCap = getCanonicalCapituloForQuestion(q) || normalizeCapituloName(q.capitulo);
+      if (filters.capitulo && !areCapitulosEquivalent(qCap, filters.capitulo)) return;
 
-  const temas: string[] = [];
-  rawTemas.forEach((tema) => {
-    const existingIdx = temas.findIndex((t) => areTemasEquivalent(t, tema));
-    if (existingIdx === -1) {
-      temas.push(tema);
-    } else if (tema.length > temas[existingIdx].length) {
-      temas[existingIdx] = tema;
+      const qSub = q.subtopico?.trim();
+      if (qSub) {
+        const key = qSub.toLowerCase();
+        if (!seen.has(key) && !list.some((existing) => areSubtopicosEquivalent(existing, qSub))) {
+          seen.add(key);
+          list.push(qSub);
+        }
+      }
+    });
+
+    return list.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [questions, filters.materia, filters.modulo, filters.capitulo]);
+
+  const getSubtopicoQuestionCount = (subLabel: string) => {
+    return questions.filter((q) => {
+      if (filters.materia && !isMateriaMatch(q, filters.materia)) return false;
+      const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
+      if (filters.modulo && !areModulosEquivalent(qMod, filters.modulo)) return false;
+      const qCap = getCanonicalCapituloForQuestion(q) || normalizeCapituloName(q.capitulo);
+      if (filters.capitulo && !areCapitulosEquivalent(qCap, filters.capitulo)) return false;
+      return areSubtopicosEquivalent(q.subtopico, subLabel);
+    }).length;
+  };
+
+  // 5. Temas / Detalhes: correspondentes ao subtópico ou capítulo
+  const temas = useMemo(() => {
+    const list: string[] = [];
+    const seen = new Set<string>();
+
+    // Temas oficiais da árvore
+    if (filters.capitulo) {
+      for (const modTree of OFFICIAL_HIERARCHY_TREE) {
+        const foundCap = modTree.capitulos?.find((c) =>
+          areCapitulosEquivalent(c.label, filters.capitulo)
+        );
+        if (foundCap) {
+          if (filters.subtopico && foundCap.subtopicos) {
+            const foundSub = foundCap.subtopicos.find((s) =>
+              areSubtopicosEquivalent(s.label, filters.subtopico)
+            );
+            foundSub?.temas?.forEach((t) => {
+              const key = t.toLowerCase();
+              if (!seen.has(key)) {
+                seen.add(key);
+                list.push(t);
+              }
+            });
+          } else if (!filters.subtopico && foundCap.temas) {
+            foundCap.temas.forEach((t) => {
+              const key = t.toLowerCase();
+              if (!seen.has(key)) {
+                seen.add(key);
+                list.push(t);
+              }
+            });
+          }
+        }
+      }
     }
-  });
-  temas.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+    // Temas adicionais presentes no banco de dados
+    questions.forEach((q) => {
+      if (filters.materia && !isMateriaMatch(q, filters.materia)) return;
+      const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
+      if (filters.modulo && !areModulosEquivalent(qMod, filters.modulo)) return;
+      const qCap = getCanonicalCapituloForQuestion(q) || normalizeCapituloName(q.capitulo);
+      if (filters.capitulo && !areCapitulosEquivalent(qCap, filters.capitulo)) return;
+      if (filters.subtopico && !areSubtopicosEquivalent(q.subtopico, filters.subtopico)) return;
+
+      const qTema = q.tema_subtopico?.trim();
+      if (qTema) {
+        const key = qTema.toLowerCase();
+        if (!seen.has(key) && !list.some((existing) => areTemasEquivalent(existing, qTema))) {
+          seen.add(key);
+          list.push(qTema);
+        }
+      }
+    });
+
+    return list.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [questions, filters.materia, filters.modulo, filters.capitulo, filters.subtopico]);
 
   const handleMateriaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onChangeFilters({
       ...filters,
       materia: e.target.value,
       modulo: '',
+      capitulo: '',
+      subtopico: '',
+      tema_subtopico: '',
+    });
+  };
+
+  const handleModuloSelect = (modId: string) => {
+    onChangeFilters({
+      ...filters,
+      modulo: filters.modulo === modId ? '' : modId,
       capitulo: '',
       subtopico: '',
       tema_subtopico: '',
@@ -213,6 +363,7 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
       id="hierarchy-filters"
       className="bg-zinc-900 rounded-2xl border border-sky-500/30 shadow-md p-4 sm:p-5 mb-6 text-white"
     >
+      {/* Cabeçalho do Filtro */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2.5">
           <div className="p-2 bg-zinc-950 border border-sky-500/40 text-sky-400 rounded-xl shadow-xs">
@@ -220,13 +371,13 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
           </div>
           <div>
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              Filtro Tático por Matéria e Conteúdo
+              Filtro Tático por Conteúdo Programático
               <span className="text-[10px] px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-extrabold border border-sky-400/30">
-                PAPA FOX
+                PAPA FOX QUESTÕES
               </span>
             </h3>
             <p className="text-xs text-zinc-400">
-              Matéria &gt; Módulo &gt; Capítulo &gt; Subtópico &gt; Tema
+              Módulos I, II, V, VI, VII, VIII, IX &bull; Capítulos (X.Y) &bull; Subtópicos (X.Y.Z) &bull; Temas
             </p>
           </div>
         </div>
@@ -249,7 +400,56 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
         </div>
       </div>
 
-      {/* Grid de Seleção Hierárquica em Cascata com Matéria e Módulo Separados */}
+      {/* Barra de Seleção Rápida por Módulo (Pills) */}
+      <div className="mb-4 pb-3 border-b border-zinc-800">
+        <div className="flex items-center gap-2 mb-2">
+          <Layers className="w-3.5 h-3.5 text-sky-400" />
+          <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
+            Módulos Oficiais do Banco de Dados:
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => handleModuloSelect('')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              !filters.modulo
+                ? 'bg-sky-600 text-white shadow-xs ring-1 ring-sky-400'
+                : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800 hover:bg-zinc-800'
+            }`}
+          >
+            Todos os Módulos
+          </button>
+          {modulos.map((m) => {
+            const isSelected = areModulosEquivalent(filters.modulo, m.id);
+            const count = getModuloQuestionCount(m.id);
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => handleModuloSelect(m.id)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                  isSelected
+                    ? 'bg-sky-600 text-white shadow-md ring-1 ring-sky-300'
+                    : 'bg-zinc-950 text-zinc-300 hover:text-white border border-zinc-800 hover:border-sky-500/40 hover:bg-zinc-800'
+                }`}
+                title={m.label}
+              >
+                <span>{m.id}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                    isSelected ? 'bg-sky-900 text-sky-200' : 'bg-zinc-800 text-zinc-400'
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Grid de Seleção Hierárquica em Cascata */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
         {/* Nível 1: Matéria */}
         <div>
@@ -280,33 +480,33 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             htmlFor="filter-modulo"
             className="block text-xs font-bold text-indigo-400 mb-1 uppercase tracking-wider"
           >
-            2. Módulo
+            2. Módulo (I, II, V, VI, VII, VIII, IX)
           </label>
           <select
             id="filter-modulo"
             value={filters.modulo}
             onChange={handleModuloChange}
-            disabled={modulos.length === 0}
-            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
+            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 font-medium transition-colors"
           >
-            <option value="">
-              {modulos.length === 0 ? '(Sem módulos específicos)' : '(Todos os Módulos)'}
-            </option>
-            {modulos.map((m, idx) => (
-              <option key={`${m}-${idx}`} value={m}>
-                {m}
-              </option>
-            ))}
+            <option value="">(Todos os Módulos)</option>
+            {modulos.map((m) => {
+              const count = getModuloQuestionCount(m.id);
+              return (
+                <option key={m.id} value={m.id}>
+                  {m.label} ({count})
+                </option>
+              );
+            })}
           </select>
         </div>
 
-        {/* Nível 3: Capítulo */}
+        {/* Nível 3: Capítulo (Seção X.Y) */}
         <div>
           <label
             htmlFor="filter-capitulo"
             className="block text-xs font-bold text-zinc-300 mb-1 uppercase tracking-wider"
           >
-            3. Capítulo
+            3. Capítulo (Seção X.Y)
           </label>
           <select
             id="filter-capitulo"
@@ -315,22 +515,25 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             disabled={capitulos.length === 0}
             className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
           >
-            <option value="">(Em branco / Todos os Capítulos)</option>
-            {capitulos.map((c, idx) => (
-              <option key={`${c}-${idx}`} value={c}>
-                {c}
-              </option>
-            ))}
+            <option value="">(Todos os Capítulos)</option>
+            {capitulos.map((c, idx) => {
+              const count = getCapituloQuestionCount(c.label);
+              return (
+                <option key={`${c.id}-${idx}`} value={c.label}>
+                  {c.label} {count > 0 ? `(${count})` : ''}
+                </option>
+              );
+            })}
           </select>
         </div>
 
-        {/* Nível 4: Subtópico */}
+        {/* Nível 4: Subtópico (Nível X.Y.Z) */}
         <div>
           <label
             htmlFor="filter-subtopico"
             className="block text-xs font-bold text-zinc-400 mb-1 uppercase tracking-wider"
           >
-            4. Subtópico (Opcional)
+            4. Subtópico (Nível X.Y.Z)
           </label>
           <select
             id="filter-subtopico"
@@ -339,22 +542,29 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             disabled={subtopicos.length === 0}
             className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
           >
-            <option value="">(Em branco / Todos os Subtópicos)</option>
-            {subtopicos.map((s, idx) => (
-              <option key={`${s}-${idx}`} value={s}>
-                {s}
-              </option>
-            ))}
+            <option value="">
+              {subtopicos.length === 0
+                ? '(Sem subtópicos neste capítulo)'
+                : '(Todos os Subtópicos)'}
+            </option>
+            {subtopicos.map((s, idx) => {
+              const count = getSubtopicoQuestionCount(s);
+              return (
+                <option key={`${s}-${idx}`} value={s}>
+                  {s} {count > 0 ? `(${count})` : ''}
+                </option>
+              );
+            })}
           </select>
         </div>
 
-        {/* Nível 5: Tema do Subtópico */}
+        {/* Nível 5: Tema / Detalhe */}
         <div>
           <label
             htmlFor="filter-tema"
             className="block text-xs font-bold text-zinc-400 mb-1 uppercase tracking-wider"
           >
-            5. Tema / Detalhe (Opcional)
+            5. Tema / Detalhe
           </label>
           <select
             id="filter-tema"
@@ -363,7 +573,9 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             disabled={temas.length === 0}
             className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
           >
-            <option value="">(Em branco / Todos os Temas)</option>
+            <option value="">
+              {temas.length === 0 ? '(Sem temas específicos)' : '(Todos os Temas)'}
+            </option>
             {temas.map((t, idx) => (
               <option key={`${t}-${idx}`} value={t}>
                 {t}
@@ -383,14 +595,14 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             type="text"
             value={filters.busca}
             onChange={handleSearchChange}
-            placeholder="Pesquisar por palavras-chave ou jurisprudência..."
+            placeholder="Pesquisar por palavras-chave, artigos, normas ou jurisprudência..."
             className="w-full text-xs sm:text-sm pl-9 pr-3 py-2 bg-zinc-950 border border-zinc-700 rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-zinc-100 placeholder-zinc-500"
           />
           {filters.busca && (
             <button
               type="button"
               onClick={() => onChangeFilters({ ...filters, busca: '' })}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -455,3 +667,19 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
     </div>
   );
 };
+
+function isMateriaMatch(q: Question, filterMat: string): boolean {
+  if (!filterMat) return true;
+  const qMat = getQuestionMateria(q).toLowerCase();
+  const fMat = filterMat.toLowerCase();
+  if (qMat === fMat) return true;
+  // Se for IPO-2 e a matéria oficial é Investigação Policial II (IPO II – APF)
+  if (
+    (qMat.includes('ipo') && fMat.includes('ipo')) ||
+    (qMat.includes('investiga') && fMat.includes('investiga'))
+  ) {
+    return true;
+  }
+  return false;
+}
+

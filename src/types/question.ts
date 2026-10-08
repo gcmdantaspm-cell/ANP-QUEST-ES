@@ -6,13 +6,14 @@ export interface AlternativeItem {
 export interface Question {
   id?: string;
   numero_questao?: number; // Número sequencial da questão (definido pelo sistema e desvinculado do texto)
-  // Hierarquia
+  // Hierarquia oficial de 5 níveis (Matéria > Módulo > Capítulo > Subtópico > Tema)
   materia?: string;
   modulo: string;
   modulo_anterior?: string; // Módulo anterior caso tenha sido mesclado/unificado (permite desunir)
   capitulo: string;
   subtopico?: string;
-  tema_subtopico?: string;
+  tema?: string;
+  tema_subtopico?: string; // Mantido para compatibilidade regressiva
   
   // Conteúdo
   enunciado: string;
@@ -41,6 +42,7 @@ export interface FilterOptions {
   modulo: string;
   capitulo: string;
   subtopico: string;
+  tema?: string;
   tema_subtopico: string;
   busca: string;
   statusFiltro: 'todas' | 'nao_resolvidas' | 'acertos' | 'erros';
