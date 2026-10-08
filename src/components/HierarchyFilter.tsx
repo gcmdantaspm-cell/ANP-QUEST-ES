@@ -4,6 +4,8 @@ import { Filter, Search, X, CheckCircle2, XCircle, HelpCircle } from 'lucide-rea
 import {
   getQuestionMateria,
   getQuestionModulo,
+  getCanonicalModuloForQuestion,
+  getCanonicalCapituloForQuestion,
   normalizeCapituloName,
   areModulosEquivalent,
   areCapitulosEquivalent,
@@ -36,21 +38,24 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
     new Set(
       questions
         .filter((q) => !filters.materia || getQuestionMateria(q) === filters.materia)
-        .map((q) => getQuestionModulo(q))
+        .map((q) => getCanonicalModuloForQuestion(q) || getQuestionModulo(q))
         .filter(Boolean)
     )
   ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   // 3. Capítulos da matéria e módulo selecionados
+  // No Módulo II, existe EXCLUSIVAMENTE o Capítulo 4!
+  // No Módulo I, existem os Capítulos 1, 2 e 3!
   const rawCapitulos = Array.from(
     new Set(
       questions
-        .filter(
-          (q) =>
-            (!filters.materia || getQuestionMateria(q) === filters.materia) &&
-            (!filters.modulo || areModulosEquivalent(getQuestionModulo(q), filters.modulo))
-        )
-        .map((q) => normalizeCapituloName(q.capitulo))
+        .filter((q) => {
+          if (filters.materia && getQuestionMateria(q) !== filters.materia) return false;
+          const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
+          if (filters.modulo && !areModulosEquivalent(qMod, filters.modulo)) return false;
+          return true;
+        })
+        .map((q) => getCanonicalCapituloForQuestion(q) || normalizeCapituloName(q.capitulo))
         .filter(Boolean)
     )
   );
@@ -67,15 +72,18 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
   capitulos.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   // 4. Subtópicos do capítulo selecionado
+  // Subtópicos 3.X (ex: 3.2) pertencem ESTRITAMENTE ao Capítulo 3 e NUNCA ao Capítulo 1!
   const rawSubtopicos = Array.from(
     new Set(
       questions
-        .filter(
-          (q) =>
-            (!filters.materia || getQuestionMateria(q) === filters.materia) &&
-            (!filters.modulo || areModulosEquivalent(getQuestionModulo(q), filters.modulo)) &&
-            (!filters.capitulo || areCapitulosEquivalent(q.capitulo, filters.capitulo))
-        )
+        .filter((q) => {
+          if (filters.materia && getQuestionMateria(q) !== filters.materia) return false;
+          const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
+          if (filters.modulo && !areModulosEquivalent(qMod, filters.modulo)) return false;
+          const qCap = getCanonicalCapituloForQuestion(q) || normalizeCapituloName(q.capitulo);
+          if (filters.capitulo && !areCapitulosEquivalent(qCap, filters.capitulo)) return false;
+          return true;
+        })
         .map((q) => q.subtopico?.trim())
         .filter((s): s is string => Boolean(s))
     )

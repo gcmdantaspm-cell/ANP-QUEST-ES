@@ -17,6 +17,8 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import {
   getQuestionMateria,
   getQuestionModulo,
+  getCanonicalModuloForQuestion,
+  getCanonicalCapituloForQuestion,
   normalizeCapituloName,
   areModulosEquivalent,
   areCapitulosEquivalent,
@@ -168,13 +170,15 @@ function MainApp() {
         return false;
       }
 
-      // Filtro de Módulo
-      if (filters.modulo && !areModulosEquivalent(getQuestionModulo(q), filters.modulo)) {
+      // Filtro de Módulo (Módulo I: Capítulos 1, 2 e 3 | Módulo II: Capítulo 4 exclusivamente)
+      const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
+      if (filters.modulo && !areModulosEquivalent(qMod, filters.modulo)) {
         return false;
       }
 
-      // Filtro de Capítulo
-      if (filters.capitulo && !areCapitulosEquivalent(q.capitulo, filters.capitulo)) {
+      // Filtro de Capítulo (Subtópicos 3.X pertencem ao Capítulo 3)
+      const qCap = getCanonicalCapituloForQuestion(q) || q.capitulo;
+      if (filters.capitulo && !areCapitulosEquivalent(qCap, filters.capitulo)) {
         return false;
       }
 

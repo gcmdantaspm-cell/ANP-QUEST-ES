@@ -10,6 +10,8 @@ import {
   formatEtiqueta,
   getQuestionMateria,
   getQuestionModulo,
+  getCanonicalCapituloForQuestion,
+  getCanonicalModuloForQuestion,
   normalizeCapituloName,
   normalizeModuloName,
   areModulosEquivalent,
@@ -230,6 +232,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     skipped: number;
     timestamp: string;
   } | null>(null);
+
+  // Quantidade de questões no banco de dados cuja hierarquia está desalinhada
+  // (ex: Capítulos 1, 2 ou 3 gravados no Módulo II, ou Subtópico 3.2 fora do Capítulo 3)
+  const misalignedCount = useMemo(() => {
+    return existingQuestions.filter((q) => {
+      if (!q.id) return false;
+      const currentCap = normalizeCapituloName(q.capitulo || '');
+      const currentMod = normalizeModuloName(q.modulo || '');
+      const canonicalCap = getCanonicalCapituloForQuestion(q);
+      const targetCap = canonicalCap || currentCap;
+      const targetMod = getCanonicalModuloForQuestion({
+        ...q,
+        capitulo: targetCap,
+      });
+      return (targetCap && targetCap !== currentCap) || (targetMod && !areModulosEquivalent(currentMod, targetMod));
+    }).length;
+  }, [existingQuestions]);
 
   // Restaurar backup do último lote importado caso precise recuperar
   const handleRestoreBackup = () => {
@@ -887,6 +906,101 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     } catch (err: unknown) {
       console.error('Erro ao separar módulos automaticamente:', err);
       setErrorMessage('Erro ao executar separação automática de módulos.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Organização Completa do Banco de Dados:
+  // - Subtópicos 3.X (ex: 3.2) -> Capítulo 3 – MEIOS ORDINÁRIOS DE INVESTIGAÇÃO
+  // - Subtópicos 1.X -> Capítulo 1 – INTRODUÇÃO
+  // - Subtópicos 4.X -> Capítulo 4 – FORMALIZAÇÃO DOS DADOS DE INTERESSE OBTIDOS NO CURSO DA INVESTIGAÇÃO POLICIAL
+  // - Módulo I: contém exclusivamente os Capítulos 1, 2 e 3
+  // - Módulo II: contém exclusivamente o Capítulo 4 (Capítulos 1, 2 e 3 nunca ficam no Módulo II!)
+  const handleOrganizarBancoCompleto = async () => {
+    if (existingQuestions.length === 0) return;
+    if (!user || !isUserAdminEmail(user.email)) {
+      setErrorMessage(`Permissão negada. Apenas o administrador oficial (${ADMIN_EMAIL}) pode organizar o banco de dados.`);
+      return;
+    }
+
+    setSaving(true);
+    setErrorMessage(null);
+    setSaveSuccessMsg(null);
+
+    try {
+      const questionsCol = collection(db, 'questions');
+      const toUpdate: {
+        id: string;
+        oldModulo: string;
+        newModulo: string;
+        oldCapitulo: string;
+        newCapitulo: string;
+      }[] = [];
+
+      existingQuestions.forEach((q) => {
+        if (!q.id) return;
+        const currentCap = normalizeCapituloName(q.capitulo || '');
+        const currentMod = normalizeModuloName(q.modulo || '');
+
+        const canonicalCap = getCanonicalCapituloForQuestion(q);
+        const targetCap = canonicalCap || currentCap;
+        const targetMod = getCanonicalModuloForQuestion({
+          ...q,
+          capitulo: targetCap,
+        });
+
+        const capChanged = Boolean(targetCap && targetCap !== currentCap);
+        const modChanged = Boolean(targetMod && !areModulosEquivalent(currentMod, targetMod));
+
+        if (capChanged || modChanged) {
+          toUpdate.push({
+            id: q.id,
+            oldModulo: currentMod,
+            newModulo: targetMod,
+            oldCapitulo: currentCap,
+            newCapitulo: targetCap,
+          });
+        }
+      });
+
+      if (toUpdate.length === 0) {
+        setSaveSuccessMsg(
+          'O banco de dados já está 100% organizado de acordo com a hierarquia correta (Módulo I: Capítulos 1, 2, 3 | Módulo II: Capítulo 4 exclusivamente).'
+        );
+        setTimeout(() => setSaveSuccessMsg(null), 5000);
+        setSaving(false);
+        return;
+      }
+
+      // Atualizar em lotes atômicos com writeBatch
+      const batchSize = 400;
+      let updatedCount = 0;
+      for (let i = 0; i < toUpdate.length; i += batchSize) {
+        const chunk = toUpdate.slice(i, i + batchSize);
+        const batch = writeBatch(db);
+
+        chunk.forEach((item) => {
+          const docRef = doc(questionsCol, item.id);
+          batch.update(docRef, {
+            modulo: item.newModulo,
+            capitulo: item.newCapitulo,
+          });
+        });
+
+        await batch.commit();
+        updatedCount += chunk.length;
+      }
+
+      onQuestionAdded();
+      setSaveSuccessMsg(
+        `🎉 Banco de dados organizado com sucesso absoluto! ${updatedCount} questão(ões) foram reestruturadas: Subtópicos 3.X alinhados no Capítulo 3, Capítulos 1, 2 e 3 organizados no Módulo I e Capítulo 4 exclusivamente no Módulo II!`
+      );
+      setTimeout(() => setSaveSuccessMsg(null), 8000);
+    } catch (err: unknown) {
+      console.error('Erro ao organizar banco de dados:', err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      setErrorMessage(`Erro ao organizar o banco de dados: ${errMsg}`);
     } finally {
       setSaving(false);
     }
@@ -1777,12 +1891,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         }
 
         const autoOrdinalNum = startingNum + toInsert.length + 1;
-        const normCap = normalizeCapituloName(q.capitulo || capituloMateria || '') || 'Capítulo 1';
+        const canonicalCap = getCanonicalCapituloForQuestion(q);
+        const normCap = canonicalCap || normalizeCapituloName(q.capitulo || capituloMateria || '') || 'Capítulo 1';
+        const effectiveMod = getCanonicalModuloForQuestion({
+          ...q,
+          capitulo: normCap,
+          modulo: q.modulo || moduloMateria,
+        });
 
         const questionPayload: Question = {
           materia: (q.materia || nomeMateria || 'IPO-2').trim(),
-          modulo: (q.modulo || moduloMateria || '').trim(),
-          capitulo: normCap,
+          modulo: effectiveMod.trim(),
+          capitulo: normCap.trim(),
           subtopico: (q.subtopico || subtopico || '').trim(),
           tema_subtopico: (q.tema_subtopico || tema || '').trim(),
           peso: typeof q.peso === 'number' && !isNaN(q.peso) && q.peso > 0 ? q.peso : (Number(pesoQuestao) || 1),
@@ -2232,6 +2352,38 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       {errorMessage && (
         <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs sm:text-sm text-rose-800 font-semibold animate-in fade-in">
           {errorMessage}
+        </div>
+      )}
+
+      {/* Alerta de Hierarquia Desalinhada no Banco de Dados (Subtópico 3.2 -> Cap. 3 | Capítulos 1, 2 e 3 -> Módulo I | Capítulo 4 -> Módulo II) */}
+      {misalignedCount > 0 && (
+        <div
+          id="banner-organizar-hierarquia-banco"
+          className="mb-5 p-4 bg-gradient-to-r from-amber-950 via-slate-900 to-amber-900 border-2 border-amber-500/70 rounded-2xl shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-white animate-in fade-in"
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
+              <AlertTriangle className="w-6 h-6 animate-pulse" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-sm font-black text-white flex items-center gap-2">
+                Organização Necessária: {misalignedCount} questão(ões) com Módulo ou Capítulo desalinhados
+              </h4>
+              <p className="text-xs text-amber-200 leading-relaxed">
+                No Módulo II existe <strong>apenas o Capítulo 4</strong>. Os Capítulos 1, 2 e 3 pertencem ao <strong>Módulo I</strong>, e o <strong>Subtópico 3.2</strong> pertence ao <strong>Capítulo 3</strong> (e não ao Capítulo 1).
+              </p>
+            </div>
+          </div>
+          <button
+            id="btn-organizar-banco-completo"
+            type="button"
+            onClick={handleOrganizarBancoCompleto}
+            disabled={saving}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg transition-all cursor-pointer shrink-0"
+          >
+            <Sparkles className="w-4 h-4 text-slate-950" />
+            {saving ? 'Organizando Banco...' : `Organizar Banco de Dados Agora (${misalignedCount})`}
+          </button>
         </div>
       )}
 
@@ -3945,6 +4097,19 @@ Comentário: Apenas a alternativa B atende ao comando...`}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {/* Botão de Organizar Módulos e Capítulos */}
+              <button
+                id="btn-organizar-banco-action"
+                type="button"
+                onClick={handleOrganizarBancoCompleto}
+                disabled={saving || existingQuestions.length === 0}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
+                title="Organizar o banco de dados: Módulo I (Capítulos 1, 2 e 3) e Módulo II (Capítulo 4 exclusivamente); Subtópico 3.2 no Capítulo 3"
+              >
+                <FolderTree className="w-3.5 h-3.5" />
+                {saving ? 'Organizando...' : 'Organizar Módulos e Capítulos'}
+              </button>
+
               {/* Botão de Unir Módulos */}
               <button
                 id="btn-unir-modulos"
