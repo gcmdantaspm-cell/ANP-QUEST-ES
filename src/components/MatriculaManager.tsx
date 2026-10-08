@@ -312,23 +312,6 @@ export const MatriculaManager: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Banner Informativo */}
-      <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
-            <IdCard className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-blue-950">
-              Controle de Acesso por Matrícula Autorizada
-            </h3>
-            <p className="text-xs text-blue-800/80 leading-relaxed mt-0.5">
-              Cadastre aqui os números de matrículas autorizados. Ao logar com a conta Google, o aluno deverá informar uma matrícula desta lista. Cada matrícula é vinculada de forma exclusiva e intransferível à conta Google utilizada.
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* Alerta de Feedback */}
       {feedbackMsg && (
         <div
@@ -346,6 +329,157 @@ export const MatriculaManager: React.FC = () => {
           <span>{feedbackMsg.text}</span>
         </div>
       )}
+
+      {/* Seção Principal: CAMPO PARA LANÇAMENTO DE MATRÍCULAS (Logo no Topo) */}
+      <div id="secao-lancamento-matricula" className="p-5 sm:p-6 bg-white border-2 border-purple-300 rounded-2xl shadow-md space-y-4 ring-2 ring-purple-500/10">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-purple-100">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] font-black uppercase tracking-wider bg-purple-700 text-white px-2.5 py-0.5 rounded-md shadow-xs">
+                Área de Lançamento Oficial
+              </span>
+              <h4 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+                <Plus className="w-5 h-5 text-purple-600" />
+                Campo para Lançamento de Matrícula Autorizada
+              </h4>
+            </div>
+            <p className="text-xs text-slate-600">
+              Cadastre o número da matrícula para autorizar imediatamente o acesso de alunos ao sistema de questões e simulados.
+            </p>
+          </div>
+
+          {/* Seletor de Modo de Lançamento */}
+          <div className="flex bg-slate-100 p-1 rounded-xl gap-1 shrink-0 border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setCadMode('single')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                cadMode === 'single'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              1. Lançamento Individual
+            </button>
+            <button
+              type="button"
+              onClick={() => setCadMode('batch')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                cadMode === 'batch'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <ListPlus className="w-3.5 h-3.5" />
+              2. Lançamento em Lote
+            </button>
+          </div>
+        </div>
+
+        {/* Formulário Individual */}
+        {cadMode === 'single' ? (
+          <form onSubmit={handleAddSingle} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end pt-1">
+            <div className="sm:col-span-4">
+              <label
+                htmlFor="input-cad-matricula"
+                className="block text-xs font-black text-slate-900 mb-1 flex items-center gap-1.5"
+              >
+                <span>Campo de Matrícula para Lançamento *</span>
+                <span className="text-[10px] text-purple-600 font-bold">(Obrigatório)</span>
+              </label>
+              <input
+                id="input-cad-matricula"
+                type="text"
+                value={singleMatricula}
+                onChange={(e) => setSingleMatricula(e.target.value)}
+                placeholder="Ex: 123456 ou 2026-01"
+                required
+                disabled={savingSingle}
+                className="w-full text-sm font-mono font-bold px-3.5 py-2.5 bg-slate-50 border-2 border-purple-300 focus:border-purple-600 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:bg-white text-slate-900 placeholder-slate-400 transition-colors shadow-2xs"
+              />
+            </div>
+
+            <div className="sm:col-span-5">
+              <label
+                htmlFor="input-cad-obs"
+                className="block text-xs font-bold text-slate-800 mb-1"
+              >
+                Identificação do Aluno / Turma (Opcional)
+              </label>
+              <input
+                id="input-cad-obs"
+                type="text"
+                value={singleObs}
+                onChange={(e) => setSingleObs(e.target.value)}
+                placeholder="Ex: Sd. PM João Silva - Turma B"
+                disabled={savingSingle}
+                className="w-full text-xs sm:text-sm px-3.5 py-2.5 bg-slate-50 border-2 border-slate-300 focus:border-purple-600 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:bg-white text-slate-900 placeholder-slate-400 transition-colors shadow-2xs"
+              />
+            </div>
+
+            <div className="sm:col-span-3">
+              <button
+                id="btn-submit-single-matricula"
+                type="submit"
+                disabled={savingSingle || !singleMatricula.trim()}
+                className="w-full py-2.5 px-4 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {savingSingle ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                )}
+                <span>Lançar Matrícula</span>
+              </button>
+            </div>
+          </form>
+        ) : (
+          /* Formulário em Lote */
+          <form onSubmit={handleAddBatch} className="space-y-3">
+            <div>
+              <label
+                htmlFor="textarea-batch-matriculas"
+                className="block text-xs font-black text-slate-900 mb-1 flex items-center gap-1.5"
+              >
+                <span>Campo de Lançamento em Lote (Lista de Matrículas) *</span>
+                <span className="text-[10px] text-purple-600 font-bold">(Uma matrícula por linha)</span>
+              </label>
+              <textarea
+                id="textarea-batch-matriculas"
+                value={batchText}
+                onChange={(e) => setBatchText(e.target.value)}
+                placeholder={`Cole aqui as matrículas. Exemplos aceitos:
+123456
+123457 - Aluno Silva
+123458 - Aluno Santos (Turma 2)
+123459`}
+                rows={5}
+                disabled={savingBatch}
+                className="w-full text-xs sm:text-sm font-mono p-3.5 bg-slate-50 border-2 border-purple-300 focus:border-purple-600 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:bg-white text-slate-900 placeholder-slate-400 transition-colors shadow-2xs"
+              />
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <span className="text-xs text-slate-600">
+                O sistema processa automaticamente e adiciona todas as matrículas informadas com vínculo liberado.
+              </span>
+              <button
+                id="btn-submit-batch-matricula"
+                type="submit"
+                disabled={savingBatch || !batchText.trim()}
+                className="py-2.5 px-5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer self-end"
+              >
+                {savingBatch ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <ListPlus className="w-4 h-4" />
+                )}
+                <span>Lançar Todas as Matrículas</span>
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
 
       {/* Cards de Métricas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -386,148 +520,21 @@ export const MatriculaManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Seção de Cadastro de Matrículas */}
-      <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+      {/* Banner Informativo */}
+      <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+            <IdCard className="w-5 h-5" />
+          </div>
           <div>
-            <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Plus className="w-4 h-4 text-purple-600" />
-              Inserir Matrículas Autorizadas
-            </h4>
-            <p className="text-xs text-slate-500">
-              Escolha entre cadastrar uma matrícula individual ou colar uma lista completa em lote.
+            <h3 className="text-sm font-bold text-blue-950">
+              Controle de Acesso por Matrícula Autorizada
+            </h3>
+            <p className="text-xs text-blue-800/80 leading-relaxed mt-0.5">
+              Cadastre aqui os números de matrículas autorizados. Ao logar com a conta Google, o aluno deverá informar uma matrícula desta lista. Cada matrícula é vinculada de forma exclusiva e intransferível à conta Google utilizada.
             </p>
           </div>
-
-          {/* Abas de Modo */}
-          <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
-            <button
-              type="button"
-              onClick={() => setCadMode('single')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                cadMode === 'single'
-                  ? 'bg-white text-purple-700 shadow-2xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Individual
-            </button>
-            <button
-              type="button"
-              onClick={() => setCadMode('batch')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
-                cadMode === 'batch'
-                  ? 'bg-white text-purple-700 shadow-2xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <ListPlus className="w-3.5 h-3.5" />
-              Em Lote (Várias)
-            </button>
-          </div>
         </div>
-
-        {/* Formulário Individual */}
-        {cadMode === 'single' ? (
-          <form onSubmit={handleAddSingle} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-            <div className="sm:col-span-4">
-              <label
-                htmlFor="input-cad-matricula"
-                className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1"
-              >
-                Número da Matrícula *
-              </label>
-              <input
-                id="input-cad-matricula"
-                type="text"
-                value={singleMatricula}
-                onChange={(e) => setSingleMatricula(e.target.value)}
-                placeholder="Ex: 123456 ou 2026-01"
-                required
-                disabled={savingSingle}
-                className="w-full text-xs sm:text-sm font-mono font-semibold px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:bg-white"
-              />
-            </div>
-
-            <div className="sm:col-span-5">
-              <label
-                htmlFor="input-cad-obs"
-                className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1"
-              >
-                Identificação do Aluno / Turma (Opcional)
-              </label>
-              <input
-                id="input-cad-obs"
-                type="text"
-                value={singleObs}
-                onChange={(e) => setSingleObs(e.target.value)}
-                placeholder="Ex: Sd. PM João Silva - Turma B"
-                disabled={savingSingle}
-                className="w-full text-xs sm:text-sm px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:bg-white"
-              />
-            </div>
-
-            <div className="sm:col-span-3">
-              <button
-                id="btn-submit-single-matricula"
-                type="submit"
-                disabled={savingSingle || !singleMatricula.trim()}
-                className="w-full py-2 px-4 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs sm:text-sm font-bold rounded-xl shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                {savingSingle ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Plus className="w-4 h-4" />
-                )}
-                <span>Salvar Matrícula</span>
-              </button>
-            </div>
-          </form>
-        ) : (
-          /* Formulário em Lote */
-          <form onSubmit={handleAddBatch} className="space-y-3">
-            <div>
-              <label
-                htmlFor="textarea-batch-matriculas"
-                className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1"
-              >
-                Cole a Lista de Matrículas (uma por linha)
-              </label>
-              <textarea
-                id="textarea-batch-matriculas"
-                value={batchText}
-                onChange={(e) => setBatchText(e.target.value)}
-                placeholder={`Cole aqui as matrículas. Exemplos aceitos:
-123456
-123457 - Aluno Silva
-123458 - Aluno Santos (Turma 2)
-123459`}
-                rows={5}
-                disabled={savingBatch}
-                className="w-full text-xs font-mono p-3 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:bg-white"
-              />
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <span className="text-[11px] text-slate-500">
-                O sistema processa automaticamente e adiciona todas as matrículas com vínculo liberado.
-              </span>
-              <button
-                id="btn-submit-batch-matricula"
-                type="submit"
-                disabled={savingBatch || !batchText.trim()}
-                className="py-2 px-5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs sm:text-sm font-bold rounded-xl shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer self-end"
-              >
-                {savingBatch ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <ListPlus className="w-4 h-4" />
-                )}
-                <span>Cadastrar Todas as Matrículas</span>
-              </button>
-            </div>
-          </form>
-        )}
       </div>
 
       {/* Tabela de Matrículas Cadastradas */}

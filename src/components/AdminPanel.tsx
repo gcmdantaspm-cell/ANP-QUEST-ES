@@ -56,6 +56,8 @@ import {
   Split,
   Undo2,
   Bot,
+  Clipboard,
+  RefreshCw,
 } from 'lucide-react';
 import { MatriculaManager } from './MatriculaManager';
 import { NotebookLMModal } from './NotebookLMModal';
@@ -222,6 +224,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [saveProgress, setSaveProgress] = useState<{ current: number; total: number } | null>(null);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [forceSaveAll, setForceSaveAll] = useState<boolean>(false);
+  const [lastBatchSavedInfo, setLastBatchSavedInfo] = useState<{
+    count: number;
+    skipped: number;
+    timestamp: string;
+  } | null>(null);
+
+  // Restaurar backup do último lote importado caso precise recuperar
+  const handleRestoreBackup = () => {
+    try {
+      const saved = localStorage.getItem('simulado_last_saved_backup');
+      const savedText = localStorage.getItem('simulado_last_rawtext_backup');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setExtractedQuestions(parsed);
+          if (savedText) setRawText(savedText);
+          setSaveSuccessMsg(`Backup de ${parsed.length} questões restaurado com sucesso!`);
+          setTimeout(() => setSaveSuccessMsg(null), 4000);
+          return;
+        }
+      }
+      setErrorMessage('Nenhum backup de questões encontrado no armazenamento local.');
+    } catch {
+      setErrorMessage('Erro ao restaurar backup local.');
+    }
+  };
 
   // Proteção de Acesso (Exclusivo para gcm.dantas.pm@gmail.com)
   if (!user) {
@@ -1181,15 +1210,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     return () => clearTimeout(timer);
   }, [rawText, rawCommentsText, autoOrganizeEnabled]);
 
-  // Capturar evento de Colar (Paste) para processamento instantâneo
-  const handlePasteQuestions = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    e.preventDefault(); // Previne que o navegador insira uma segunda cópia duplicando as questões de 25 para 50
-    const pasted = e.clipboardData.getData('text');
-    if (pasted && pasted.trim().length > 15) {
-      setRawText(pasted);
-      setTimeout(() => {
-        handleOrganizarAutomaticamente(pasted, rawCommentsText, false);
-      }, 50);
+  // Colar da área de transferência com 1 clique (para máxima conveniência)
+  const handleClipboardPaste = async () => {
+    try {
+      if (navigator?.clipboard?.readText) {
+        const clipText = await navigator.clipboard.readText();
+        if (clipText && clipText.trim()) {
+          setRawText((prev) => (prev ? `${prev}\n\n${clipText.trim()}` : clipText.trim()));
+          setTimeout(() => {
+            handleOrganizarAutomaticamente(clipText.trim(), rawCommentsText, false);
+          }, 60);
+          return;
+        }
+      }
+      setErrorMessage('Para colar, utilize as teclas Ctrl+V diretamente dentro da caixa de texto.');
+    } catch {
+      setErrorMessage('Para colar, utilize as teclas Ctrl+V diretamente dentro da caixa de texto.');
     }
   };
 
@@ -1656,7 +1692,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setErrorMessage(null);
   };
 
-  // Inserir todas as questões extraídas no Firestore (Exclusivo para gcmdantas.pm@gmail.com)
+  // Inserir todas as questões extraídas no Firestore (Exclusivo para gcmdantas.pm@gmail.com / gcm.dantas.pm@gmail.com)
   const handleSalvarLoteNoFirestore = async () => {
     if (extractedQuestions.length === 0) return;
 
@@ -1670,9 +1706,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setSaveSuccessMsg(null);
     setSaveProgress({ current: 0, total: extractedQuestions.length });
 
+    // Backup local de segurança antes do processo de escrita
+    try {
+      localStorage.setItem('simulado_last_saved_backup', JSON.stringify(extractedQuestions));
+      if (rawText) {
+        localStorage.setItem('simulado_last_rawtext_backup', rawText);
+      }
+    } catch {
+      // quota safeguard
+    }
+
     try {
       const questionsCol = collection(db, 'questions');
-      let count = 0;
 
       // Determinar o próximo número ordinal contínuo para evitar qualquer duplicata
       const maxExistingNum = existingQuestions.reduce(
@@ -1681,74 +1726,138 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       );
       const startingNum = maxExistingNum > 0 ? maxExistingNum : existingQuestions.length;
 
-      // Mapeamento das questões existentes para evitar inserir cópias duplicadas no Firestore
+      // Mapeamento das questões existentes para evitar duplicatas reais
+      // Utiliza o enunciado completo + resumo das alternativas para NUNCA bloquear questões diferentes que compartilham o mesmo texto de introdução
+      const getQuestionFingerprint = (enun: string, alts?: (AlternativeItem | string)[]) => {
+        const cleanEnun = (enun || '')
+          .toLowerCase()
+          .replace(/[^a-z0-9\u00C0-\u00FF]/gi, '');
+        const cleanAlts = (alts || [])
+          .map((a) => {
+            if (typeof a === 'string') {
+              return a.toLowerCase().replace(/[^a-z0-9\u00C0-\u00FF]/gi, '');
+            }
+            return (a.letra || '') + ':' + (a.texto || '').toLowerCase().replace(/[^a-z0-9\u00C0-\u00FF]/gi, '');
+          })
+          .join('|');
+        return `${cleanEnun}:::${cleanAlts}`;
+      };
+
       const existingFingerprints = new Set(
-        existingQuestions.map((eq) =>
-          eq.enunciado
-            .toLowerCase()
-            .replace(/[^a-z0-9\u00C0-\u00FF]/gi, '')
-            .slice(0, 100)
-        )
+        existingQuestions.map((eq) => getQuestionFingerprint(eq.enunciado || '', eq.alternativas || []))
       );
 
-      let skippedDuplicates = 0;
+      const toInsert: { question: Question; index: number }[] = [];
+      const skippedIndices: number[] = [];
 
-      for (const q of extractedQuestions) {
-        const validAlts = q.alternativas.filter((a) => a.texto.trim().length > 0);
-        const key = q.enunciado
-          .toLowerCase()
-          .replace(/[^a-z0-9\u00C0-\u00FF]/gi, '')
-          .slice(0, 100);
+      extractedQuestions.forEach((q, idx) => {
+        const safeAlts: AlternativeItem[] = (q.alternativas || [])
+          .map((a: unknown, aIdx: number) => {
+            if (typeof a === 'string') {
+              const letters = ['A', 'B', 'C', 'D', 'E'];
+              return {
+                letra: letters[aIdx] || 'A',
+                texto: (a as string).trim(),
+              };
+            }
+            const item = a as { letra?: string; texto?: string } | null | undefined;
+            return {
+              letra: ((item && item.letra) || String.fromCharCode(65 + aIdx)).toUpperCase().trim(),
+              texto: ((item && item.texto) || '').trim(),
+            };
+          })
+          .filter((a) => a.texto.length > 0);
 
-        if (key.length >= 20 && existingFingerprints.has(key)) {
-          skippedDuplicates++;
-          continue;
+        const key = getQuestionFingerprint(q.enunciado || '', safeAlts);
+
+        // Se forceSaveAll estiver desativado e a questão já existir identicamente no banco
+        if (!forceSaveAll && existingFingerprints.has(key)) {
+          skippedIndices.push(idx);
+          return;
         }
 
-        const autoOrdinalNum = startingNum + count + 1;
-        const normCap = normalizeCapituloName(q.capitulo || capituloMateria || '');
+        const autoOrdinalNum = startingNum + toInsert.length + 1;
+        const normCap = normalizeCapituloName(q.capitulo || capituloMateria || '') || 'Capítulo 1';
 
-        const questionPayload = {
+        const questionPayload: Question = {
           materia: (q.materia || nomeMateria || 'IPO-2').trim(),
           modulo: (q.modulo || moduloMateria || '').trim(),
           capitulo: normCap,
           subtopico: (q.subtopico || subtopico || '').trim(),
           tema_subtopico: (q.tema_subtopico || tema || '').trim(),
-          peso: q.peso !== undefined && Number(q.peso) > 0 ? Number(q.peso) : (Number(pesoQuestao) || 1),
+          peso: typeof q.peso === 'number' && !isNaN(q.peso) && q.peso > 0 ? q.peso : (Number(pesoQuestao) || 1),
           numero_questao: autoOrdinalNum,
-          enunciado: q.enunciado.trim(),
-          alternativas: validAlts.map((a) => ({
-            letra: a.letra.toUpperCase(),
-            texto: a.texto.trim(),
-          })),
-          alternativa_correta: (q.alternativa_correta || 'A').toUpperCase().trim(),
+          enunciado: (q.enunciado || '').trim(),
+          alternativas: safeAlts,
+          alternativa_correta: ((q.alternativa_correta || 'A').toUpperCase().trim()) || 'A',
           gabarito_comentado: (q.gabarito_comentado || '').trim(),
           dica_macete: (q.dica_macete || '').trim(),
           createdAt: new Date().toISOString(),
-          createdBy: user.email,
+          createdBy: user.email || ADMIN_EMAIL,
         };
 
-        await addDoc(questionsCol, questionPayload);
+        toInsert.push({ question: questionPayload, index: idx });
         existingFingerprints.add(key);
-        count++;
-        setSaveProgress({ current: count, total: extractedQuestions.length });
+      });
+
+      if (toInsert.length === 0) {
+        setErrorMessage(
+          `Nenhuma questão foi inserida. Todas as ${skippedIndices.length} questões já constam no banco de dados com mesmo enunciado e alternativas. Para forçar a gravação de todas, marque a opção "Forçar gravação de todas" e clique novamente em Inserir.`
+        );
+        // NUNCA apagar o formulário quando 0 questões forem salvas!
+        setSaving(false);
+        setSaveProgress(null);
+        return;
       }
 
-      const dupMsg = skippedDuplicates > 0 ? ` (${skippedDuplicates} cópias duplicadas ignoradas)` : '';
-      setSaveSuccessMsg(`${count} questão(ões) inserida(s) com numeração ordinal contínua no Firestore!${dupMsg}`);
+      // Inserção em lotes atômicos com writeBatch (até 400 por lote, limite oficial Firestore é 500)
+      // Grava 100 questões em MENOS DE 1 SEGUNDO com segurança absoluta e sem travamentos!
+      const CHUNK_SIZE = 400;
+      let committedCount = 0;
+
+      for (let i = 0; i < toInsert.length; i += CHUNK_SIZE) {
+        const chunk = toInsert.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+
+        chunk.forEach((item) => {
+          const newDocRef = doc(questionsCol);
+          batch.set(newDocRef, item.question);
+        });
+
+        await batch.commit();
+        committedCount += chunk.length;
+        setSaveProgress({ current: committedCount, total: toInsert.length });
+      }
+
+      const dupMsg = skippedIndices.length > 0
+        ? ` (${skippedIndices.length} duplicatas já existentes foram ignoradas)`
+        : '';
+
+      setSaveSuccessMsg(
+        `Sucesso absoluto! ${committedCount} questão(ões) inserida(s) com numeração ordinal contínua no Banco de Dados!${dupMsg}`
+      );
+      setLastBatchSavedInfo({
+        count: committedCount,
+        skipped: skippedIndices.length,
+        timestamp: new Date().toLocaleTimeString('pt-BR'),
+      });
       onQuestionAdded();
 
-      // Limpar formulário após sucesso
-      setRawText('');
-      setRawCommentsText('');
-      setExtractedQuestions([]);
-      setTimeout(() => setSaveSuccessMsg(null), 5000);
-    } catch (err) {
-      try {
-        handleFirestoreError(err, OperationType.CREATE, 'questions');
-      } catch {
-        setErrorMessage('Erro ao salvar lote de questões no Firestore. Verifique suas permissões.');
+      // Se todas foram salvas, limpa a fila de extração; se alguma foi ignorada por duplicata, mantém as ignoradas visíveis
+      if (skippedIndices.length === 0) {
+        setExtractedQuestions([]);
+        setRawText('');
+        setRawCommentsText('');
+      } else {
+        const skippedSet = new Set(skippedIndices);
+        setExtractedQuestions((prev) => prev.filter((_, idx) => skippedSet.has(idx)));
       }
+
+      setTimeout(() => setSaveSuccessMsg(null), 8000);
+    } catch (err: unknown) {
+      console.error('Erro ao salvar no Firestore:', err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      setErrorMessage(`Erro ao salvar questões no Banco de Dados: ${errMsg}`);
     } finally {
       setSaving(false);
       setSaveProgress(null);
@@ -2105,9 +2214,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       {/* Mensagens de Sucesso e Erro */}
       {saveSuccessMsg && (
-        <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs sm:text-sm text-emerald-800 font-semibold animate-in fade-in">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-          {saveSuccessMsg}
+        <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs sm:text-sm text-emerald-800 font-semibold animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            <span>{saveSuccessMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('gerenciar')}
+            className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 self-start sm:self-auto shadow-2xs"
+          >
+            Abrir Banco de Questões
+          </button>
         </div>
       )}
 
@@ -2184,7 +2302,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       )}
 
-      {activeTab === 'lote' ? (
+      {activeTab === 'lote' && (
         <div className="space-y-6">
           {/* Seção 1: Configuração Hierárquica com Dropdowns de itens já subidos */}
           <div className="p-4 sm:p-5 bg-gradient-to-br from-slate-50 to-purple-50/30 rounded-2xl border border-slate-200">
@@ -2509,6 +2627,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
+                    onClick={handleClipboardPaste}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-300 text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-2xs"
+                    title="Colar texto das questões da sua área de transferência"
+                  >
+                    <Clipboard className="w-3.5 h-3.5 text-purple-600" />
+                    Colar da Área de Transferência
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setIsNotebookModalOpen(true)}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-700 via-indigo-600 to-sky-600 hover:from-purple-600 hover:to-sky-500 text-white text-xs font-black rounded-lg transition-all cursor-pointer shadow-md hover:shadow-lg border border-purple-300/40"
                     title="Gerar modelo e prompt base para o NotebookLM importar 50 questões perfeitas"
@@ -2530,10 +2658,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     Carregar Exemplo: Bloco 4.6.2 (Auto Circunstanciado - 6 Questões)
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={handleRestoreBackup}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-2xs"
+                    title="Restaurar backup do último lote de questões que foi processado"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                    Restaurar Lote
+                  </button>
+
                   {rawText && (
                     <button
                       type="button"
-                      onClick={() => setRawText('')}
+                      onClick={() => {
+                        setRawText('');
+                        setExtractedQuestions([]);
+                      }}
                       className="text-slate-500 hover:text-rose-600 text-xs font-medium cursor-pointer"
                     >
                       Limpar Questões
@@ -2551,7 +2692,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
                   <span>
-                    <strong>Importação Automática Ativa:</strong> Ao colar o texto das questões, os módulos, capítulos, subtópico e tema (subtópico do subtópico) são detectados e separados em cartões imediatamente com a contagem de cada um.
+                    <strong>Importação Automática Ativa:</strong> Ao colar ou digitar o texto das questões, os módulos, capítulos, subtópico e tema são detectados e organizados imediatamente.
                   </span>
                 </div>
                 <label className="flex items-center gap-1.5 cursor-pointer font-bold text-indigo-800 text-[11px] shrink-0">
@@ -2561,7 +2702,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     onChange={(e) => setAutoOrganizeEnabled(e.target.checked)}
                     className="w-3.5 h-3.5 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                   />
-                  Auto-Organizar ao Colar
+                  Auto-Organizar ao Digitar/Colar
                 </label>
               </div>
 
@@ -2569,7 +2710,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 id="input-raw-questions-text"
                 value={rawText}
                 onChange={(e) => setRawText(e.target.value)}
-                onPaste={handlePasteQuestions}
                 placeholder={`Cole aqui o texto das questões. Exemplo:
 
 Módulo: Direito Constitucional
@@ -2658,6 +2798,49 @@ Comentário: Apenas a alternativa B atende ao comando...`}
             </div>
           </div>
 
+          {/* Alerta de Lote Gravado no Firestore com Opção de Restaurar */}
+          {lastBatchSavedInfo && extractedQuestions.length === 0 && (
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 border-2 border-emerald-500/50 rounded-2xl text-white shadow-xl space-y-3 animate-in fade-in">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400 flex items-center justify-center text-emerald-400 shrink-0">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-white flex items-center gap-2">
+                      Lote de {lastBatchSavedInfo.count} Questões Gravado com Sucesso no Banco de Dados!
+                      <span className="text-[11px] font-semibold text-emerald-300">
+                        ({lastBatchSavedInfo.timestamp})
+                      </span>
+                    </h4>
+                    <p className="text-xs text-emerald-200">
+                      Todas as {lastBatchSavedInfo.count} questões estão salvas no Firestore com numeração sequencial contínua.
+                      {lastBatchSavedInfo.skipped > 0 && ` (${lastBatchSavedInfo.skipped} duplicatas pré-existentes ignoradas)`}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleRestoreBackup}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl transition-all shadow-md cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Restaurar Lote no Editor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLastBatchSavedInfo(null)}
+                    className="p-2 text-emerald-300 hover:text-white rounded-lg hover:bg-emerald-900/50 cursor-pointer"
+                    title="Fechar mensagem"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Seção 3: Questões Estruturadas Prontas para Inserir no Firestore */}
           {extractedQuestions.length > 0 && (
             <div className="space-y-4 animate-in fade-in">
@@ -2668,23 +2851,58 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                     {extractedQuestions.length} Questão(ões) Organizada(s) com Sucesso!
                   </h4>
                   <p className="text-xs text-sky-800">
-                    Revise os campos abaixo. Ao confirmar, o sistema gravará tudo diretamente no Firestore.
+                    Revise os campos abaixo. Ao confirmar, o sistema gravará tudo diretamente no Firestore com numeração ordinal contínua.
                   </p>
                 </div>
 
-                <button
-                  id="btn-salvar-lote-firestore"
-                  type="button"
-                  onClick={handleSalvarLoteNoFirestore}
-                  disabled={saving}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md transition-all cursor-pointer"
-                >
-                  <Save className="w-4 h-4" />
-                  {saving
-                    ? `Inserindo... (${saveProgress?.current || 0}/${saveProgress?.total || 0})`
-                    : `Inserir no Banco de Dados (${extractedQuestions.length})`}
-                </button>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <label className="inline-flex items-center gap-1.5 px-3 py-2 bg-white/90 border border-slate-300 hover:border-slate-400 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer select-none transition-all shadow-xs">
+                    <input
+                      type="checkbox"
+                      checked={forceSaveAll}
+                      onChange={(e) => setForceSaveAll(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                    />
+                    <span>Forçar gravação de todas (ignorar duplicatas)</span>
+                  </label>
+
+                  <button
+                    id="btn-salvar-lote-firestore"
+                    type="button"
+                    onClick={handleSalvarLoteNoFirestore}
+                    disabled={saving}
+                    className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs sm:text-sm font-black rounded-xl shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/50 transition-all cursor-pointer border border-emerald-400/40"
+                  >
+                    {saving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Inserindo no Banco... ({saveProgress?.current || 0}/{saveProgress?.total || extractedQuestions.length})</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>Inserir no Banco de Dados ({extractedQuestions.length})</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
+
+              {/* Barra de Progresso em Tempo Real durante Gravação */}
+              {saving && saveProgress && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1.5 animate-pulse">
+                  <div className="flex justify-between text-xs font-bold text-emerald-950">
+                    <span>Gravando questões no Firestore...</span>
+                    <span>{saveProgress.current} de {saveProgress.total} ({Math.round((saveProgress.current / (saveProgress.total || 1)) * 100)}%)</span>
+                  </div>
+                  <div className="w-full bg-emerald-200/60 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-emerald-600 h-2 rounded-full transition-all duration-200"
+                      style={{ width: `${Math.round((saveProgress.current / (saveProgress.total || 1)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Cartões Interativos de Confirmação de Novos Campos na Importação */}
               {newDetectedFields.length > 0 && (
@@ -3706,7 +3924,9 @@ Comentário: Apenas a alternativa B atende ao comando...`}
             </div>
           )}
         </div>
-      ) : (
+      )}
+
+      {activeTab === 'gerenciar' && (
         /* Aba 2: Gestão do Banco de Questões no Firestore */
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">

@@ -2044,9 +2044,13 @@ export function splitBatchQuestionsText(rawText: string): string[] {
     for (let i = 1; i < qMatches.length; i++) {
       const candidate = qMatches[i];
       const prevChunk = text.substring(validStarts[validStarts.length - 1], candidate.index);
-      // Exige que o bloco anterior tenha alternativas ou gabarito e a numeração seja sequencial
-      if (
-        hasQuestionAlternativesOrGabarito(prevChunk) &&
+      // Se o bloco anterior já apresentou alternativas completas ou gabarito, qualquer marcador de questão é um novo início legítimo
+      const hasCompletedPrev = hasQuestionAlternativesOrGabarito(prevChunk);
+      const isDistanceOk = candidate.index - validStarts[validStarts.length - 1] > 25;
+      if (hasCompletedPrev && isDistanceOk) {
+        validStarts.push(candidate.index);
+        lastAcceptedNum = candidate.num;
+      } else if (
         (candidate.num > lastAcceptedNum || candidate.num === 1) &&
         candidate.index - validStarts[validStarts.length - 1] > 30
       ) {
@@ -2112,10 +2116,13 @@ export function splitBatchQuestionsText(rawText: string): string[] {
       const candidate = candidateMatches[i];
       const prevChunk = text.substring(prevStart, candidate.index);
 
-      // O candidato é válido SE E SOMENTE SE:
-      // a) O bloco anterior já apresentou alternativas ou gabarito (evita quebrar assertivas internas 1., 2.)
-      // b) E a numeração é estritamente superior ao último número aceito OU reinicia em 1 (mudança de matéria/bloco)
-      if (hasQuestionAlternativesOrGabarito(prevChunk) && (candidate.num > lastAcceptedNum || candidate.num === 1)) {
+      // O candidato é válido se o bloco anterior já apresentou alternativas ou gabarito
+      const hasCompletedPrev = hasQuestionAlternativesOrGabarito(prevChunk);
+      const isDistanceOk = candidate.index - prevStart > 25;
+      if (hasCompletedPrev && isDistanceOk) {
+        validStarts.push(candidate.index);
+        lastAcceptedNum = candidate.num;
+      } else if (hasCompletedPrev && (candidate.num > lastAcceptedNum || candidate.num === 1)) {
         validStarts.push(candidate.index);
         lastAcceptedNum = candidate.num;
       }
@@ -2565,26 +2572,25 @@ export function parseBatchRawQuestions(
   });
 
   // DEDUPLICAÇÃO INTELIGENTE DE QUESTÕES:
-  // Se o texto colado contiver cópias duplicadas das mesmas questões (ex: colado 2 vezes duplicando de 25 para 50),
-  // descarta cópias idênticas e preserva estritamente questões únicas.
+  // Se o texto colado contiver cópias idênticas exatas das mesmas questões,
+  // descarta cópias duplicadas preservando rigorosamente todas as questões legítimas (mesmo com preâmbulo ou introdução comum).
   const seenFingerprints = new Set<string>();
   const realQuestions: ParsedQuestionResult[] = [];
 
   for (const q of rawFiltered) {
     const rawKey = q.enunciado
       .toLowerCase()
-      .replace(/[^a-z0-9\u00C0-\u00FF]/gi, '')
-      .slice(0, 120);
+      .replace(/[^a-z0-9\u00C0-\u00FF]/gi, '');
 
     const altsKey = (q.alternativas || [])
-      .map((a) => a.texto.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20))
+      .map((a) => (a.letra || '') + ':' + (a.texto || '').toLowerCase().replace(/[^a-z0-9\u00C0-\u00FF]/gi, ''))
       .join('|');
 
     const fingerprint = `${rawKey}:::${altsKey}`;
 
-    if (rawKey.length >= 20) {
+    if (rawKey.length >= 10) {
       if (seenFingerprints.has(fingerprint)) {
-        continue; // duplicata ignorada
+        continue; // duplicata 100% idêntica ignorada
       }
       seenFingerprints.add(fingerprint);
     }
