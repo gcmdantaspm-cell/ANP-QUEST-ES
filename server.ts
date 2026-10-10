@@ -56,10 +56,21 @@ app.post('/api/ai/classify-questions', async (req, res) => {
 
     const apiKey = process.env.GEMINI_API_KEY;
 
-    // If no API key configured on server, use official heuristic mapper
+    // If no API key configured on server, use official heuristic mapper preserving carimbos
     if (!apiKey) {
       console.warn('Server: GEMINI_API_KEY not set. Using official heuristic hierarchy mapper.');
       const fallbackResults = questions.map((q) => {
+        if (q.carimbado || (q.modulo && q.capitulo)) {
+          return {
+            id: q.id,
+            materia: q.materia || OFFICIAL_MATERIA,
+            modulo: q.modulo || 'Módulo I',
+            capitulo: q.capitulo || '',
+            subtopico: q.subtopico || '',
+            tema: q.tema || q.tema_subtopico || '',
+            carimbado: true,
+          };
+        }
         const mapped = mapQuestionToOfficialHierarchy(q);
         return { id: q.id, ...mapped };
       });
@@ -88,22 +99,26 @@ app.post('/api/ai/classify-questions', async (req, res) => {
           index: idx,
           id: q.id,
           enunciado: (q.enunciado || '').slice(0, 450),
+          materia_atual: q.materia || '',
           modulo_atual: q.modulo || '',
           capitulo_atual: q.capitulo || '',
           subtopico_atual: q.subtopico || '',
           tema_atual: q.tema || q.tema_subtopico || '',
+          carimbado: Boolean(q.carimbado),
           gabarito: (q.gabarito_comentado || '').slice(0, 300),
         }));
 
-        const prompt = `Você é um perito examinador da Polícia Federal e professor da matéria "${OFFICIAL_MATERIA}".
-Sua tarefa é classificar cada questão recebida rigorosamente na ÁRVORE OFICIAL DE CONTEÚDO fornecida abaixo.
+        const prompt = `Você é um perito examinador da Polícia Federal e professor especializado.
+Sua tarefa é analisar cada questão e associar à sua hierarquia correspondente.
 
 REGRAS OBRIGATÓRIAS:
-1. materia DEVE SER SEMPRE: "${OFFICIAL_MATERIA}".
-2. modulo DEVE SER exatamente um dos seguintes: "Módulo I", "Módulo II", "Módulo V", "Módulo VI", "Módulo VII", "Módulo VIII", "Módulo IX".
-3. capitulo DEVE SER exatamente o rótulo completo de um capítulo válido do respectivo módulo (ex: "Capítulo 2.1: Critérios para a seleção de técnicas investigativas", "Capítulo 4.6: Formalização de outros atos de investigação", "Capítulo 3.1: Pesquisas em fontes abertas (OSINT)", "Capítulo 3.2: Pesquisa em bancos de dados", "Capítulo 3.4: Análise de vínculos", "Capítulo 3.3: Análise de Relatórios de Inteligência Financeira", "Capítulo 3.5: Ações encobertas", "Capítulo 3.6: Obtenção de dados oriundos de fontes humanas", "Capítulo 5.5.6: Infiltração policial").
-4. subtopico DEVE SER o rótulo exato do subtópico se o capítulo possuir subtópicos (ex: "Subtópico 4.6.1: Informação de Polícia Judiciária (IPJ)", "Subtópico 3.1.2: Ferramentas de busca, acompanhamento e análise", etc.), ou string vazia "" se o capítulo não possuir subtópicos.
-5. tema DEVE SER um dos temas oficiais listados para aquele subtópico ou capítulo.
+0. REGRA SUPREMA DE CARIMBO: Se a questão já tiver carimbo fixado ou já possuir módulo e capítulo definidos (carimbado: true ou modulo_atual e capitulo_atual preenchidos), MANTENHA RIGOROSAMENTE a matéria, módulo, capítulo, subtópico e tema existentes para evitar que as questões sejam deslocadas ou sumam dos filtros onde foram cadastradas!
+1. Para questões sem hierarquia definida, classifique com base na árvore oficial.
+2. materia: Se já preenchida em materia_atual, preserve. Caso contráro, use "${OFFICIAL_MATERIA}".
+3. modulo: Se já preenchido em modulo_atual, preserve. Caso contrário, atribua um dos módulos válidos.
+4. capitulo: Se já preenchido em capitulo_atual, preserve. Caso contrário, atribua o capítulo correspondente.
+5. subtopico: Se já preenchido em subtopico_atual, preserve.
+6. tema: Se já preenchido em tema_atual, preserve.
 
 ÁRVORE OFICIAL:
 ${treeSummary}
@@ -150,29 +165,63 @@ ${JSON.stringify(questionsPrompt, null, 2)}
         for (const item of parsed) {
           if (item && item.id) {
             returnedIds.add(item.id);
-            results.push({
-              id: item.id,
-              materia: OFFICIAL_MATERIA,
-              modulo: item.modulo || 'Módulo I',
-              capitulo: item.capitulo || '',
-              subtopico: item.subtopico || '',
-              tema: item.tema || '',
-            });
+            const orig = chunk.find((c) => c.id === item.id);
+            if (orig && (orig.carimbado || (orig.modulo && orig.capitulo))) {
+              results.push({
+                id: item.id,
+                materia: orig.materia || OFFICIAL_MATERIA,
+                modulo: orig.modulo || 'Módulo I',
+                capitulo: orig.capitulo || '',
+                subtopico: orig.subtopico || '',
+                tema: orig.tema || orig.tema_subtopico || '',
+              });
+            } else {
+              results.push({
+                id: item.id,
+                materia: item.materia || OFFICIAL_MATERIA,
+                modulo: item.modulo || 'Módulo I',
+                capitulo: item.capitulo || '',
+                subtopico: item.subtopico || '',
+                tema: item.tema || '',
+              });
+            }
           }
         }
 
         // Fallback for any missing items in chunk
         for (const q of chunk) {
           if (!returnedIds.has(q.id)) {
-            const mapped = mapQuestionToOfficialHierarchy(q);
-            results.push({ id: q.id, ...mapped });
+            if (q.carimbado || (q.modulo && q.capitulo)) {
+              results.push({
+                id: q.id,
+                materia: q.materia || OFFICIAL_MATERIA,
+                modulo: q.modulo || 'Módulo I',
+                capitulo: q.capitulo || '',
+                subtopico: q.subtopico || '',
+                tema: q.tema || q.tema_subtopico || '',
+              });
+            } else {
+              const mapped = mapQuestionToOfficialHierarchy(q);
+              results.push({ id: q.id, ...mapped });
+            }
           }
         }
       } catch (chunkErr) {
         console.warn('Erro ao processar chunk com Gemini, aplicando mapeador heurístico:', chunkErr);
         for (const q of chunk) {
-          const mapped = mapQuestionToOfficialHierarchy(q);
-          results.push({ id: q.id, ...mapped });
+          if (q.carimbado || (q.modulo && q.capitulo)) {
+            results.push({
+              id: q.id,
+              materia: q.materia || OFFICIAL_MATERIA,
+              modulo: q.modulo || 'Módulo I',
+              capitulo: q.capitulo || '',
+              subtopico: q.subtopico || '',
+              tema: q.tema || q.tema_subtopico || '',
+            });
+          } else {
+            const mapped = mapQuestionToOfficialHierarchy(q);
+            results.push({ id: q.id, ...mapped });
+          }
         }
       }
     }
@@ -182,6 +231,16 @@ ${JSON.stringify(questionsPrompt, null, 2)}
     console.error('Erro na rota /api/ai/classify-questions:', error);
     const questions = req.body?.questions || [];
     const fallbackResults = questions.map((q: any) => {
+      if (q.carimbado || (q.modulo && q.capitulo)) {
+        return {
+          id: q.id,
+          materia: q.materia || OFFICIAL_MATERIA,
+          modulo: q.modulo || 'Módulo I',
+          capitulo: q.capitulo || '',
+          subtopico: q.subtopico || '',
+          tema: q.tema || q.tema_subtopico || '',
+        };
+      }
       const mapped = mapQuestionToOfficialHierarchy(q);
       return { id: q.id, ...mapped };
     });

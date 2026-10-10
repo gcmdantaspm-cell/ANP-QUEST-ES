@@ -14,6 +14,8 @@ export interface Question {
   subtopico?: string;
   tema?: string;
   tema_subtopico?: string; // Mantido para compatibilidade regressiva
+  carimbo?: string; // Carimbo oficial de vinculação e rastreabilidade na importação
+  carimbado?: boolean; // Se a questão possui carimbo fixado na importação (protegida contra deslocamento por IA)
   
   // Conteúdo
   enunciado: string;

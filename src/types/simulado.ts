@@ -7,7 +7,10 @@ export interface SimuladoQuestion {
   modulo?: string;
   capitulo?: string;
   subtopico?: string;
+  tema?: string;
   tema_subtopico?: string;
+  carimbo?: string;
+  carimbado?: boolean;
   peso: number; // Peso da questão (ex: 1, 2, 3...)
   enunciado: string;
   alternativas: AlternativeItem[];

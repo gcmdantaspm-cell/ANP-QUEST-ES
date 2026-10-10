@@ -1077,12 +1077,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         return {
           id: docSnap.id,
           enunciado: raw.enunciado || '',
+          materia: raw.materia || '',
           capitulo: raw.capitulo || '',
           subtopico: raw.subtopico || '',
           modulo: raw.modulo || '',
           tema: raw.tema || '',
           tema_subtopico: raw.tema_subtopico || '',
           gabarito_comentado: raw.gabarito_comentado || '',
+          carimbo: raw.carimbo || '',
+          carimbado: Boolean(raw.carimbado),
         };
       });
 
@@ -1109,11 +1112,43 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           subtopico: string;
           tema: string;
           tema_subtopico: string;
+          carimbo?: string;
+          carimbado?: boolean;
         };
       }[] = [];
 
       allDocs.forEach((docSnap) => {
         const raw = docSnap.data() as Question;
+
+        // Se a questão já possui carimbo fixado na importação, ou já possui módulo e capítulo vinculados, preserva rigorosamente para nunca sumir ou ser deslocada!
+        if (
+          raw.carimbado ||
+          raw.carimbo ||
+          (raw.modulo && raw.modulo.trim() && raw.capitulo && raw.capitulo.trim()) ||
+          (raw.modulo && raw.modulo.trim())
+        ) {
+          const effectiveMat = raw.materia || OFFICIAL_MATERIA;
+          const effectiveMod = normalizeModuloName(raw.modulo || 'Módulo I');
+          const effectiveCap = raw.capitulo ? normalizeCapituloName(raw.capitulo) : '';
+          const effectiveSub = raw.subtopico || '';
+          const effectiveTema = raw.tema || raw.tema_subtopico || '';
+          const carimboStr = raw.carimbo || [effectiveMat, effectiveMod, effectiveCap, effectiveSub, effectiveTema].filter(Boolean).join(' > ');
+          updates.push({
+            id: docSnap.id,
+            data: {
+              materia: effectiveMat,
+              modulo: effectiveMod,
+              capitulo: effectiveCap,
+              subtopico: effectiveSub,
+              tema: effectiveTema,
+              tema_subtopico: effectiveTema,
+              carimbo: carimboStr,
+              carimbado: true,
+            },
+          });
+          return;
+        }
+
         const aiMapped = aiResults.get(docSnap.id);
         const mapped = aiMapped || mapQuestionToOfficialHierarchy({
           materia: raw.materia,
@@ -1126,6 +1161,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           gabarito_comentado: raw.gabarito_comentado,
         });
 
+        const newCarimbo = [mapped.materia, mapped.modulo, mapped.capitulo, mapped.subtopico, mapped.tema].filter(Boolean).join(' > ');
+
         updates.push({
           id: docSnap.id,
           data: {
@@ -1135,6 +1172,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             subtopico: mapped.subtopico,
             tema: mapped.tema,
             tema_subtopico: mapped.tema,
+            carimbo: newCarimbo,
+            carimbado: true,
           },
         });
       });
@@ -1157,6 +1196,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             subtopico: item.data.subtopico,
             tema: item.data.tema,
             tema_subtopico: item.data.tema_subtopico,
+            carimbo: item.data.carimbo || '',
+            carimbado: item.data.carimbado ?? false,
           });
         });
 
@@ -2104,19 +2145,41 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
         const autoOrdinalNum = startingNum + toInsert.length + 1;
         const canonicalCap = getCanonicalCapituloForQuestion(q);
-        const normCap = canonicalCap || normalizeCapituloName(q.capitulo || capituloMateria || '') || 'Capítulo 1';
-        const effectiveMod = getCanonicalModuloForQuestion({
-          ...q,
-          capitulo: normCap,
-          modulo: q.modulo || moduloMateria,
-        });
+        const normCap = (q.capitulo && q.capitulo.trim())
+          ? normalizeCapituloName(q.capitulo.trim())
+          : (canonicalCap || normalizeCapituloName(capituloMateria || '') || 'Capítulo 1');
+
+        const effectiveMod = (q.modulo && q.modulo.trim())
+          ? normalizeModuloName(q.modulo.trim())
+          : (getCanonicalModuloForQuestion({
+              ...q,
+              capitulo: normCap,
+              modulo: moduloMateria,
+            }) || normalizeModuloName(moduloMateria || '') || 'Módulo I');
+
+        const finalMateria = (q.materia || nomeMateria || 'IPO-2').trim();
+        const finalModulo = effectiveMod.trim();
+        const finalCapitulo = normCap.trim();
+        const finalSubtopico = (q.subtopico || subtopico || '').trim();
+        const finalTema = (q.tema || q.tema_subtopico || tema || '').trim();
+
+        const carimboStr = q.carimbo || [
+          finalMateria,
+          finalModulo,
+          finalCapitulo,
+          finalSubtopico,
+          finalTema,
+        ].filter(Boolean).join(' > ');
 
         const questionPayload: Question = {
-          materia: (q.materia || nomeMateria || 'IPO-2').trim(),
-          modulo: effectiveMod.trim(),
-          capitulo: normCap.trim(),
-          subtopico: (q.subtopico || subtopico || '').trim(),
-          tema_subtopico: (q.tema_subtopico || tema || '').trim(),
+          materia: finalMateria,
+          modulo: finalModulo,
+          capitulo: finalCapitulo,
+          subtopico: finalSubtopico,
+          tema: finalTema,
+          tema_subtopico: finalTema,
+          carimbo: carimboStr,
+          carimbado: true,
           peso: typeof q.peso === 'number' && !isNaN(q.peso) && q.peso > 0 ? q.peso : (Number(pesoQuestao) || 1),
           numero_questao: autoOrdinalNum,
           enunciado: (q.enunciado || '').trim(),
@@ -4191,6 +4254,16 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                             <span className="font-bold bg-slate-900 text-white px-2 py-0.5 rounded">
                               Questão #{q.numero_questao || idx + 1}
                             </span>
+                            {q.carimbado && (
+                              <span
+                                className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded text-[11px]"
+                                title={q.carimbo ? `Carimbo de Vinculação: ${q.carimbo}` : 'Questão com carimbo fixado na importação (protegida contra deslocamento)'}
+                              >
+                                <span className="text-[9px] bg-emerald-700 text-white px-1.5 py-0.2 rounded font-black uppercase tracking-wide">
+                                  🛡️ Carimbada
+                                </span>
+                              </span>
+                            )}
                             {(() => {
                               const etq = formatEtiqueta(q);
                               if (etq) {
@@ -4728,6 +4801,14 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                           <span className="text-xs font-bold text-slate-900">
                             #{q.numero_questao || idx + 1}
                           </span>
+                          {q.carimbado && (
+                            <span
+                              className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300 text-[10px] font-extrabold inline-flex items-center gap-1"
+                              title={q.carimbo ? `Carimbo Original: ${q.carimbo}` : 'Questão com carimbo fixado'}
+                            >
+                              🛡️ Carimbada
+                            </span>
+                          )}
                           <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[11px] font-semibold">
                             {q.modulo}
                           </span>

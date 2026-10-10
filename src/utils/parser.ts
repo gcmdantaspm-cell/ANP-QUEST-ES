@@ -6,7 +6,10 @@ export interface ParsedQuestionResult {
   modulo?: string;
   capitulo?: string;
   subtopico?: string;
+  tema?: string;
   tema_subtopico?: string;
+  carimbo?: string;
+  carimbado?: boolean;
   enunciado: string;
   alternativas: AlternativeItem[];
   alternativa_correta: string;
@@ -26,7 +29,10 @@ export interface HierarchyContext {
   modulo?: string;
   capitulo?: string;
   subtopico?: string;
+  tema?: string;
   tema_subtopico?: string;
+  carimbo?: string;
+  carimbado?: boolean;
   peso?: number;
 }
 
@@ -443,18 +449,22 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
   // Ex: Matéria: Direito Penal | Módulo: 1 | Capítulo: 4 | Subtópico: 4.6 | Tema: 4.6.2 (Auto Circunstanciado)
   // Ex: Matéria: IPO-2 > Módulo 1 > Capítulo 4 > Subtópico 4.6 > Tema 4.6.2
   // Ex: [Matéria: IPO-2] [Módulo: 1] [Capítulo: 4] [Subtópico: 4.6] [Tema: 4.6.2]
+  // Ex: Carimbo: Módulo II > Capítulo 4 > Subtópico 4.6 > Tema 4.6.2
   // Ex: SUBTÓPICO: 1.1.2.1 / DETALHE: 1.1.2.1.1 - Princípio da Oportunidade e o Processo Investigativo em Espiral
-  const bracketMatches = cleanLine.match(/\[([^\]]+)\]/g);
+  const isCarimboLine = /^(?:\[?\s*carimbo(?:\s+de\s+vincula[çc][ãa]o)?\s*[:=-]?\s*\]?\s*)/i.test(cleanLine);
+  const workingLine = cleanLine.replace(/^(?:\[?\s*carimbo(?:\s+de\s+vincula[çc][ãa]o)?\s*[:=-]?\s*\]?\s*)/i, '').trim();
+
+  const bracketMatches = workingLine.match(/\[([^\]]+)\]/g);
   const hasMultipleBrackets = Boolean(bracketMatches && bracketMatches.length >= 2);
-  const hasSlashSeparators = /\s+\/\s+|\/(?=(?:mat[ée]ria|m[óo]dulo|cap[íi]tulo|t[óo]pico|subt[óo]pico|tema|detalhe)\b)/i.test(cleanLine);
+  const hasSlashSeparators = /\s+\/\s+|\/(?=(?:mat[ée]ria|m[óo]dulo|cap[íi]tulo|t[óo]pico|subt[óo]pico|tema|detalhe)\b)/i.test(workingLine);
   
   // Semicolon (;) SÓ deve ser considerado delimitador de hierarquia se a linha explicitamente tiver tags de hierarquia
-  const hasSemicolonWithHierarchy = cleanLine.includes(';') && /(?:mat[ée]ria|disciplina|m[óo]dulo|cap[íi]tulo|t[óo]pico|subt[óo]pico|tema|detalhe)\s*[:=-]/i.test(cleanLine);
+  const hasSemicolonWithHierarchy = workingLine.includes(';') && /(?:mat[ée]ria|disciplina|m[óo]dulo|cap[íi]tulo|t[óo]pico|subt[óo]pico|tema|detalhe)\s*[:=-]/i.test(workingLine);
 
-  // Exige que a linha delimitada contenha pelo menos um termo chave hierárquico
-  const hasHierarchyKeyword = /(?:mat[ée]ria|disciplina|m[óo]dulo|cap[íi]tulo|cap\.?|t[óo]pico|subt[óo]pico|sub-t[óo]pico|tema|detalhe|subtema|bloco)\b/i.test(cleanLine);
+  // Exige que a linha delimitada contenha pelo menos um termo chave hierárquico ou venha de linha de carimbo
+  const hasHierarchyKeyword = isCarimboLine || /(?:mat[ée]ria|disciplina|m[óo]dulo|cap[íi]tulo|cap\.?|t[óo]pico|subt[óo]pico|sub-t[óo]pico|tema|detalhe|subtema|bloco|carimbo)\b/i.test(cleanLine);
 
-  const isDelimited = ((cleanLine.includes('>') || cleanLine.includes('|') || cleanLine.includes('•') || hasMultipleBrackets || hasSlashSeparators) && hasHierarchyKeyword) || hasSemicolonWithHierarchy;
+  const isDelimited = ((workingLine.includes('>') || workingLine.includes('|') || workingLine.includes('•') || hasMultipleBrackets || hasSlashSeparators) && hasHierarchyKeyword) || hasSemicolonWithHierarchy;
 
   if (isDelimited) {
     const res: RawHierarchyMatch = {};
@@ -464,16 +474,16 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
     let segments: string[] = [];
     if (hasMultipleBrackets && bracketMatches) {
       segments = bracketMatches.map((b) => b.replace(/^\[/, '').replace(/\]$/, '').trim());
-    } else if (cleanLine.includes('>')) {
-      segments = cleanLine.split(/\s*>\s*/);
-    } else if (cleanLine.includes('|')) {
-      segments = cleanLine.split(/\s*\|\s*/);
-    } else if (cleanLine.includes(';')) {
-      segments = cleanLine.split(/\s*;\s*/);
-    } else if (cleanLine.includes('•')) {
-      segments = cleanLine.split(/\s*•\s*/);
+    } else if (workingLine.includes('>')) {
+      segments = workingLine.split(/\s*>\s*/);
+    } else if (workingLine.includes('|')) {
+      segments = workingLine.split(/\s*\|\s*/);
+    } else if (workingLine.includes(';')) {
+      segments = workingLine.split(/\s*;\s*/);
+    } else if (workingLine.includes('•')) {
+      segments = workingLine.split(/\s*•\s*/);
     } else if (hasSlashSeparators) {
-      segments = cleanLine.split(/\s+\/\s+|\s*\/\s*(?=(?:mat[ée]ria|m[óo]dulo|cap[íi]tulo|t[óo]pico|subt[óo]pico|tema|detalhe)\b)/i);
+      segments = workingLine.split(/\s+\/\s+|\s*\/\s*(?=(?:mat[ée]ria|m[óo]dulo|cap[íi]tulo|t[óo]pico|subt[óo]pico|tema|detalhe)\b)/i);
     }
 
     segments = segments.map((s) => s.trim()).filter((s) => s.length > 0);
@@ -620,6 +630,18 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
             res.topicoTitle = (numM[2] || '').trim().replace(/^[ºª°\.\s\-–—:]+/i, '').trim() || undefined;
           } else {
             res.subtopico = sanitizeEtiquetaField(seg);
+          }
+          foundAny = true;
+        } else if (res.subtopico && !res.tema) {
+          const numM = seg.match(/^(\d+(?:\.\d+)+)\.?\s*[:.\-–—]?\s*(.+)?$/);
+          if (numM) {
+            const cleanNum = numM[1].trim();
+            const cleanTitle = (numM[2] || '').trim().replace(/^[\(\[]\s*([^()]+?)\s*[\)\]]$/, '$1').trim();
+            res.tema = cleanTitle ? `${cleanNum} - ${sanitizeEtiquetaField(cleanTitle)}` : cleanNum;
+            res.temaNum = cleanNum;
+            res.temaTitle = cleanTitle || undefined;
+          } else {
+            res.tema = sanitizeEtiquetaField(seg);
           }
           foundAny = true;
         }
@@ -856,16 +878,15 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
     };
   }
 
-  // 7. Padrão CAPÍTULO isolado ou no cabeçalho
+  // 7. Padrão CAPÍTULO ou UNIDADE isolado ou no cabeçalho
+  // Ex: CAPÍTULO: Unidade 1 – Fundamentos e Seleção de Técnicas (Pág. 19 a 21)
+  // Ex: UNIDADE: Unidade 1 – Fundamentos e Seleção de Técnicas
   // Ex: ## CAPÍTULO 4 – PEÇAS DE POLÍCIA JUDICIÁRIA
   // Ex: CAPÍTULO 1.1 - Ação de Obtenção de Elementos de Informação para a Investigação
   // Ex: CAPÍTULO 4: PEÇAS
   // Ex: Capítulo 4
-  // Ex: Capítulo 1º
-  // Ex: Capítulo I
-  // Ex: Capítulo: Peças de Polícia
   const capMatch = cleanLine.match(
-    /^(?:[#*=_~-]+\s*)?cap[íi]tulo\b(?:\s*[:.\-–—]\s*|\s+)?(?:\s*(?:n[º°o]\.?|n[uú]mero)?\s*(\d+(?:\.\d+)*|[IVXLCDM]+))?(?:[ºª°o]|\.0|\.)?\b(?:\s*[:.\-–—]\s*|\s+)?([^\n\r]+)?/i
+    /^(?:[#*=_~-]+\s*)?(?:cap[íi]tulo|cap\.?|unidade)\b(?:\s*[:.\-–—]\s*|\s+)?(?:\s*(?:n[º°o]\.?|n[uú]mero)?\s*(\d+(?:\.\d+)*|[IVXLCDM]+))?(?:[ºª°o]|\.0|\.)?\b(?:\s*[:.\-–—]\s*|\s+)?([^\n\r]+)?/i
   );
   if (capMatch) {
     const capNumRaw = capMatch[1]?.trim();
@@ -885,7 +906,14 @@ export function extractHierarchyFromHeaderLine(line: string): RawHierarchyMatch 
     const cleanCapTitle = sanitizeEtiquetaField(capTitle);
 
     let finalCap = '';
-    if (capNum && cleanCapTitle) {
+    // Se o título já começar com Unidade ou Capítulo, preserva integralmente sem duplicar prefixo
+    if (/^(?:unidade|cap[íi]tulo|cap\.?)\b/i.test(cleanCapTitle)) {
+      finalCap = cleanCapTitle;
+      const parsedNumM = finalCap.match(/\b(\d+)\b/);
+      if (parsedNumM && !capNum) {
+        capNum = parsedNumM[1];
+      }
+    } else if (capNum && cleanCapTitle) {
       finalCap = `Capítulo ${capNum} – ${cleanCapTitle}`;
     } else if (capNum) {
       finalCap = `Capítulo ${capNum}`;
@@ -921,9 +949,13 @@ export function resolveHierarchyWithExisting(
 ): HierarchyContext {
   let materia = detected.materia?.trim() || context?.materia?.trim() || 'IPO-2';
   let modulo = detected.modulo?.trim() || context?.modulo?.trim() || '';
-  let capitulo = context?.capitulo?.trim() ? normalizeCapituloName(context.capitulo) : '';
-  let subtopico = context?.subtopico?.trim() || '';
-  let tema = context?.tema_subtopico?.trim() || '';
+  let capitulo = detected.capitulo?.trim()
+    ? normalizeCapituloName(detected.capitulo)
+    : context?.capitulo?.trim()
+    ? normalizeCapituloName(context.capitulo)
+    : '';
+  let subtopico = detected.subtopico?.trim() || context?.subtopico?.trim() || '';
+  let tema = detected.tema?.trim() || context?.tema_subtopico?.trim() || '';
 
   // 1. Resolver Matéria com base existente
   if (materia) {
@@ -944,16 +976,18 @@ export function resolveHierarchyWithExisting(
   }
 
   // Se o subtópico possui numeração (ex: 3.1.2 -> Capítulo 3.1; 4.6.1 -> Capítulo 4.6; 5.5.6.1 -> Capítulo 5.5.6),
-  // o capítulo é determinado com prioridade pela numeração de seção oficial!
-  const subSecMatch = subtopico.match(/\b(5\.5\.6|\d+\.\d+)\b/);
-  if (subSecMatch && CANONICAL_CAPITULOS_MAP[subSecMatch[1]]) {
-    capitulo = CANONICAL_CAPITULOS_MAP[subSecMatch[1]];
-  } else {
-    const subNumMatch = subtopico.match(/^(?:subt[óo]pico\s*)?(\d+)\./i);
-    if (subNumMatch) {
-      const subMajor = subNumMatch[1];
-      if (CANONICAL_CAPITULOS_MAP[subMajor]) {
-        capitulo = CANONICAL_CAPITULOS_MAP[subMajor];
+  // o capítulo é determinado com prioridade pela numeração de seção oficial apenas se não veio capítulo explícito!
+  if (!capitulo) {
+    const subSecMatch = subtopico.match(/\b(5\.5\.6|\d+\.\d+)\b/);
+    if (subSecMatch && CANONICAL_CAPITULOS_MAP[subSecMatch[1]]) {
+      capitulo = CANONICAL_CAPITULOS_MAP[subSecMatch[1]];
+    } else {
+      const subNumMatch = subtopico.match(/^(?:subt[óo]pico\s*)?(\d+)\./i);
+      if (subNumMatch) {
+        const subMajor = subNumMatch[1];
+        if (CANONICAL_CAPITULOS_MAP[subMajor]) {
+          capitulo = CANONICAL_CAPITULOS_MAP[subMajor];
+        }
       }
     }
   }
@@ -962,9 +996,13 @@ export function resolveHierarchyWithExisting(
   if (!capitulo) {
     const capNum = detected.capituloNum;
     if (detected.capituloTitle) {
-      capitulo = capNum
-        ? `Capítulo ${capNum} – ${detected.capituloTitle}`
-        : `Capítulo – ${detected.capituloTitle}`;
+      if (/^(?:unidade|cap[íi]tulo|cap\.?)\b/i.test(detected.capituloTitle)) {
+        capitulo = detected.capituloTitle;
+      } else {
+        capitulo = capNum
+          ? `Capítulo ${capNum} – ${detected.capituloTitle}`
+          : `Capítulo – ${detected.capituloTitle}`;
+      }
     } else if (detected.capitulo) {
       capitulo = normalizeCapituloName(detected.capitulo);
     } else if (capNum) {
@@ -1034,12 +1072,23 @@ export function resolveHierarchyWithExisting(
     tema = cleanTema;
   }
 
+  const carimboStr = [
+    materia,
+    modulo,
+    capitulo,
+    subtopico,
+    tema,
+  ].filter(Boolean).join(' > ');
+
   return {
     materia,
     modulo,
     capitulo,
     subtopico,
+    tema,
     tema_subtopico: tema,
+    carimbo: carimboStr,
+    carimbado: true,
     peso: context?.peso !== undefined ? context.peso : 1,
   };
 }
@@ -2204,13 +2253,25 @@ export function parseRawQuestionText(
     }
   }
 
+  const effectiveTema = sanitizeEtiquetaField(tema_subtopico || context?.tema || context?.tema_subtopico || '');
+  const rawCarimbo = [
+    sanitizeEtiquetaField(materia),
+    sanitizeEtiquetaField(modulo),
+    sanitizeEtiquetaField(capitulo),
+    sanitizeEtiquetaField(subtopico),
+    effectiveTema,
+  ].filter(Boolean).join(' > ');
+
   return {
     numero_questao: detectedNum,
     materia: sanitizeEtiquetaField(materia),
     modulo: sanitizeEtiquetaField(modulo),
     capitulo: sanitizeEtiquetaField(capitulo),
     subtopico: sanitizeEtiquetaField(subtopico),
-    tema_subtopico: sanitizeEtiquetaField(tema_subtopico),
+    tema: effectiveTema,
+    tema_subtopico: effectiveTema,
+    carimbo: context?.carimbo || rawCarimbo,
+    carimbado: true,
     enunciado,
     alternativas,
     alternativa_correta: gabarito || 'A',
@@ -2843,12 +2904,14 @@ export function parseBatchRawQuestions(
 
   // Harmonização e consolidação uniforme do Capítulo e Módulo:
   realQuestions.forEach((q) => {
-    const canonicalCap = getCanonicalCapituloForQuestion(q);
-    if (canonicalCap) {
-      q.capitulo = canonicalCap;
-    } else if (context?.capitulo) {
-      q.capitulo = normalizeCapituloName(context.capitulo);
-    } else if (q.capitulo) {
+    if (!q.capitulo || !q.capitulo.trim()) {
+      const canonicalCap = getCanonicalCapituloForQuestion(q);
+      if (canonicalCap) {
+        q.capitulo = canonicalCap;
+      } else if (context?.capitulo) {
+        q.capitulo = normalizeCapituloName(context.capitulo);
+      }
+    } else {
       q.capitulo = normalizeCapituloName(q.capitulo);
     }
 
@@ -2860,6 +2923,24 @@ export function parseBatchRawQuestions(
     } else {
       q.modulo = getCanonicalModuloForQuestion(q);
     }
+
+    if (!q.tema && q.tema_subtopico) {
+      q.tema = q.tema_subtopico;
+    }
+    if (!q.tema_subtopico && q.tema) {
+      q.tema_subtopico = q.tema;
+    }
+
+    // Gerar carimbo definitivo vinculando rigorosamente a questão ao seu conteúdo de origem
+    const carimboParts = [
+      q.materia,
+      q.modulo,
+      q.capitulo,
+      q.subtopico,
+      q.tema || q.tema_subtopico,
+    ].filter(Boolean);
+    q.carimbo = carimboParts.join(' > ');
+    q.carimbado = true;
   });
 
   return realQuestions;

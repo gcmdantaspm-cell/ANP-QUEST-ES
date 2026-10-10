@@ -27,6 +27,8 @@ interface HierarchyFilterProps {
   onChangeFilters: (newFilters: FilterOptions) => void;
   filteredCount: number;
   totalCount: number;
+  newlyAnsweredCount?: number;
+  onApplyUnresolvedFilter?: () => void;
 }
 
 export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
@@ -35,6 +37,8 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
   onChangeFilters,
   filteredCount,
   totalCount,
+  newlyAnsweredCount = 0,
+  onApplyUnresolvedFilter,
 }) => {
   // 1. Matérias: oficial IPO II + matérias das questões
   const materias = useMemo(() => {
@@ -330,6 +334,9 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
   };
 
   const handleStatusChange = (status: FilterOptions['statusFiltro']) => {
+    if (status === 'nao_resolvidas') {
+      onApplyUnresolvedFilter?.();
+    }
     onChangeFilters({
       ...filters,
       statusFiltro: status,
@@ -386,12 +393,28 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
           <span className="text-zinc-400">
             Exibindo <strong className="text-sky-400 font-extrabold">{filteredCount}</strong> de {totalCount} questões
           </span>
+          {filters.statusFiltro === 'nao_resolvidas' && onApplyUnresolvedFilter && (
+            <button
+              id="btn-header-filtrar-unresolved"
+              type="button"
+              onClick={onApplyUnresolvedFilter}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-black transition-all cursor-pointer shadow-xs text-xs ${
+                newlyAnsweredCount > 0
+                  ? 'bg-amber-500 hover:bg-amber-400 text-zinc-950 ring-1 ring-amber-300'
+                  : 'bg-sky-600 hover:bg-sky-500 text-white'
+              }`}
+              title="Atualizar lista de questões não resolvidas"
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span>Filtrar{newlyAnsweredCount > 0 ? ` (${newlyAnsweredCount})` : ''}</span>
+            </button>
+          )}
           {hasActiveFilters && (
             <button
               id="btn-reset-filters"
               type="button"
               onClick={handleResetFilters}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-white bg-sky-600 hover:bg-sky-500 rounded-lg font-bold transition-all cursor-pointer shadow-xs"
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-white bg-zinc-800 hover:bg-zinc-700 rounded-lg font-bold transition-all cursor-pointer shadow-xs"
             >
               <X className="w-3.5 h-3.5" />
               Limpar Filtros
@@ -655,13 +678,33 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             onClick={() => handleStatusChange('nao_resolvidas')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
               filters.statusFiltro === 'nao_resolvidas'
-                ? 'bg-zinc-700 text-white font-extrabold shadow-xs'
+                ? 'bg-sky-600 text-white font-extrabold shadow-xs ring-1 ring-sky-400/40'
                 : 'bg-zinc-950 text-zinc-400 border border-zinc-800 hover:bg-zinc-800'
             }`}
           >
             <HelpCircle className="w-3.5 h-3.5" />
             Não Resolvidas
           </button>
+
+          {/* Botão de Filtrar solicitado pelo usuário: toda vez que clicar nele, atualiza as questões não resolvidas */}
+          {filters.statusFiltro === 'nao_resolvidas' && onApplyUnresolvedFilter && (
+            <button
+              id="btn-filtrar-atualizar-nao-resolvidas"
+              type="button"
+              onClick={onApplyUnresolvedFilter}
+              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold whitespace-nowrap transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-md ${
+                newlyAnsweredCount > 0
+                  ? 'bg-amber-500 hover:bg-amber-400 text-zinc-950 animate-pulse ring-2 ring-amber-300 font-black'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40'
+              }`}
+              title="Clique para filtrar e atualizar a lista de questões não resolvidas (ocultando as que já foram respondidas)"
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span>
+                Filtrar{newlyAnsweredCount > 0 ? ` (${newlyAnsweredCount} resolvida${newlyAnsweredCount > 1 ? 's' : ''})` : ' Não Resolvidas'}
+              </span>
+            </button>
+          )}
         </div>
       </div>
     </div>

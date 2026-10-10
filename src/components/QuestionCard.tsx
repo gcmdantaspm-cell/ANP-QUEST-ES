@@ -196,7 +196,8 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               modulo: question.modulo,
               capitulo: question.capitulo,
               subtopico: question.subtopico,
-              tema_subtopico: question.tema_subtopico,
+              tema: question.tema,
+              tema_subtopico: question.tema_subtopico || question.tema,
             });
 
             return (
@@ -205,6 +206,20 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                   <span className="w-2.5 h-2.5 rounded-full bg-sky-600 inline-block shadow-2xs" />
                   Questão {index + 1}
                 </span>
+
+                {(question.carimbado || question.carimbo) && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-700/15 text-emerald-900 border border-emerald-600/40 font-extrabold shadow-2xs"
+                    title={question.carimbo ? `Carimbo de Vinculação Original: ${question.carimbo}` : 'Questão com carimbo fixado na importação (vinculada à estrutura original)'}
+                  >
+                    <span>🛡️ Carimbada</span>
+                    {question.carimbo && (
+                      <span className="hidden md:inline font-semibold text-emerald-800 text-[9px] max-w-xs truncate">
+                        ({question.carimbo})
+                      </span>
+                    )}
+                  </span>
+                )}
 
                 {segments.length > 0 && (
                   <>

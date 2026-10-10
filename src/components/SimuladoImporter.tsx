@@ -397,21 +397,39 @@ export const SimuladoImporter: React.FC<SimuladoImporterProps> = ({
       return;
     }
 
-    const questions: SimuladoQuestion[] = extractedQuestions.map((q, idx) => ({
-      id: `sim_q_${Date.now()}_${idx + 1}`,
-      numero_questao: idx + 1,
-      materia: q.materia || nomeMateria || 'Conhecimentos Gerais',
-      modulo: normalizeModuloName(q.modulo || moduloMateria || ''),
-      capitulo: q.capitulo || capituloMateria || '',
-      subtopico: q.subtopico || subtopico || '',
-      tema_subtopico: q.tema_subtopico || tema || '',
-      peso: q.peso !== undefined && q.peso > 0 ? q.peso : (Number(pesoPadrao) || 1),
-      enunciado: q.enunciado,
-      alternativas: q.alternativas,
-      alternativa_correta: q.alternativa_correta || 'A',
-      gabarito_comentado: q.gabarito_comentado,
-      dica_macete: q.dica_macete,
-    }));
+    const questions: SimuladoQuestion[] = extractedQuestions.map((q, idx) => {
+      const finalMateria = q.materia || nomeMateria || 'IPO-2';
+      const finalModulo = normalizeModuloName(q.modulo || moduloMateria || '');
+      const finalCapitulo = q.capitulo || capituloMateria || '';
+      const finalSubtopico = q.subtopico || subtopico || '';
+      const finalTema = q.tema || q.tema_subtopico || tema || '';
+      const carimboStr = q.carimbo || [
+        finalMateria,
+        finalModulo,
+        finalCapitulo,
+        finalSubtopico,
+        finalTema,
+      ].filter(Boolean).join(' > ');
+
+      return {
+        id: `sim_q_${Date.now()}_${idx + 1}`,
+        numero_questao: idx + 1,
+        materia: finalMateria,
+        modulo: finalModulo,
+        capitulo: finalCapitulo,
+        subtopico: finalSubtopico,
+        tema: finalTema,
+        tema_subtopico: finalTema,
+        carimbo: carimboStr,
+        carimbado: true,
+        peso: q.peso !== undefined && q.peso > 0 ? q.peso : (Number(pesoPadrao) || 1),
+        enunciado: q.enunciado,
+        alternativas: q.alternativas,
+        alternativa_correta: q.alternativa_correta || 'A',
+        gabarito_comentado: q.gabarito_comentado,
+        dica_macete: q.dica_macete,
+      };
+    });
 
     const newSimulado: Simulado = {
       id: `simulado_${Date.now()}`,

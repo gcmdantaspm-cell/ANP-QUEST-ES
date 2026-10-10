@@ -38,6 +38,8 @@ import {
   FileCheck2,
   Lock,
   LogIn,
+  Filter,
+  CheckCircle2,
 } from 'lucide-react';
 
 function MainApp() {
@@ -77,6 +79,31 @@ function MainApp() {
       return {};
     }
   });
+
+  // Snapshot das questões respondidas que já foram ocultadas no filtro "Não Resolvidas"
+  // Não remove questões automaticamente ao responder (permanecem visíveis para conferir a resposta)
+  // Só atualiza quando o usuário clica no botão "Filtrar / Atualizar Não Resolvidas"
+  const [unresolvedExcludedIds, setUnresolvedExcludedIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('simulado_user_answers');
+      return saved ? new Set(Object.keys(JSON.parse(saved))) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  // Função para aplicar o filtro e atualizar a lista de não resolvidas
+  const handleApplyUnresolvedFilter = () => {
+    setUnresolvedExcludedIds(new Set(Object.keys(userAnswers)));
+  };
+
+  // Atualização dos filtros garantindo sincronização do snapshot ao alternar para "não resolvidas"
+  const handleFilterChange = (newFilters: FilterOptions) => {
+    if (newFilters.statusFiltro === 'nao_resolvidas' && filters.statusFiltro !== 'nao_resolvidas') {
+      setUnresolvedExcludedIds(new Set(Object.keys(userAnswers)));
+    }
+    setFilters(newFilters);
+  };
 
   // Escutar questões do Firestore em tempo real (Apenas se o usuário tiver matrícula verificada ou for admin)
   useEffect(() => {
@@ -142,6 +169,7 @@ function MainApp() {
 
   const handleResetSessionStats = () => {
     setUserAnswers({});
+    setUnresolvedExcludedIds(new Set());
     try {
       localStorage.removeItem('simulado_user_answers');
     } catch (err) {
@@ -155,8 +183,10 @@ function MainApp() {
       const qId = q.id || '';
       const answerState = userAnswers[qId];
 
-      // Filtro de status de resolução
-      if (filters.statusFiltro === 'nao_resolvidas' && answerState) {
+      // Filtro de status de resolução:
+      // No modo "não resolvidas", NÃO esconde a questão no exato instante em que ela é respondida
+      // Apenas esconde as questões que já estavam no snapshot quando o usuário clicou em "Filtrar"
+      if (filters.statusFiltro === 'nao_resolvidas' && unresolvedExcludedIds.has(qId)) {
         return false;
       }
       if (filters.statusFiltro === 'acertos' && (!answerState || !answerState.isCorrect)) {
@@ -216,7 +246,16 @@ function MainApp() {
       if (numA !== numB) return numA - numB;
       return (a.createdAt || '').localeCompare(b.createdAt || '');
     });
-  }, [firestoreQuestions, filters, userAnswers]);
+  }, [firestoreQuestions, filters, userAnswers, unresolvedExcludedIds]);
+
+  // Quantidade de questões resolvidas nesta sessão que ainda estão visíveis na tela
+  const newlyAnsweredInUnresolved = useMemo(() => {
+    if (filters.statusFiltro !== 'nao_resolvidas') return 0;
+    return filteredQuestions.filter((q) => {
+      const qId = q.id || '';
+      return Boolean(userAnswers[qId]) && !unresolvedExcludedIds.has(qId);
+    }).length;
+  }, [filteredQuestions, userAnswers, unresolvedExcludedIds, filters.statusFiltro]);
 
   const currentFilterLabel = useMemo(() => {
     const parts = [
@@ -347,10 +386,47 @@ function MainApp() {
             <HierarchyFilter
               questions={firestoreQuestions}
               filters={filters}
-              onChangeFilters={setFilters}
+              onChangeFilters={handleFilterChange}
               filteredCount={filteredQuestions.length}
               totalCount={firestoreQuestions.length}
+              newlyAnsweredCount={newlyAnsweredInUnresolved}
+              onApplyUnresolvedFilter={handleApplyUnresolvedFilter}
             />
+
+            {/* Banner de Controle do Filtro Não Resolvidas: questões respondidas permanecem visíveis até clicar em Filtrar */}
+            {filters.statusFiltro === 'nao_resolvidas' && newlyAnsweredInUnresolved > 0 && (
+              <div
+                id="banner-filtrar-unresolved"
+                className="bg-zinc-900 border-2 border-amber-500/50 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-sky-400 to-amber-500" />
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30 shrink-0">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-white flex items-center gap-2 flex-wrap">
+                      <span>{newlyAnsweredInUnresolved} questão(ões) resolvida(s) nesta tela!</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-extrabold border border-amber-400/40">
+                        Visíveis para conferência
+                      </span>
+                    </h4>
+                    <p className="text-xs text-zinc-300 mt-1">
+                      As questões respondidas continuam visíveis para você revisar o gabarito e comentários. Clique em <strong>Filtrar</strong> para atualizar a lista e exibir apenas as pendentes.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  id="btn-filtrar-agora-banner"
+                  type="button"
+                  onClick={handleApplyUnresolvedFilter}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-black text-xs sm:text-sm rounded-xl shadow-lg hover:shadow-amber-500/20 transition-all cursor-pointer whitespace-nowrap"
+                >
+                  <Filter className="w-4 h-4 stroke-[2.5]" />
+                  <span>Filtrar Não Resolvidas ({newlyAnsweredInUnresolved})</span>
+                </button>
+              </div>
+            )}
 
             {/* Lista de Questões */}
             {loadingQuestions ? (

@@ -7,12 +7,15 @@ import {
 export interface QuestionToClassify {
   id: string;
   enunciado: string;
+  materia?: string;
   capitulo?: string;
   subtopico?: string;
   modulo?: string;
   tema?: string;
   tema_subtopico?: string;
   gabarito_comentado?: string;
+  carimbo?: string;
+  carimbado?: boolean;
 }
 
 /**
@@ -63,16 +66,32 @@ export async function classifyQuestionsWithAI(
         }
       }
 
-      // Garante que qualquer questão faltante no chunk tenha mapeamento
+      // Garante que questões com carimbo ou módulo/capítulo mantenham 100% sua hierarquia original
       for (const q of chunk) {
-        if (!resultMap.has(q.id)) {
+        if (q.carimbado || (q.modulo && q.capitulo)) {
+          resultMap.set(q.id, {
+            materia: q.materia || OFFICIAL_MATERIA,
+            modulo: q.modulo || 'Módulo I',
+            capitulo: q.capitulo || '',
+            subtopico: q.subtopico || '',
+            tema: q.tema || q.tema_subtopico || '',
+          });
+        } else if (!resultMap.has(q.id)) {
           resultMap.set(q.id, mapQuestionToOfficialHierarchy(q));
         }
       }
     } catch (err) {
       console.warn('Classificação via servidor falhou, aplicando mapeador heurístico local:', err);
       for (const q of chunk) {
-        if (!resultMap.has(q.id)) {
+        if (q.carimbado || (q.modulo && q.capitulo)) {
+          resultMap.set(q.id, {
+            materia: q.materia || OFFICIAL_MATERIA,
+            modulo: q.modulo || 'Módulo I',
+            capitulo: q.capitulo || '',
+            subtopico: q.subtopico || '',
+            tema: q.tema || q.tema_subtopico || '',
+          });
+        } else if (!resultMap.has(q.id)) {
           resultMap.set(q.id, mapQuestionToOfficialHierarchy(q));
         }
       }
