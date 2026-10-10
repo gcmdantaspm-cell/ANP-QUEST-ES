@@ -423,22 +423,22 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
         </div>
       </div>
 
-      {/* Barra de Seleção Rápida por Módulo */}
-      <div className="mb-4 pb-3 border-b border-zinc-800/80">
-        <div className="flex items-center gap-2 mb-2.5">
+      {/* Barra de Seleção Rápida por Módulo (Pills) */}
+      <div className="mb-4 pb-3 border-b border-zinc-800">
+        <div className="flex items-center gap-2 mb-2">
           <Layers className="w-3.5 h-3.5 text-sky-400" />
-          <span className="text-xs font-semibold text-zinc-300">
-            Módulos Oficiais da Disciplina:
+          <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
+            Módulos Oficiais do Banco de Dados:
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
             onClick={() => handleModuloSelect('')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               !filters.modulo
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'bg-zinc-950/80 text-zinc-400 hover:text-white border border-zinc-800 hover:bg-zinc-850'
+                ? 'bg-sky-600 text-white shadow-xs ring-1 ring-sky-400'
+                : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800 hover:bg-zinc-800'
             }`}
           >
             Todos os Módulos
@@ -451,20 +451,20 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
                 key={m.id}
                 type="button"
                 onClick={() => handleModuloSelect(m.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
                   isSelected
-                    ? 'bg-sky-600 text-white shadow-sm'
-                    : 'bg-zinc-950/80 text-zinc-300 hover:text-white border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-850'
+                    ? 'bg-sky-600 text-white shadow-md ring-1 ring-sky-300'
+                    : 'bg-zinc-950 text-zinc-300 hover:text-white border border-zinc-800 hover:border-sky-500/40 hover:bg-zinc-800'
                 }`}
                 title={m.label}
               >
                 <span>{m.id}</span>
                 <span
-                  className={`text-[11px] font-mono tabular-nums ${
-                    isSelected ? 'text-sky-200' : 'text-zinc-500'
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                    isSelected ? 'bg-sky-900 text-sky-200' : 'bg-zinc-800 text-zinc-400'
                   }`}
                 >
-                  ({count})
+                  {count}
                 </span>
               </button>
             );
@@ -478,7 +478,7 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
         <div>
           <label
             htmlFor="filter-materia"
-            className="block text-xs font-semibold text-zinc-300 mb-1.5"
+            className="block text-xs font-bold text-sky-400 mb-1 uppercase tracking-wider"
           >
             1. Matéria
           </label>
@@ -486,7 +486,7 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             id="filter-materia"
             value={filters.materia}
             onChange={handleMateriaChange}
-            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950/80 border border-zinc-800 hover:border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-1 focus:ring-sky-500 text-zinc-100 font-medium transition-colors"
+            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 font-medium transition-colors"
           >
             <option value="">Todas as Matérias</option>
             {materias.map((m, idx) => (
@@ -501,15 +501,15 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
         <div>
           <label
             htmlFor="filter-modulo"
-            className="block text-xs font-semibold text-zinc-300 mb-1.5"
+            className="block text-xs font-bold text-indigo-400 mb-1 uppercase tracking-wider"
           >
-            2. Módulo
+            2. Módulo (I, II, V, VI, VII, VIII, IX)
           </label>
           <select
             id="filter-modulo"
             value={filters.modulo}
             onChange={handleModuloChange}
-            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950/80 border border-zinc-800 hover:border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-1 focus:ring-sky-500 text-zinc-100 font-medium transition-colors"
+            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 font-medium transition-colors"
           >
             <option value="">(Todos os Módulos)</option>
             {modulos.map((m) => {
@@ -523,20 +523,20 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
           </select>
         </div>
 
-        {/* Nível 3: Capítulo */}
+        {/* Nível 3: Capítulo (Seção X.Y) */}
         <div>
           <label
             htmlFor="filter-capitulo"
-            className="block text-xs font-semibold text-zinc-300 mb-1.5"
+            className="block text-xs font-bold text-zinc-300 mb-1 uppercase tracking-wider"
           >
-            3. Capítulo
+            3. Capítulo (Seção X.Y)
           </label>
           <select
             id="filter-capitulo"
             value={filters.capitulo}
             onChange={handleCapituloChange}
             disabled={capitulos.length === 0}
-            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950/80 border border-zinc-800 hover:border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-1 focus:ring-sky-500 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
+            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
           >
             <option value="">(Todos os Capítulos)</option>
             {capitulos.map((c, idx) => {
@@ -550,20 +550,20 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
           </select>
         </div>
 
-        {/* Nível 4: Subtópico */}
+        {/* Nível 4: Subtópico (Nível X.Y.Z) */}
         <div>
           <label
             htmlFor="filter-subtopico"
-            className="block text-xs font-semibold text-zinc-300 mb-1.5"
+            className="block text-xs font-bold text-zinc-400 mb-1 uppercase tracking-wider"
           >
-            4. Subtópico
+            4. Subtópico (Nível X.Y.Z)
           </label>
           <select
             id="filter-subtopico"
             value={filters.subtopico}
             onChange={handleSubtopicoChange}
             disabled={subtopicos.length === 0}
-            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950/80 border border-zinc-800 hover:border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-1 focus:ring-sky-500 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
+            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
           >
             <option value="">
               {subtopicos.length === 0
@@ -585,16 +585,16 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
         <div>
           <label
             htmlFor="filter-tema"
-            className="block text-xs font-semibold text-zinc-300 mb-1.5"
+            className="block text-xs font-bold text-zinc-400 mb-1 uppercase tracking-wider"
           >
-            5. Tema
+            5. Tema / Detalhe
           </label>
           <select
             id="filter-tema"
             value={filters.tema_subtopico}
             onChange={handleTemaChange}
             disabled={temas.length === 0}
-            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950/80 border border-zinc-800 hover:border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-1 focus:ring-sky-500 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
+            className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 disabled:opacity-40 font-medium transition-colors"
           >
             <option value="">
               {temas.length === 0 ? '(Sem temas específicos)' : '(Todos os Temas)'}
@@ -609,17 +609,17 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
       </div>
 
       {/* Linha Inferior: Campo de Busca e Botões de Status */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-zinc-800/80">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-zinc-800">
         {/* Campo de Busca por Texto */}
         <div className="relative w-full sm:max-w-md">
-          <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             id="input-search-text"
             type="text"
             value={filters.busca}
             onChange={handleSearchChange}
-            placeholder="Pesquisar por palavras-chave, normas ou enunciados..."
-            className="w-full text-xs sm:text-sm pl-9 pr-3 py-2.5 bg-zinc-950/80 border border-zinc-800 rounded-xl focus:ring-1 focus:ring-sky-500 focus:border-sky-500 text-zinc-100 placeholder-zinc-500 transition-colors"
+            placeholder="Pesquisar por palavras-chave, artigos, normas ou jurisprudência..."
+            className="w-full text-xs sm:text-sm pl-9 pr-3 py-2 bg-zinc-950 border border-zinc-700 rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-zinc-100 placeholder-zinc-500"
           />
           {filters.busca && (
             <button
@@ -638,10 +638,10 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             id="filter-status-todas"
             type="button"
             onClick={() => handleStatusChange('todas')}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
               filters.statusFiltro === 'todas'
-                ? 'bg-sky-600 hover:bg-sky-500 text-white font-bold shadow-sm'
-                : 'bg-zinc-950/80 text-zinc-400 hover:text-white border border-zinc-800 hover:bg-zinc-850'
+                ? 'bg-sky-600 hover:bg-sky-500 text-white font-black shadow-xs ring-1 ring-sky-400/40'
+                : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800 hover:bg-zinc-800'
             }`}
           >
             Todas ({totalCount})
@@ -650,10 +650,10 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             id="filter-status-acertos"
             type="button"
             onClick={() => handleStatusChange('acertos')}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
               filters.statusFiltro === 'acertos'
-                ? 'bg-emerald-600 text-white font-bold shadow-sm'
-                : 'bg-zinc-950/80 text-emerald-400 border border-zinc-800 hover:border-emerald-500/40 hover:bg-emerald-950/20'
+                ? 'bg-emerald-600 text-white font-extrabold shadow-xs'
+                : 'bg-zinc-950 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-400/10'
             }`}
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -663,10 +663,10 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             id="filter-status-erros"
             type="button"
             onClick={() => handleStatusChange('erros')}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
               filters.statusFiltro === 'erros'
-                ? 'bg-rose-600 text-white font-bold shadow-sm'
-                : 'bg-zinc-950/80 text-rose-400 border border-zinc-800 hover:border-rose-500/40 hover:bg-rose-950/20'
+                ? 'bg-rose-600 text-white font-extrabold shadow-xs'
+                : 'bg-zinc-950 text-rose-400 border border-rose-500/30 hover:bg-rose-500/10'
             }`}
           >
             <XCircle className="w-3.5 h-3.5" />
@@ -676,23 +676,23 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             id="filter-status-nao_resolvidas"
             type="button"
             onClick={() => handleStatusChange('nao_resolvidas')}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
               filters.statusFiltro === 'nao_resolvidas'
-                ? 'bg-sky-600 text-white font-bold shadow-sm'
-                : 'bg-zinc-950/80 text-zinc-400 border border-zinc-800 hover:bg-zinc-850'
+                ? 'bg-sky-600 text-white font-extrabold shadow-xs ring-1 ring-sky-400/40'
+                : 'bg-zinc-950 text-zinc-400 border border-zinc-800 hover:bg-zinc-800'
             }`}
           >
             <HelpCircle className="w-3.5 h-3.5" />
             Não Resolvidas
           </button>
 
-          {/* Botão de Filtrar solicitado pelo usuário */}
+          {/* Botão de Filtrar solicitado pelo usuário: toda vez que clicar nele, atualiza as questões não resolvidas */}
           {filters.statusFiltro === 'nao_resolvidas' && onApplyUnresolvedFilter && (
             <button
               id="btn-filtrar-atualizar-nao-resolvidas"
               type="button"
               onClick={onApplyUnresolvedFilter}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-md ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold whitespace-nowrap transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-md ${
                 newlyAnsweredCount > 0
                   ? 'bg-amber-500 hover:bg-amber-400 text-zinc-950 animate-pulse ring-2 ring-amber-300 font-black'
                   : 'bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40'

@@ -358,7 +358,7 @@ function MainApp() {
                   <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                     Caderno de Questões
                   </h1>
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-zinc-900 text-sky-400 font-bold border border-zinc-800 font-mono tabular-nums">
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-zinc-800 text-sky-300 font-bold border border-sky-500/30">
                     {firestoreQuestions.length} questões
                   </span>
                 </div>
@@ -397,11 +397,11 @@ function MainApp() {
             {filters.statusFiltro === 'nao_resolvidas' && newlyAnsweredInUnresolved > 0 && (
               <div
                 id="banner-filtrar-unresolved"
-                className="bg-zinc-900/95 border border-amber-500/40 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl relative overflow-hidden"
+                className="bg-zinc-900 border-2 border-amber-500/50 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl relative overflow-hidden"
               >
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-sky-400 to-amber-500" />
                 <div className="flex items-start sm:items-center gap-3">
-                  <div className="p-2.5 bg-amber-500/15 text-amber-400 rounded-xl border border-amber-500/30 shrink-0">
+                  <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30 shrink-0">
                     <CheckCircle2 className="w-5 h-5" />
                   </div>
                   <div>
@@ -430,27 +430,27 @@ function MainApp() {
 
             {/* Lista de Questões */}
             {loadingQuestions ? (
-              <div className="py-16 text-center text-zinc-400">
-                <div className="w-8 h-8 border-3 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <div className="py-16 text-center text-slate-400">
+                <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-sm font-medium">Carregando banco de questões...</p>
               </div>
             ) : firestoreQuestions.length === 0 ? (
-              <div className="py-16 text-center bg-zinc-900/90 rounded-2xl border border-zinc-800 p-8 max-w-lg mx-auto shadow-xl text-zinc-100">
-                <div className="w-14 h-14 bg-sky-950/60 text-sky-400 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-sky-500/30">
+              <div className="py-16 text-center bg-white rounded-2xl border border-slate-200 p-8 max-w-lg mx-auto shadow-xs">
+                <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100">
                   <Inbox className="w-7 h-7" />
                 </div>
-                <h3 className="text-base font-bold text-white mb-1.5">
+                <h3 className="text-base font-bold text-slate-900 mb-1.5">
                   Nenhuma questão cadastrada ainda no Caderno
                 </h3>
-                <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
-                  Utilize o Painel Admin para colar questões no caderno com Módulo/Capítulo, ou acesse a nova aba de <strong>SIMULADOS</strong> para importar questões exigindo apenas a Matéria e o Peso!
+                <p className="text-xs text-slate-600 mb-6 leading-relaxed">
+                  Utilize o Painel Admin para colar questões no caderno com Módulo/Capítulo, ou acesse a nova aba de <strong>Simulados</strong> para importar questões exigindo apenas a Matéria e o Peso!
                 </p>
                 {isAdmin && (
                   <div className="flex flex-wrap items-center justify-center gap-3">
                     <button
                       type="button"
                       onClick={() => setIsAdminOpen(true)}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-md"
+                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-xs"
                     >
                       <Layers className="w-4 h-4" />
                       Abrir Painel Admin
@@ -459,12 +459,12 @@ function MainApp() {
                 )}
               </div>
             ) : filteredQuestions.length === 0 ? (
-              <div className="py-16 text-center bg-zinc-900/90 rounded-2xl border border-zinc-800 p-8 max-w-md mx-auto shadow-xl text-zinc-100">
-                <Inbox className="w-12 h-12 text-zinc-500 mx-auto mb-3" />
-                <h3 className="text-base font-bold text-white mb-1">
+              <div className="py-16 text-center bg-white rounded-2xl border border-slate-200 p-8 max-w-md mx-auto">
+                <Inbox className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+                <h3 className="text-base font-bold text-slate-800 mb-1">
                   Nenhuma questão encontrada
                 </h3>
-                <p className="text-xs text-zinc-400 mb-4">
+                <p className="text-xs text-slate-500 mb-4">
                   Nenhuma questão corresponde aos filtros selecionados.
                 </p>
                 <button
@@ -480,7 +480,7 @@ function MainApp() {
                       statusFiltro: 'todas',
                     })
                   }
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                 >
                   Limpar Filtros
                 </button>
