@@ -2,8 +2,11 @@
 
 @layer base {
   body {
-    background-color: #edf4f6;
-    color: #0f172a;
+    background-color: #080d14;
+    color: #f8fafc;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 

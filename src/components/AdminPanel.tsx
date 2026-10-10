@@ -2549,24 +2549,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   return (
-    <div id="admin-panel" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 mb-8 text-slate-900">
+    <div id="admin-panel" className="bg-zinc-900/95 rounded-2xl border border-zinc-800 shadow-2xl p-4 sm:p-6 mb-8 text-zinc-100">
       {/* Cabeçalho do Painel Admin */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-sky-500/20 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800 mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-zinc-950 text-sky-400 border border-sky-500/30 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-xl bg-sky-950/60 text-sky-400 border border-sky-500/30 flex items-center justify-center font-bold">
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-zinc-950">
+              <h2 className="text-lg font-bold text-white tracking-tight">
                 Organizador Automático &amp; Painel Admin
               </h2>
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-900 border border-sky-400/40">
+              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30">
                 Acesso Exclusivo
               </span>
             </div>
-            <p className="text-xs text-zinc-500">
-              Administrador: <strong>{user.email}</strong>
+            <p className="text-xs text-zinc-400">
+              Administrador: <strong className="text-zinc-200">{user.email}</strong>
             </p>
           </div>
         </div>
@@ -2577,39 +2577,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             id="tab-lote"
             type="button"
             onClick={() => setActiveTab('lote')}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'lote'
-                ? 'bg-zinc-950 text-sky-400 border border-sky-500/40 shadow-xs'
-                : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                ? 'bg-sky-600 text-white shadow-md'
+                : 'bg-zinc-950/80 text-zinc-400 hover:text-white border border-zinc-800 hover:bg-zinc-850'
             }`}
           >
-            <Sparkles className="w-4 h-4 text-sky-400" />
+            <Sparkles className="w-4 h-4 text-sky-300" />
             Organizar &amp; Inserir Questões
           </button>
           <button
             id="tab-gerenciar"
             type="button"
             onClick={() => setActiveTab('gerenciar')}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'gerenciar'
-                ? 'bg-zinc-950 text-sky-400 border border-sky-500/40 shadow-xs'
-                : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                ? 'bg-sky-600 text-white shadow-md'
+                : 'bg-zinc-950/80 text-zinc-400 hover:text-white border border-zinc-800 hover:bg-zinc-850'
             }`}
           >
-            <FileEdit className="w-4 h-4 text-sky-400" />
+            <FileEdit className="w-4 h-4 text-sky-300" />
             Banco de Questões ({existingQuestions.length})
           </button>
           <button
             id="tab-matriculas"
             type="button"
             onClick={() => setActiveTab('matriculas')}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'matriculas'
-                ? 'bg-zinc-950 text-sky-400 border border-sky-500/40 shadow-xs'
-                : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                ? 'bg-sky-600 text-white shadow-md'
+                : 'bg-zinc-950/80 text-zinc-400 hover:text-white border border-zinc-800 hover:bg-zinc-850'
             }`}
           >
-            <IdCard className="w-4 h-4 text-sky-400" />
+            <IdCard className="w-4 h-4 text-sky-300" />
             Matrículas Autorizadas
           </button>
         </div>
@@ -2852,15 +2852,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       {activeTab === 'lote' && (
         <div className="space-y-6">
           {/* Seção 1: Configuração Hierárquica com Dropdowns de itens já subidos */}
-          <div className="p-4 sm:p-5 bg-gradient-to-br from-slate-50 to-purple-50/30 rounded-2xl border border-slate-200">
+          <div className="p-4 sm:p-5 bg-zinc-950/80 rounded-2xl border border-zinc-800 text-zinc-100">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
               <div>
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-purple-600" />
-                  1. Filtros e Hierarquia de Importação (Módulos, Capítulos e Subtópicos já subidos)
+                <h3 className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-sky-400" />
+                  1. Filtros e Hierarquia de Importação
                 </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Selecione itens existentes no Dropdown ou digite novos títulos. Para o tópico 2.2, basta selecionar o Capítulo 2 no Dropdown e digitar 2.2 no Subtópico.
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  Selecione itens existentes no Dropdown ou digite novos títulos para vincular o lote.
                 </p>
               </div>
               <button
@@ -2873,7 +2873,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   setTema('');
                   setPesoQuestao(1);
                 }}
-                className="text-[11px] px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-800 font-semibold rounded-md transition-colors cursor-pointer self-start sm:self-auto shrink-0"
+                className="text-[11px] px-3 py-1 bg-zinc-900 hover:bg-zinc-800 text-sky-300 border border-zinc-800 font-semibold rounded-lg transition-colors cursor-pointer self-start sm:self-auto shrink-0"
               >
                 Restaurar Padrão (IPO-2)
               </button>
@@ -2883,11 +2883,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               {/* 1. Matéria */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-sky-950">
+                  <label className="block text-xs font-semibold text-zinc-300">
                     1. Matéria *
                   </label>
                   {existingMaterias.length > 0 && (
-                    <span className="text-[10px] font-semibold text-sky-800 bg-sky-100 px-1.5 py-0.2 rounded">
+                    <span className="text-[10px] font-semibold text-sky-400 bg-sky-950/60 px-1.5 py-0.2 rounded border border-sky-500/30">
                       {existingMaterias.length} na base
                     </span>
                   )}
@@ -2898,9 +2898,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   onChange={(e) => {
                     if (e.target.value) setNomeMateria(e.target.value);
                   }}
-                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs cursor-pointer"
+                  className="w-full text-xs p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl focus:border-sky-500 font-medium text-zinc-100 cursor-pointer"
                 >
-                  <option value="">(Selecionar Matéria Cadastrada...)</option>
+                  <option value="">(Selecionar Cadastrada...)</option>
                   {existingMaterias.map((mat, idx) => (
                     <option key={`${mat}-${idx}`} value={mat}>
                       {mat}
@@ -2912,20 +2912,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   type="text"
                   value={nomeMateria}
                   onChange={(e) => setNomeMateria(e.target.value)}
-                  placeholder="Ou digite nova matéria..."
-                  className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-sky-500 font-semibold text-slate-900 placeholder-slate-400"
+                  placeholder="Ou digite nova..."
+                  className="w-full text-xs p-2 bg-zinc-900/60 border border-zinc-800 rounded-lg focus:border-sky-500 text-zinc-100 placeholder-zinc-500"
                 />
               </div>
 
               {/* 2. Módulo */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-semibold text-slate-700">
+                  <label className="block text-xs font-semibold text-zinc-300">
                     2. Módulo
                   </label>
                   <div className="flex items-center gap-1.5">
                     {existingModulos.length > 0 && (
-                      <span className="text-[10px] font-semibold text-indigo-800 bg-indigo-100 px-1.5 py-0.2 rounded">
+                      <span className="text-[10px] font-semibold text-sky-400 bg-sky-950/60 px-1.5 py-0.2 rounded border border-sky-500/30">
                         {existingModulos.length} na base
                       </span>
                     )}
@@ -2933,20 +2933,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       id="btn-unir-modulo-form"
                       type="button"
                       onClick={() => handleOpenMergeModal('modulo')}
-                      className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-1.5 py-0.5 rounded cursor-pointer transition-colors shadow-2xs"
-                      title="Unir módulos parecidos ou redundantes (ex: 'Módulo' e 'Módulo II')"
+                      className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-300 bg-zinc-900 hover:bg-zinc-800 border border-zinc-750 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
+                      title="Unir módulos parecidos ou redundantes"
                     >
-                      <GitMerge className="w-3 h-3 text-indigo-600" />
-                      Unir Módulo
+                      <GitMerge className="w-3 h-3 text-sky-400" />
+                      Unir
                     </button>
                     <button
                       id="btn-desunir-modulo-form"
                       type="button"
                       onClick={() => handleOpenDesunirModal()}
-                      className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded cursor-pointer transition-colors shadow-2xs"
+                      className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-zinc-900 hover:bg-zinc-800 border border-zinc-750 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
                       title="Desunir módulos ou desfazer última mesclagem"
                     >
-                      <Split className="w-3 h-3 text-amber-600" />
+                      <Split className="w-3 h-3 text-amber-400" />
                       Desunir
                     </button>
                   </div>
@@ -2955,9 +2955,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   id="select-existing-modulo"
                   value={existingModulos.includes(moduloMateria) ? moduloMateria : ''}
                   onChange={(e) => setModuloMateria(e.target.value)}
-                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs cursor-pointer"
+                  className="w-full text-xs p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl focus:border-sky-500 font-medium text-zinc-100 cursor-pointer"
                 >
-                  <option value="">(Selecionar Módulo Cadastrado...)</option>
+                  <option value="">(Selecionar Cadastrado...)</option>
                   {existingModulos.map((mod, idx) => (
                     <option key={`${mod}-${idx}`} value={mod}>
                       {mod}
@@ -2969,19 +2969,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   type="text"
                   value={moduloMateria}
                   onChange={(e) => setModuloMateria(e.target.value)}
-                  placeholder="(Em branco ou novo módulo...)"
-                  className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-sky-500 text-slate-900 placeholder-slate-400"
+                  placeholder="(Em branco ou novo...)"
+                  className="w-full text-xs p-2 bg-zinc-900/60 border border-zinc-800 rounded-lg focus:border-sky-500 text-zinc-100 placeholder-zinc-500"
                 />
               </div>
 
               {/* 3. Capítulo */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-semibold text-slate-700">
+                  <label className="block text-xs font-semibold text-zinc-300">
                     3. Capítulo
                   </label>
                   {existingCapitulos.length > 0 && (
-                    <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded">
+                    <span className="text-[10px] font-semibold text-amber-400 bg-amber-950/60 px-1.5 py-0.2 rounded border border-amber-500/30">
                       {existingCapitulos.length} na base
                     </span>
                   )}
@@ -2990,9 +2990,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   id="select-existing-capitulo"
                   value={existingCapitulos.includes(capituloMateria) ? capituloMateria : ''}
                   onChange={(e) => handleSelectExistingCapitulo(e.target.value)}
-                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs cursor-pointer"
+                  className="w-full text-xs p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl focus:border-sky-500 font-medium text-zinc-100 cursor-pointer"
                 >
-                  <option value="">(Selecionar Capítulo Cadastrado...)</option>
+                  <option value="">(Selecionar Cadastrado...)</option>
                   {existingCapitulos.map((cap, idx) => (
                     <option key={`${cap}-${idx}`} value={cap}>
                       {cap}
@@ -3004,19 +3004,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   type="text"
                   value={capituloMateria}
                   onChange={(e) => setCapituloMateria(e.target.value)}
-                  placeholder="Ex: Capítulo 2 ou digitar novo..."
-                  className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-sky-500 text-slate-900 placeholder-slate-400"
+                  placeholder="Ex: Capítulo 2..."
+                  className="w-full text-xs p-2 bg-zinc-900/60 border border-zinc-800 rounded-lg focus:border-sky-500 text-zinc-100 placeholder-zinc-500"
                 />
               </div>
 
               {/* 4. Subtópico */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-semibold text-slate-700">
+                  <label className="block text-xs font-semibold text-zinc-300">
                     4. Subtópico
                   </label>
                   {relatedSubtopicos.length > 0 && (
-                    <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded">
+                    <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-500/30">
                       {relatedSubtopicos.length} na base
                     </span>
                   )}
@@ -3025,9 +3025,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   id="select-existing-subtopico"
                   value={relatedSubtopicos.includes(subtopico) ? subtopico : ''}
                   onChange={(e) => setSubtopico(e.target.value)}
-                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs cursor-pointer"
+                  className="w-full text-xs p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl focus:border-sky-500 font-medium text-zinc-100 cursor-pointer"
                 >
-                  <option value="">(Selecionar Subtópico Cadastrado...)</option>
+                  <option value="">(Selecionar Cadastrado...)</option>
                   {relatedSubtopicos.map((sub, idx) => (
                     <option key={`${sub}-${idx}`} value={sub}>
                       {sub}
@@ -3039,19 +3039,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   type="text"
                   value={subtopico}
                   onChange={(e) => setSubtopico(e.target.value)}
-                  placeholder="Ex: 2.2 ou digitar novo..."
-                  className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-sky-500 text-slate-900 placeholder-slate-400"
+                  placeholder="Ex: 2.2..."
+                  className="w-full text-xs p-2 bg-zinc-900/60 border border-zinc-800 rounded-lg focus:border-sky-500 text-zinc-100 placeholder-zinc-500"
                 />
               </div>
 
               {/* 5. Tema / Detalhe */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    5. Tema / Detalhe
+                  <label className="block text-xs font-semibold text-zinc-300">
+                    5. Tema
                   </label>
                   {relatedTemas.length > 0 && (
-                    <span className="text-[10px] font-semibold text-purple-800 bg-purple-100 px-1.5 py-0.2 rounded">
+                    <span className="text-[10px] font-semibold text-sky-400 bg-sky-950/60 px-1.5 py-0.2 rounded border border-sky-500/30">
                       {relatedTemas.length} na base
                     </span>
                   )}
@@ -3060,9 +3060,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   id="select-existing-tema"
                   value={relatedTemas.includes(tema) ? tema : ''}
                   onChange={(e) => setTema(e.target.value)}
-                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-medium text-slate-900 shadow-2xs cursor-pointer"
+                  className="w-full text-xs p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl focus:border-sky-500 font-medium text-zinc-100 cursor-pointer"
                 >
-                  <option value="">(Selecionar Tema Cadastrado...)</option>
+                  <option value="">(Selecionar Cadastrado...)</option>
                   {relatedTemas.map((t, idx) => (
                     <option key={`${t}-${idx}`} value={t}>
                       {t}
@@ -3074,14 +3074,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   type="text"
                   value={tema}
                   onChange={(e) => setTema(e.target.value)}
-                  placeholder="(Em branco ou novo tema...)"
-                  className="w-full text-[11px] p-1.5 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-sky-500 text-slate-900 placeholder-slate-400"
+                  placeholder="(Em branco ou novo...)"
+                  className="w-full text-xs p-2 bg-zinc-900/60 border border-zinc-800 rounded-lg focus:border-sky-500 text-zinc-100 placeholder-zinc-500"
                 />
               </div>
 
               {/* 6. Peso */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700">
+                <label className="block text-xs font-semibold text-zinc-300">
                   Peso (Pontos) *
                 </label>
                 <input
@@ -3092,52 +3092,40 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   value={pesoQuestao}
                   onChange={(e) => setPesoQuestao(Math.max(0.1, Number(e.target.value) || 1))}
                   placeholder="1"
-                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-bold text-sky-950 placeholder-slate-400 shadow-2xs"
+                  className="w-full text-xs p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl focus:border-sky-500 font-bold text-sky-400 font-mono"
                 />
-                <span className="block text-[10px] text-slate-400">
+                <span className="block text-[10px] text-zinc-500">
                   Padrão: 1 ponto por acerto
                 </span>
               </div>
             </div>
 
             {/* Barra de Destino & Aplicação Rápida da Hierarquia */}
-            <div className="mt-3 pt-3 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
-              <div className="flex flex-wrap items-center gap-1.5 text-slate-700">
-                <span className="font-bold text-slate-500 uppercase text-[10px] tracking-wider">
-                  Destino das Questões:
+            <div className="mt-4 pt-3 border-t border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+              <div className="flex flex-wrap items-center gap-2 text-zinc-300">
+                <span className="font-bold text-zinc-400 uppercase text-[10px] tracking-wider">
+                  Destino:
                 </span>
-                <span className="px-2 py-0.5 rounded bg-sky-700 text-white font-bold text-[11px]">
-                  Matéria: {nomeMateria || 'IPO-2'}
+                <span className="px-2.5 py-0.5 rounded-md bg-sky-950 border border-sky-500/40 text-sky-300 font-bold text-[11px]">
+                  {nomeMateria || 'IPO-2'}
                 </span>
-                {moduloMateria ? (
-                  <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-900 border border-indigo-200 font-semibold text-[11px]">
+                {moduloMateria && (
+                  <span className="px-2.5 py-0.5 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-200 font-medium text-[11px]">
                     Módulo: {moduloMateria}
                   </span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200 text-[11px]">
-                    Módulo: (Geral)
-                  </span>
                 )}
-                {capituloMateria ? (
-                  <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200 font-semibold text-[11px]">
+                {capituloMateria && (
+                  <span className="px-2.5 py-0.5 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-300 text-[11px]">
                     Capítulo: {capituloMateria}
                   </span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200 text-[11px]">
-                    Capítulo: (Em branco)
-                  </span>
                 )}
-                {subtopico ? (
-                  <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-200 font-semibold text-[11px]">
+                {subtopico && (
+                  <span className="px-2.5 py-0.5 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-300 text-[11px]">
                     Subtópico: {subtopico}
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200 text-[11px]">
-                    Subtópico: (Em branco)
                   </span>
                 )}
                 {tema && (
-                  <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-900 border border-purple-200 font-semibold text-[11px]">
+                  <span className="px-2.5 py-0.5 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-400 text-[11px]">
                     Tema: {tema}
                   </span>
                 )}
@@ -3148,26 +3136,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   id="btn-aplicar-hierarquia-lote"
                   type="button"
                   onClick={handleApplyHierarchyToAllExtracted}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-bold rounded-lg shadow-xs transition-colors cursor-pointer self-start sm:self-auto shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold rounded-lg shadow-sm transition-colors cursor-pointer self-start sm:self-auto shrink-0"
                   title="Atualizar Matéria, Módulo, Capítulo e Subtópico de todas as questões extraídas no lote"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  Aplicar Hierarquia Acima ao Lote Extraído ({extractedQuestions.length})
+                  Aplicar ao Lote Extraído ({extractedQuestions.length})
                 </button>
               )}
             </div>
           </div>
 
           {/* Seção 2: Área para Colar o Texto das Questões e o Gabarito Comentado */}
-          <div className="p-4 sm:p-5 bg-white rounded-2xl border border-slate-200 space-y-4">
+          <div className="p-4 sm:p-5 bg-zinc-950/80 rounded-2xl border border-zinc-800 space-y-4 text-zinc-100">
             {/* Caixa 1: Texto das Questões */}
             <div className="space-y-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <label
                   htmlFor="input-raw-questions-text"
-                  className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5"
+                  className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5"
                 >
-                  <BookOpen className="w-4 h-4 text-purple-600" />
+                  <BookOpen className="w-4 h-4 text-sky-400" />
                   2. Cole o Texto das Questões
                 </label>
 
@@ -3175,21 +3163,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <button
                     type="button"
                     onClick={handleClipboardPaste}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-300 text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-2xs"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-750 text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-xs"
                     title="Colar texto das questões da sua área de transferência"
                   >
-                    <Clipboard className="w-3.5 h-3.5 text-purple-600" />
+                    <Clipboard className="w-3.5 h-3.5 text-sky-400" />
                     Colar da Área de Transferência
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setIsNotebookModalOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-700 via-indigo-600 to-sky-600 hover:from-purple-600 hover:to-sky-500 text-white text-xs font-black rounded-lg transition-all cursor-pointer shadow-md hover:shadow-lg border border-purple-300/40"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-lg transition-all cursor-pointer shadow-md border border-sky-400/40"
                     title="Gerar modelo e prompt base para o NotebookLM importar 50 questões perfeitas"
                   >
-                    <Bot className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-                    Gerar Estrutura Base para NotebookLM (50 Questões)
+                    <Bot className="w-3.5 h-3.5 text-sky-200" />
+                    Estrutura NotebookLM (50 Questões)
                   </button>
 
                   <button
@@ -3198,20 +3186,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       setRawText(SAMPLE_BLOCO_462);
                       setRawCommentsText('');
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-sky-100 hover:bg-sky-200 text-sky-900 border border-sky-300 text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-2xs"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-zinc-900 hover:bg-zinc-800 text-sky-300 border border-zinc-750 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                     title="Carregar exemplo com as 6 questões do Bloco 4.6.2 (Auto Circunstanciado)"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-                    Carregar Exemplo: Bloco 4.6.2 (Auto Circunstanciado - 6 Questões)
+                    <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                    Exemplo (6 Questões)
                   </button>
 
                   <button
                     type="button"
                     onClick={handleRestoreBackup}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-2xs"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-zinc-900 hover:bg-zinc-800 text-amber-300 border border-zinc-750 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                     title="Restaurar backup do último lote de questões que foi processado"
                   >
-                    <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                    <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
                     Restaurar Lote
                   </button>
 
@@ -3222,7 +3210,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         setRawText('');
                         setExtractedQuestions([]);
                       }}
-                      className="text-slate-500 hover:text-rose-600 text-xs font-medium cursor-pointer"
+                      className="text-zinc-500 hover:text-rose-400 text-xs font-medium cursor-pointer"
                     >
                       Limpar Questões
                     </button>
@@ -3230,24 +3218,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               </div>
 
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Cole aqui as questões (enunciados, assertivas I, II, III, alternativas a., b., c., d., e.). Se o gabarito e comentários já estiverem no mesmo texto, o sistema os extrairá automaticamente.
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Cole aqui as questões (enunciados, assertivas I, II, alternativas a., b., c., d., e.). Se o gabarito e comentários já estiverem no mesmo texto, o sistema os extrairá automaticamente.
               </p>
 
               {/* Banner de Organização Automática Instantânea */}
-              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-950">
+              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-zinc-900/90 border border-zinc-800 rounded-xl text-xs text-zinc-300">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <Sparkles className="w-4 h-4 text-sky-400 shrink-0" />
                   <span>
-                    <strong>Importação Automática Ativa:</strong> Ao colar ou digitar o texto das questões, os módulos, capítulos, subtópico e tema são detectados e organizados imediatamente.
+                    <strong>Importação Automática Ativa:</strong> Ao colar ou digitar, os módulos, capítulos, subtópico e tema são detectados imediatamente.
                   </span>
                 </div>
-                <label className="flex items-center gap-1.5 cursor-pointer font-bold text-indigo-800 text-[11px] shrink-0">
+                <label className="flex items-center gap-1.5 cursor-pointer font-bold text-sky-400 text-[11px] shrink-0">
                   <input
                     type="checkbox"
                     checked={autoOrganizeEnabled}
                     onChange={(e) => setAutoOrganizeEnabled(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-950 text-sky-500 focus:ring-sky-500 cursor-pointer"
                   />
                   Auto-Organizar ao Digitar/Colar
                 </label>
@@ -3275,18 +3263,18 @@ D) Nenhum dos itens
 
 Gabarito: C`}
                 rows={7}
-                className="w-full text-xs sm:text-sm font-mono p-3.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:bg-white text-slate-900 placeholder-slate-400 shadow-inner"
+                className="w-full text-xs sm:text-sm font-mono p-3.5 bg-zinc-900/90 border border-zinc-800 rounded-xl focus:border-sky-500 text-zinc-100 placeholder-zinc-500 shadow-inner"
               />
             </div>
 
             {/* Caixa 2: Gabarito Comentado (Opcional ou Separado) com Vinculação Automática */}
-            <div className="space-y-2 pt-3 border-t border-slate-200">
+            <div className="space-y-2 pt-3 border-t border-zinc-800/80">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <label
                   htmlFor="input-raw-comments-text"
-                  className="text-xs font-bold text-sky-900 uppercase tracking-wider flex items-center gap-1.5"
+                  className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5"
                 >
-                  <Sparkles className="w-4 h-4 text-sky-600" />
+                  <Sparkles className="w-4 h-4 text-sky-400" />
                   3. Caixa de Gabarito Comentado (Opcional ou Separado)
                 </label>
 
@@ -3294,17 +3282,17 @@ Gabarito: C`}
                   <button
                     type="button"
                     onClick={() => setRawCommentsText('')}
-                    className="text-slate-500 hover:text-rose-600 text-xs font-medium cursor-pointer"
+                    className="text-zinc-500 hover:text-rose-400 text-xs font-medium cursor-pointer"
                   >
                     Limpar Gabaritos Comentados
                   </button>
                 )}
               </div>
 
-              <div className="p-2.5 rounded-lg bg-sky-50/80 border border-sky-200 text-xs text-sky-950 leading-relaxed flex items-start gap-2">
-                <span className="font-bold text-sky-700 shrink-0">💡 Vinculação Automática:</span>
+              <div className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-zinc-300 leading-relaxed flex items-start gap-2">
+                <span className="font-bold text-sky-400 shrink-0">💡 Vinculação Automática:</span>
                 <span>
-                  Se você possui o gabarito comentado em um bloco ou arquivo separado, basta colar aqui! O sistema identificará o número da questão (ex: <em>Questão 1: B - comentário...</em> ou por ordem) e fará a vinculação automática com as questões acima, justificando e organizando os espaçamentos.
+                  Se você possui o gabarito comentado em um bloco ou arquivo separado, basta colar aqui! O sistema identificará o número da questão e fará a vinculação automática com as questões acima.
                 </span>
               </div>
 
@@ -3315,18 +3303,15 @@ Gabarito: C`}
                 placeholder={`Cole aqui os gabaritos comentados separados se houver. Exemplo:
 
 Questão 1: Gabarito C.
-Comentário: O item I está correto conforme a lei... O item II está correto...
-
-Questão 2: Gabarito B.
-Comentário: Apenas a alternativa B atende ao comando...`}
+Comentário: O item I está correto conforme a lei... O item II está correto...`}
                 rows={5}
-                className="w-full text-xs sm:text-sm font-mono p-3.5 bg-white border border-sky-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:bg-white text-slate-900 placeholder-slate-400 shadow-inner"
+                className="w-full text-xs sm:text-sm font-mono p-3.5 bg-zinc-900/90 border border-zinc-800 rounded-xl focus:border-sky-500 text-zinc-100 placeholder-zinc-500 shadow-inner"
               />
             </div>
 
             {/* Barra de Ação de Organização e Vinculação */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[11px] text-zinc-500">
                 O sistema organizará o texto, justificará os parágrafos, espaçará os itens e vinculará os gabaritos comentados.
               </span>
 
@@ -3335,7 +3320,7 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                 type="button"
                 onClick={() => handleOrganizarAutomaticamente()}
                 disabled={!rawText.trim()}
-                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs sm:text-sm font-black rounded-xl shadow-md transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md transition-all cursor-pointer"
               >
                 <Sparkles className="w-4 h-4" />
                 {rawCommentsText.trim()
@@ -3391,24 +3376,24 @@ Comentário: Apenas a alternativa B atende ao comando...`}
           {/* Seção 3: Questões Estruturadas Prontas para Inserir no Firestore */}
           {extractedQuestions.length > 0 && (
             <div className="space-y-4 animate-in fade-in">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-sky-50 border border-sky-200 rounded-2xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-zinc-950/80 border border-zinc-800 rounded-2xl text-zinc-100">
                 <div>
-                  <h4 className="text-sm font-bold text-sky-950 flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-sky-600" />
-                    {extractedQuestions.length} Questão(ões) Organizada(s) com Sucesso!
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                    {extractedQuestions.length} Questão(ões) Organizada(s) no Lote!
                   </h4>
-                  <p className="text-xs text-sky-800">
-                    Revise os campos abaixo. Ao confirmar, o sistema gravará tudo diretamente no Firestore com numeração ordinal contínua.
+                  <p className="text-xs text-zinc-400">
+                    Revise os campos abaixo. Ao confirmar, o sistema gravará tudo no Firestore com numeração ordinal contínua.
                   </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <label className="inline-flex items-center gap-1.5 px-3 py-2 bg-white/90 border border-slate-300 hover:border-slate-400 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer select-none transition-all shadow-xs">
+                  <label className="inline-flex items-center gap-1.5 px-3 py-2 bg-zinc-900 border border-zinc-750 hover:border-zinc-700 rounded-xl text-xs font-semibold text-zinc-300 cursor-pointer select-none transition-all shadow-xs">
                     <input
                       type="checkbox"
                       checked={forceSaveAll}
                       onChange={(e) => setForceSaveAll(e.target.checked)}
-                      className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      className="w-3.5 h-3.5 rounded text-emerald-500 focus:ring-emerald-500 cursor-pointer"
                     />
                     <span>Forçar gravação de todas (ignorar duplicatas)</span>
                   </label>
@@ -3418,7 +3403,7 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                     type="button"
                     onClick={handleSalvarLoteNoFirestore}
                     disabled={saving}
-                    className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs sm:text-sm font-black rounded-xl shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/50 transition-all cursor-pointer border border-emerald-400/40"
+                    className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs sm:text-sm font-bold rounded-xl shadow-lg transition-all cursor-pointer border border-emerald-400/40"
                   >
                     {saving ? (
                       <>
@@ -3437,14 +3422,14 @@ Comentário: Apenas a alternativa B atende ao comando...`}
 
               {/* Barra de Progresso em Tempo Real durante Gravação */}
               {saving && saveProgress && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1.5 animate-pulse">
-                  <div className="flex justify-between text-xs font-bold text-emerald-950">
+                <div className="p-3 bg-zinc-950/80 border border-emerald-500/30 rounded-xl space-y-1.5 animate-pulse">
+                  <div className="flex justify-between text-xs font-bold text-emerald-400">
                     <span>Gravando questões no Firestore...</span>
                     <span>{saveProgress.current} de {saveProgress.total} ({Math.round((saveProgress.current / (saveProgress.total || 1)) * 100)}%)</span>
                   </div>
-                  <div className="w-full bg-emerald-200/60 rounded-full h-2 overflow-hidden">
+                  <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
                     <div
-                      className="bg-emerald-600 h-2 rounded-full transition-all duration-200"
+                      className="bg-emerald-500 h-2 rounded-full transition-all duration-200"
                       style={{ width: `${Math.round((saveProgress.current / (saveProgress.total || 1)) * 100)}%` }}
                     />
                   </div>
@@ -4235,41 +4220,39 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                           return (
                     <div
                       key={idx}
-                      className={`p-4 sm:p-5 rounded-2xl border shadow-xs relative space-y-3 transition-colors ${
+                      className={`p-4 sm:p-5 rounded-2xl border shadow-md relative space-y-3 transition-colors ${
                         isSelected
-                          ? 'bg-sky-50/50 border-sky-300'
-                          : 'bg-white border-slate-200'
+                          ? 'bg-sky-950/30 border-sky-500/60 ring-1 ring-sky-500/30'
+                          : 'bg-zinc-950/80 border-zinc-800'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                      <div className="flex items-center justify-between gap-2 border-b border-zinc-800/80 pb-2">
                         <div className="flex items-center gap-3">
                           <input
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => handleToggleSelectExtracted(idx)}
-                            className="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer shrink-0"
+                            className="w-4 h-4 rounded border-zinc-700 bg-zinc-900 text-sky-500 focus:ring-sky-500 cursor-pointer shrink-0"
                             title="Selecionar esta questão"
                           />
                           <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                            <span className="font-bold bg-slate-900 text-white px-2 py-0.5 rounded">
+                            <span className="font-bold bg-zinc-900 border border-zinc-750 text-white px-2 py-0.5 rounded">
                               Questão #{q.numero_questao || idx + 1}
                             </span>
                             {q.carimbado && (
                               <span
-                                className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded text-[11px]"
+                                className="inline-flex items-center gap-1 font-semibold text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-2 py-0.5 rounded text-[11px]"
                                 title={q.carimbo ? `Carimbo de Vinculação: ${q.carimbo}` : 'Questão com carimbo fixado na importação (protegida contra deslocamento)'}
                               >
-                                <span className="text-[9px] bg-emerald-700 text-white px-1.5 py-0.2 rounded font-black uppercase tracking-wide">
-                                  🛡️ Carimbada
-                                </span>
+                                <span>🛡️ Carimbada</span>
                               </span>
                             )}
                             {(() => {
                               const etq = formatEtiqueta(q);
                               if (etq) {
                                 return (
-                                  <span className="inline-flex items-center gap-1.5 font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
-                                    <span className="text-[9px] bg-blue-600 text-white px-1.5 py-0.2 rounded font-extrabold uppercase tracking-wide">
+                                  <span className="inline-flex items-center gap-1.5 font-medium text-sky-300 bg-sky-950/40 border border-sky-500/30 px-2 py-0.5 rounded">
+                                    <span className="text-[9px] bg-sky-600 text-white px-1.5 py-0.2 rounded font-bold uppercase tracking-wide">
                                       Etiqueta
                                     </span>
                                     {etq}
@@ -4279,49 +4262,49 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                               return (
                                 <>
                                   {(q.materia || nomeMateria) && (
-                                    <span className="font-bold text-sky-800 bg-sky-100 border border-sky-300 px-2 py-0.5 rounded text-xs">
+                                    <span className="font-bold text-sky-300 bg-sky-950/40 border border-sky-500/30 px-2 py-0.5 rounded text-xs">
                                       {q.materia || nomeMateria}
                                     </span>
                                   )}
                                   {(q.modulo || moduloMateria) && (
-                                    <span className="font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded text-xs">
+                                    <span className="font-semibold text-zinc-300 bg-zinc-900 border border-zinc-750 px-2 py-0.5 rounded text-xs">
                                       {q.modulo || moduloMateria}
                                     </span>
                                   )}
                                   {q.capitulo && (
-                                    <span className="text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                                    <span className="text-zinc-300 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">
                                       {q.capitulo}
                                     </span>
                                   )}
                                   {q.subtopico && (
-                                    <span className="text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">
+                                    <span className="text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">
                                       {q.subtopico}
                                     </span>
                                   )}
                                   {q.tema_subtopico && (
-                                    <span className="text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded">
+                                    <span className="text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">
                                       {q.tema_subtopico}
                                     </span>
                                   )}
                                 </>
                               );
                             })()}
-                            <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                            <span className="font-bold text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-2 py-0.5 rounded">
                               Gabarito: {q.alternativa_correta}
                             </span>
                             {q.alternativas.some((a) => a.letra === 'A') ? (
-                              <span className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded text-[11px]">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span className="inline-flex items-center gap-1 font-semibold text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-2 py-0.5 rounded text-[11px]">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                                 Letra A OK
                               </span>
                             ) : (
                               <button
                                 type="button"
                                 onClick={() => handleAddMissingAlternativeA(idx)}
-                                className="inline-flex items-center gap-1 font-bold text-rose-800 bg-rose-100 border border-rose-300 hover:bg-rose-200 px-2 py-0.5 rounded text-[11px] cursor-pointer shadow-2xs"
+                                className="inline-flex items-center gap-1 font-bold text-rose-300 bg-rose-950/60 border border-rose-500/40 hover:bg-rose-900/60 px-2 py-0.5 rounded text-[11px] cursor-pointer shadow-xs"
                                 title="Clique para adicionar a alternativa A faltante nesta questão"
                               >
-                                <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                                <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
                                 + Inserir Letra A
                               </button>
                             )}
@@ -4331,7 +4314,7 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                         <button
                           type="button"
                           onClick={() => handleRemoveExtracted(idx)}
-                          className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-semibold p-1.5 transition-colors cursor-pointer"
+                          className="text-zinc-500 hover:text-rose-400 hover:bg-rose-950/40 rounded-lg text-xs font-semibold p-1.5 transition-colors cursor-pointer"
                           title="Remover esta questão do lote"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -4341,31 +4324,28 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                     {/* Comando da Questão / Enunciado */}
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
                           <span>Comando da Questão (Enunciado):</span>
-                          <span className="text-[10px] text-slate-500 font-normal">
-                            (Número da questão exibido apenas na etiqueta)
-                          </span>
                         </span>
-                        <span className="text-[11px] text-slate-400">
+                        <span className="text-[11px] text-zinc-500">
                           {q.enunciado.length} caracteres
                         </span>
                       </div>
                       <textarea
-                        rows={Math.max(2, Math.min(8, Math.ceil(q.enunciado.length / 100)))}
+                        rows={Math.max(2, Math.min(6, Math.ceil(q.enunciado.length / 100)))}
                         value={q.enunciado}
                         onChange={(e) => handleUpdateExtractedField(idx, 'enunciado', e.target.value)}
-                        placeholder="Comando da questão (sem o número)..."
-                        className="w-full text-xs sm:text-sm text-slate-900 leading-relaxed text-justify p-3 bg-slate-50/80 border border-slate-200 rounded-xl focus:ring-2 focus:ring-sky-500 focus:bg-white resize-y shadow-2xs font-normal"
+                        placeholder="Comando da questão..."
+                        className="w-full text-xs sm:text-sm text-zinc-100 leading-relaxed text-justify p-3 bg-zinc-900 border border-zinc-800 rounded-xl focus:border-sky-500 resize-y shadow-inner font-normal placeholder-zinc-500"
                       />
                     </div>
 
                     {/* Alternativas com Visualização Clara e Editável */}
                     <div className="space-y-2">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
                           Alternativas Detectadas ({q.alternativas.length}):
-                          <span className="text-[10px] font-normal text-slate-500">
+                          <span className="text-[10px] font-normal text-zinc-500">
                             (Clique na letra para definir como gabarito)
                           </span>
                         </span>
@@ -4373,7 +4353,7 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                           <button
                             type="button"
                             onClick={() => handleAddMissingAlternativeA(idx)}
-                            className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-300 bg-rose-950/60 hover:bg-rose-900/60 border border-rose-500/40 px-2 py-0.5 rounded cursor-pointer transition-colors"
                           >
                             <AlertCircle className="w-3.5 h-3.5" />
                             Inserir Letra A
@@ -4389,8 +4369,8 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                               key={alt.letra + altIdx}
                               className={`p-2.5 rounded-xl border text-xs flex items-start gap-3 transition-all ${
                                 isCorrect
-                                  ? 'bg-emerald-50/80 border-emerald-400 ring-1 ring-emerald-400 text-emerald-950 shadow-2xs'
-                                  : 'bg-white border-slate-200 text-slate-800 hover:border-slate-300'
+                                  ? 'bg-emerald-950/30 border-emerald-500/60 ring-1 ring-emerald-500/40 text-emerald-100 shadow-sm'
+                                  : 'bg-zinc-900/70 border-zinc-800 text-zinc-200 hover:border-zinc-750'
                               }`}
                             >
                               <button
@@ -4398,8 +4378,8 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                                 onClick={() => handleUpdateExtractedField(idx, 'alternativa_correta', alt.letra)}
                                 className={`w-6 h-6 rounded-lg font-black text-xs shrink-0 flex items-center justify-center transition-transform hover:scale-105 cursor-pointer mt-0.5 ${
                                   isCorrect
-                                    ? 'bg-emerald-600 text-white shadow-xs'
-                                    : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                                    ? 'bg-emerald-500 text-zinc-950 shadow-xs'
+                                    : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
                                 }`}
                                 title={`Clique para marcar a alternativa ${alt.letra} como gabarito correto`}
                               >
@@ -4411,13 +4391,13 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                                   rows={Math.max(1, Math.min(4, Math.ceil(alt.texto.length / 80)))}
                                   value={alt.texto}
                                   onChange={(e) => handleUpdateExtractedAlternative(idx, altIdx, e.target.value)}
-                                  className="w-full bg-transparent border-0 p-0 text-xs text-slate-800 font-medium focus:ring-0 focus:outline-hidden resize-y leading-relaxed"
+                                  className="w-full bg-transparent border-0 p-0 text-xs text-zinc-200 font-medium focus:ring-0 focus:outline-hidden resize-y leading-relaxed placeholder-zinc-500"
                                   placeholder={`Texto da alternativa ${alt.letra}...`}
                                 />
                               </div>
 
                               {isCorrect && (
-                                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-600 text-white shrink-0 mt-0.5 shadow-2xs">
+                                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0 mt-0.5 shadow-2xs">
                                   Correta
                                 </span>
                               )}
@@ -4427,21 +4407,21 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                       </div>
                     </div>
 
-                    {/* Gabarito Comentado Vinculado (Totalmente visualizável e editável) */}
-                    <div className="space-y-2 pt-2">
+                    {/* Gabarito Comentado Vinculado */}
+                    <div className="space-y-2 pt-2 border-t border-zinc-800/80">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <label className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-                          <BookOpen className="w-4 h-4 text-blue-600" />
+                        <label className="text-xs font-bold text-sky-400 flex items-center gap-1.5">
+                          <BookOpen className="w-4 h-4 text-sky-400" />
                           Gabarito Comentado Vinculado a Esta Questão:
                         </label>
                         {q.gabarito_comentado ? (
-                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            Comentário Vinculado com Sucesso
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-950/40 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            Comentário Vinculado
                           </span>
                         ) : (
-                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                            Sem comentário vinculado (digite abaixo se desejar)
+                          <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-zinc-900 text-zinc-400 border border-zinc-800">
+                            Sem comentário vinculado
                           </span>
                         )}
                       </div>
@@ -4451,22 +4431,22 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                         onChange={(e) => handleUpdateExtractedField(idx, 'gabarito_comentado', e.target.value)}
                         placeholder="Cole ou digite aqui a explicação, resolução comentada e fundamentação jurídica desta questão..."
                         rows={4}
-                        className="w-full text-xs sm:text-sm p-3 bg-white border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-slate-800 leading-relaxed text-justify whitespace-pre-line shadow-2xs"
+                        className="w-full text-xs sm:text-sm p-3 bg-zinc-900 border border-zinc-800 rounded-xl focus:border-sky-500 text-zinc-200 leading-relaxed text-justify whitespace-pre-line shadow-inner placeholder-zinc-500"
                       />
                     </div>
 
                     {/* Dica / Macete */}
                     <div className="space-y-1 pt-1">
-                      <label className="text-[11px] font-bold uppercase tracking-wider text-sky-800 flex items-center gap-1">
-                        <Lightbulb className="w-3.5 h-3.5 text-sky-600" />
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1">
+                        <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
                         Dica / Macete (Opcional):
                       </label>
                       <input
                         type="text"
                         value={q.dica_macete}
                         onChange={(e) => handleUpdateExtractedField(idx, 'dica_macete', e.target.value)}
-                        placeholder="Mnemônico ou bizu de memorização..."
-                        className="w-full text-xs p-2 bg-sky-50/50 border border-sky-200 rounded-lg text-sky-950 focus:ring-2 focus:ring-sky-500"
+                        placeholder="Ex: Lembre-se do prazo improrrogável de 24 horas..."
+                        className="w-full text-xs p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl focus:border-sky-500 text-zinc-200 placeholder-zinc-500"
                       />
                     </div>
                   </div>
