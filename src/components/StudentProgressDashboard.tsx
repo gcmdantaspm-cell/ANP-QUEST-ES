@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   PieChart,
   Pie,
@@ -14,6 +14,8 @@ import {
 } from 'recharts';
 import { Question, StoredAnswer } from '../types/question';
 import { getQuestionMateria } from '../utils/parser';
+import { useAuth } from '../context/AuthContext';
+import { syncAndRecoverUserAnswers } from '../services/userProgressSync';
 import {
   PieChart as PieIcon,
   CheckCircle2,
@@ -32,8 +34,10 @@ import {
   Layers,
   Sparkles,
   AlertTriangle,
-  X,
   Target,
+  History,
+  Database,
+  RefreshCw,
 } from 'lucide-react';
 
 export type TimeFilterPeriod =
@@ -43,12 +47,14 @@ export type TimeFilterPeriod =
   | 'anteontem'
   | 'semana'
   | 'mes'
+  | 'historico'
   | 'data_especifica';
 
 interface StudentProgressDashboardProps {
   questions: Question[];
   userAnswers: Record<string, StoredAnswer>;
   onResetStats: () => void;
+  onRefreshAnswers?: (answers: Record<string, StoredAnswer>) => void;
 }
 
 interface DisciplinaStats {
@@ -78,19 +84,63 @@ function formatKeyToDisplayDate(key: string): string {
   return key;
 }
 
+// Retorna a chave de data legítima ou null se for do histórico acumulado anterior
+function getAnswerDateKey(ans: StoredAnswer): string | null {
+  if (ans.date && ans.date !== 'historico' && ans.date !== 'anterior') {
+    return ans.date;
+  }
+  if (ans.timestamp && typeof ans.timestamp === 'number' && ans.timestamp > 0) {
+    const d = new Date(ans.timestamp);
+    if (!isNaN(d.getTime())) {
+      return formatDateToLocalKey(d);
+    }
+  }
+  return null;
+}
+
 export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> = ({
   questions,
   userAnswers,
   onResetStats,
+  onRefreshAnswers,
 }) => {
+  const { user } = useAuth();
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'graficos' | 'disciplinas' | 'historico'>('graficos');
   const [timeFilter, setTimeFilter] = useState<TimeFilterPeriod>('total');
-  const [selectedCustomDate, setSelectedCustomDate] = useState<string>(() =>
-    formatDateToLocalKey(new Date())
-  );
+  const [selectedCustomDate, setSelectedCustomDate] = useState<string>('');
   const [selectedDisciplina, setSelectedDisciplina] = useState<string>('todas');
   const [showConfirmReset, setShowConfirmReset] = useState<boolean>(false);
+  const [isSyncingDb, setIsSyncingDb] = useState<boolean>(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  // Procura e recupera do banco de dados (Firestore) na montagem do componente
+  useEffect(() => {
+    handleSyncFromDatabase(false);
+  }, [user]);
+
+  const handleSyncFromDatabase = async (showFeedback = true) => {
+    setIsSyncingDb(true);
+    if (showFeedback) setSyncMessage('Buscando registros no banco de dados...');
+    try {
+      const recovered = await syncAndRecoverUserAnswers(user, userAnswers);
+      if (onRefreshAnswers) {
+        onRefreshAnswers(recovered);
+      }
+      if (showFeedback) {
+        setSyncMessage('Sincronização com o banco de dados concluída!');
+        setTimeout(() => setSyncMessage(null), 4000);
+      }
+    } catch (err) {
+      console.warn('Erro ao sincronizar com banco de dados:', err);
+      if (showFeedback) {
+        setSyncMessage('Dados locais atualizados.');
+        setTimeout(() => setSyncMessage(null), 3000);
+      }
+    } finally {
+      setIsSyncingDb(false);
+    }
+  };
 
   // Mapear perguntas para lookup rápido
   const questionMap = useMemo(() => {
@@ -133,14 +183,15 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
     };
   }, []);
 
-  // Lista com todas as datas em que o aluno respondeu pelo menos 1 questão (ordenada da mais recente para a mais antiga)
+  // Lista com todas as datas em que o aluno respondeu comprovadamente questões
+  // ATENÇÃO: NÃO usa 'hoje' como fallback. Questões sem data legítima não sujam 'hoje'.
   const availableAnswerDates = useMemo(() => {
     const countsByDate = new Map<string, { total: number; acertos: number; erros: number }>();
-    const hoje = dateKeys.hojeStr;
 
     Object.values(userAnswers).forEach((ans) => {
-      // Se não houver data explícita, usa hoje como fallback para respostas de sessão recente
-      const dKey = ans.date || (ans.timestamp ? formatDateToLocalKey(new Date(ans.timestamp)) : hoje);
+      const dKey = getAnswerDateKey(ans);
+      if (!dKey) return; // Questões do histórico acumulado ficam no Total Geral e na aba Histórico Acumulado
+
       const current = countsByDate.get(dKey) || { total: 0, acertos: 0, erros: 0 };
       current.total += 1;
       if (ans.isCorrect) current.acertos += 1;
@@ -155,9 +206,18 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
         taxaAcertos: stats.total > 0 ? Math.round((stats.acertos / stats.total) * 100) : 0,
       }))
       .sort((a, b) => b.dateKey.localeCompare(a.dateKey));
-  }, [userAnswers, dateKeys]);
+  }, [userAnswers]);
 
-  // Contagem de respostas por cada período de filtro para exibir nos botões/pills
+  // Se não houver data personalizada selecionada ainda, define a mais recente disponível ou hoje
+  useEffect(() => {
+    if (!selectedCustomDate && availableAnswerDates.length > 0) {
+      setSelectedCustomDate(availableAnswerDates[0].dateKey);
+    } else if (!selectedCustomDate) {
+      setSelectedCustomDate(dateKeys.hojeStr);
+    }
+  }, [availableAnswerDates, dateKeys.hojeStr, selectedCustomDate]);
+
+  // Contagem estrita e verdadeira de respostas por cada período de filtro
   const periodCounts = useMemo(() => {
     let total = 0;
     let hoje = 0;
@@ -165,12 +225,18 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
     let anteontem = 0;
     let semana = 0;
     let mes = 0;
-    const now = Date.now();
+    let historico = 0;
 
     Object.values(userAnswers).forEach((ans) => {
       total += 1;
-      const ansDate = ans.date || (ans.timestamp ? formatDateToLocalKey(new Date(ans.timestamp)) : dateKeys.hojeStr);
-      const ansMs = ans.timestamp || now;
+      const ansDate = getAnswerDateKey(ans);
+      const ansMs = ans.timestamp;
+
+      // Se a questão não tem data/timestamp comprovado, pertence ao histórico acumulado de todo o período
+      if (!ansDate || !ansMs) {
+        historico += 1;
+        return;
+      }
 
       if (ansDate === dateKeys.hojeStr) hoje += 1;
       if (ansDate === dateKeys.ontemStr) ontem += 1;
@@ -180,17 +246,16 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
       if (ansMs >= dateKeys.trintaDiasAtrasMs) mes += 1;
     });
 
-    return { total, hoje, ontem, anteontem, semana, mes };
+    return { total, hoje, ontem, anteontem, semana, mes, historico };
   }, [userAnswers, dateKeys]);
 
   // Respostas filtradas de acordo com o período selecionado
   const filteredUserAnswers = useMemo(() => {
     const result: Array<{ questionId: string; answer: StoredAnswer }> = [];
-    const now = Date.now();
 
     Object.entries(userAnswers).forEach(([qId, ans]) => {
-      const ansDate = ans.date || (ans.timestamp ? formatDateToLocalKey(new Date(ans.timestamp)) : dateKeys.hojeStr);
-      const ansMs = ans.timestamp || now;
+      const ansDate = getAnswerDateKey(ans);
+      const ansMs = ans.timestamp;
 
       let matches = false;
 
@@ -199,19 +264,22 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
           matches = true;
           break;
         case 'hoje':
-          matches = ansDate === dateKeys.hojeStr;
+          matches = ansDate === dateKeys.hojeStr && Boolean(ansMs);
           break;
         case 'ontem':
-          matches = ansDate === dateKeys.ontemStr;
+          matches = ansDate === dateKeys.ontemStr && Boolean(ansMs);
           break;
         case 'anteontem':
-          matches = ansDate === dateKeys.anteontemStr;
+          matches = ansDate === dateKeys.anteontemStr && Boolean(ansMs);
           break;
         case 'semana':
-          matches = ansMs >= dateKeys.seteDiasAtrasMs;
+          matches = Boolean(ansMs && ansMs >= dateKeys.seteDiasAtrasMs);
           break;
         case 'mes':
-          matches = ansMs >= dateKeys.trintaDiasAtrasMs;
+          matches = Boolean(ansMs && ansMs >= dateKeys.trintaDiasAtrasMs);
+          break;
+        case 'historico':
+          matches = !ansDate || !ansMs;
           break;
         case 'data_especifica':
           matches = ansDate === selectedCustomDate;
@@ -369,14 +437,14 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
     }));
   }, [statsPorDisciplina]);
 
-  // Dados de evolução diária (Timeline dos últimos dias)
+  // Dados de evolução diária (Timeline das datas que possuem timestamp legítimo)
   const timelineData = useMemo(() => {
     const map = new Map<string, { data: string; Acertos: number; Erros: number; Total: number }>();
 
     filteredUserAnswers.forEach(({ answer }) => {
-      const dKey =
-        answer.date ||
-        (answer.timestamp ? formatDateToLocalKey(new Date(answer.timestamp)) : dateKeys.hojeStr);
+      const dKey = getAnswerDateKey(answer);
+      if (!dKey) return;
+
       const current = map.get(dKey) || {
         data: formatKeyToDisplayDate(dKey),
         Acertos: 0,
@@ -396,13 +464,13 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([, val]) => val);
-  }, [filteredUserAnswers, dateKeys]);
+  }, [filteredUserAnswers]);
 
   // Rótulo textual do período ativo para exibição no cabeçalho
   const activePeriodLabel = useMemo(() => {
     switch (timeFilter) {
       case 'total':
-        return 'Total Geral Acumulado';
+        return 'Total Geral Acumulado (Todo o Período)';
       case 'hoje':
         return `Hoje (${formatKeyToDisplayDate(dateKeys.hojeStr)})`;
       case 'ontem':
@@ -410,11 +478,15 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
       case 'anteontem':
         return `Anteontem (${formatKeyToDisplayDate(dateKeys.anteontemStr)})`;
       case 'semana':
-        return 'Últimos 7 Dias (Semana)';
+        return 'Últimos 7 Dias (Semana Recente)';
       case 'mes':
-        return 'Últimos 30 Dias (Mês)';
+        return 'Últimos 30 Dias (Mês Recente)';
+      case 'historico':
+        return 'Histórico Acumulado (Realizado ao longo do período de preparação)';
       case 'data_especifica':
-        return `Data Específica: ${formatKeyToDisplayDate(selectedCustomDate)}`;
+        return selectedCustomDate
+          ? `Data Específica: ${formatKeyToDisplayDate(selectedCustomDate)}`
+          : 'Data Específica';
       default:
         return 'Período Selecionado';
     }
@@ -486,6 +558,19 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
             </div>
           )}
 
+          {/* Botão para Sincronizar / Buscar no Banco de Dados */}
+          <button
+            id="btn-sync-database-stats"
+            type="button"
+            onClick={() => handleSyncFromDatabase(true)}
+            disabled={isSyncingDb}
+            title="Buscar no banco de dados o histórico e registros reais de quando as questões foram feitas"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-sky-300 hover:text-white bg-zinc-950 hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer border border-sky-500/40 shadow-xs"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncingDb ? 'animate-spin text-sky-400' : ''}`} />
+            <span>{isSyncingDb ? 'Buscando no Banco...' : 'Sincronizar Banco'}</span>
+          </button>
+
           {Object.keys(userAnswers).length > 0 && (
             <button
               id="btn-dashboard-reset"
@@ -519,10 +604,27 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
         </div>
       </div>
 
+      {/* Alerta de Feedback de Sincronização */}
+      {syncMessage && (
+        <div className="bg-sky-950/80 border-b border-sky-500/30 px-4 py-2 text-xs text-sky-300 flex items-center justify-between animate-in fade-in">
+          <span className="flex items-center gap-2">
+            <Database className="w-3.5 h-3.5 text-sky-400" />
+            {syncMessage}
+          </span>
+          <button
+            type="button"
+            onClick={() => setSyncMessage(null)}
+            className="text-sky-400 hover:text-white"
+          >
+            &times;
+          </button>
+        </div>
+      )}
+
       {/* 2. CONTEÚDO EXPANSÍVEL DO PAINEL */}
       {isExpanded && (
         <div className="p-4 sm:p-6 space-y-6 bg-zinc-950/70">
-          {/* BARRA DE FILTROS TEMPORAIS SOLICITADOS: TOTAL, HOJE, ONTEM, ANTEONTEM, SEMANA, MÊS, DATAS */}
+          {/* BARRA DE FILTROS TEMPORAIS CORRIGIDA: TOTAL, HOJE, ONTEM, ANTEONTEM, SEMANA, MÊS, HISTÓRICO ACUMULADO, DATAS */}
           <div className="space-y-3 bg-zinc-900/90 p-4 rounded-2xl border border-sky-500/20 shadow-md">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800/80 pb-2.5">
               <div className="flex items-center gap-2">
@@ -539,7 +641,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
 
             {/* Botões Pills de Filtro de Tempo */}
             <div className="flex flex-wrap items-center gap-2">
-              {/* TOTAL */}
+              {/* TOTAL GERAL */}
               <button
                 type="button"
                 onClick={() => setTimeFilter('total')}
@@ -548,6 +650,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                     ? 'bg-sky-600 text-white shadow-md ring-2 ring-sky-400/50 font-black'
                     : 'bg-zinc-950 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-zinc-800'
                 }`}
+                title="Total acumulado de todas as questões resolvidas ao longo de todo o período"
               >
                 <Layers className="w-3.5 h-3.5" />
                 <span>Total Geral</span>
@@ -569,6 +672,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                     ? 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-400/50 font-black'
                     : 'bg-zinc-950 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-zinc-800'
                 }`}
+                title={`Apenas questões comprovadamente respondidas hoje (${formatKeyToDisplayDate(dateKeys.hojeStr)})`}
               >
                 <Flame className="w-3.5 h-3.5 text-amber-300" />
                 <span>Hoje</span>
@@ -592,6 +696,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                     ? 'bg-sky-600 text-white shadow-md ring-2 ring-sky-400/50 font-black'
                     : 'bg-zinc-950 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-zinc-800'
                 }`}
+                title={`Questões respondidas ontem (${formatKeyToDisplayDate(dateKeys.ontemStr)})`}
               >
                 <Clock className="w-3.5 h-3.5" />
                 <span>Ontem</span>
@@ -613,6 +718,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                     ? 'bg-sky-600 text-white shadow-md ring-2 ring-sky-400/50 font-black'
                     : 'bg-zinc-950 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-zinc-800'
                 }`}
+                title={`Questões respondidas anteontem (${formatKeyToDisplayDate(dateKeys.anteontemStr)})`}
               >
                 <Clock className="w-3.5 h-3.5" />
                 <span>Anteontem</span>
@@ -636,6 +742,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                     ? 'bg-sky-600 text-white shadow-md ring-2 ring-sky-400/50 font-black'
                     : 'bg-zinc-950 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-zinc-800'
                 }`}
+                title="Questões respondidas nos últimos 7 dias com registro"
               >
                 <Calendar className="w-3.5 h-3.5" />
                 <span>Semana (7 Dias)</span>
@@ -657,6 +764,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                     ? 'bg-sky-600 text-white shadow-md ring-2 ring-sky-400/50 font-black'
                     : 'bg-zinc-950 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-zinc-800'
                 }`}
+                title="Questões respondidas nos últimos 30 dias com registro"
               >
                 <Calendar className="w-3.5 h-3.5" />
                 <span>Mês (30 Dias)</span>
@@ -669,6 +777,32 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                 </span>
               </button>
 
+              {/* HISTÓRICO ACUMULADO (Questões realizadas ao longo de todo o período) */}
+              {periodCounts.historico > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setTimeFilter('historico')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-xs ${
+                    timeFilter === 'historico'
+                      ? 'bg-amber-600 text-white shadow-md ring-2 ring-amber-400/50 font-black'
+                      : 'bg-zinc-950 text-amber-300/80 hover:bg-zinc-800 hover:text-amber-200 border border-amber-900/40'
+                  }`}
+                  title="Questões resolvidas ao longo do período de preparação que compõem o banco acumulado"
+                >
+                  <History className="w-3.5 h-3.5" />
+                  <span>Histórico Acumulado</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                      timeFilter === 'historico'
+                        ? 'bg-amber-900 text-white'
+                        : 'bg-amber-950/80 text-amber-300 border border-amber-800/40'
+                    }`}
+                  >
+                    {periodCounts.historico}
+                  </span>
+                </button>
+              )}
+
               {/* POR DATA ESPECÍFICA */}
               <button
                 type="button"
@@ -678,6 +812,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                     ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/50 font-black'
                     : 'bg-zinc-950 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-zinc-800'
                 }`}
+                title="Filtrar por uma data específica com registro comprovado"
               >
                 <Filter className="w-3.5 h-3.5" />
                 <span>Data Específica</span>
@@ -689,7 +824,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                         : 'bg-zinc-800 text-zinc-400'
                     }`}
                   >
-                    {availableAnswerDates.length} d
+                    {availableAnswerDates.length} dia(s)
                   </span>
                 )}
               </button>
@@ -718,15 +853,15 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                   </div>
 
                   <span className="text-[11px] text-zinc-400">
-                    Clique em qualquer data abaixo para carregar imediatamente os dados
+                    Selecione uma data para inspecionar as resoluções daquele dia
                   </span>
                 </div>
 
-                {/* Atalhos Rápidos das Datas com Atividade */}
-                {availableAnswerDates.length > 0 && (
+                {/* Atalhos Rápidos das Datas com Registro Comprovado */}
+                {availableAnswerDates.length > 0 ? (
                   <div className="flex flex-wrap items-center gap-1.5 pt-1">
                     <span className="text-[11px] font-bold text-zinc-400 mr-1">
-                      Dias com resolução:
+                      Dias com resolução gravada:
                     </span>
                     {availableAnswerDates.slice(0, 10).map((d) => (
                       <button
@@ -746,6 +881,10 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                       </button>
                     ))}
                   </div>
+                ) : (
+                  <p className="text-[11px] text-zinc-400 bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
+                    ℹ️ As questões anteriores foram realizadas ao longo do período de preparação e estão preservadas integralmente no <strong>Total Geral ({periodCounts.total})</strong> e na aba <strong>Histórico Acumulado ({periodCounts.historico})</strong>. Conforme responder novas questões hoje ou em simulados, elas serão catalogadas dia a dia aqui.
+                  </p>
                 )}
               </div>
             )}
@@ -761,10 +900,10 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
               <div className="text-2xl sm:text-3xl font-black text-white">
                 {statsResumo.total}
               </div>
-              <span className="text-[11px] text-zinc-500 mt-1">
+              <span className="text-[11px] text-zinc-500 mt-1 line-clamp-1" title={activePeriodLabel}>
                 {timeFilter === 'total'
                   ? `de ${questions.length} cadastradas`
-                  : `filtro: ${activePeriodLabel}`}
+                  : activePeriodLabel}
               </span>
             </div>
 
@@ -984,7 +1123,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                           Nenhuma questão respondida {activePeriodLabel}
                         </p>
                         <p className="text-[11px] text-zinc-500">
-                          Resolva questões no caderno abaixo para visualizar os gráficos.
+                          Selecione o filtro <strong>Total Geral</strong> ou resolva questões no caderno abaixo.
                         </p>
                       </div>
                     )}
@@ -1206,11 +1345,10 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                   {filteredUserAnswers.map(({ questionId, answer }, idx) => {
                     const q = questionMap.get(questionId);
                     const qNum = q?.numero_questao || idx + 1;
-                    const dateFormatted = answer.date
-                      ? formatKeyToDisplayDate(answer.date)
-                      : answer.timestamp
-                      ? formatKeyToDisplayDate(formatDateToLocalKey(new Date(answer.timestamp)))
-                      : 'Data não informada';
+                    const ansDate = getAnswerDateKey(answer);
+                    const dateFormatted = ansDate
+                      ? formatKeyToDisplayDate(ansDate)
+                      : 'Realizada ao longo do período';
 
                     return (
                       <div

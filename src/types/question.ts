@@ -64,4 +64,5 @@ export interface StoredAnswer {
   timestamp?: number; // Timestamp epoch ms
   date?: string; // Formato 'YYYY-MM-DD'
   answeredAt?: string; // ISO string
+  source?: 'simulado' | 'caderno' | 'historico' | string;
 }

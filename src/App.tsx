@@ -13,7 +13,8 @@ import { SimuladosDashboard } from './components/SimuladosDashboard';
 import { ThemeSelectorModal } from './components/ThemeSelectorModal';
 import { EagleShieldLogo } from './components/EagleShieldLogo';
 import { db } from './firebase/config';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
+import { syncAndRecoverUserAnswers } from './services/userProgressSync';
 import {
   getQuestionMateria,
   getQuestionModulo,
@@ -144,6 +145,19 @@ function MainApp() {
     }
   }, [isMatriculaVerified]);
 
+  // Recuperar datas reais de quando as questões foram feitas a partir do Firestore (simulado_attempts e users/{uid})
+  useEffect(() => {
+    let isMounted = true;
+    syncAndRecoverUserAnswers(user, userAnswers).then((recovered) => {
+      if (isMounted && Object.keys(recovered).length > 0) {
+        setUserAnswers(recovered);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
   // Persistir respostas no localStorage com a disciplina (módulo), alternativa e timestamp temporal
   const handleAnswerQuestion = (questionId: string, isCorrect: boolean, selectedChoice?: string) => {
     const targetQ = firestoreQuestions.find((q) => q.id === questionId);
@@ -165,6 +179,7 @@ function MainApp() {
           timestamp: Date.now(),
           date: dateStr,
           answeredAt: now.toISOString(),
+          source: 'caderno',
         },
       };
       try {
@@ -172,6 +187,14 @@ function MainApp() {
       } catch (err) {
         console.error(err);
       }
+
+      // Sincroniza também no documento do usuário em Firestore para retenção permanente
+      if (user) {
+        setDoc(doc(db, 'users', user.uid), { userAnswers: updated }, { merge: true }).catch((err) =>
+          console.warn('Erro ao salvar respostas no Firestore:', err)
+        );
+      }
+
       return updated;
     });
   };
@@ -183,6 +206,11 @@ function MainApp() {
       localStorage.removeItem('simulado_user_answers');
     } catch (err) {
       console.error(err);
+    }
+    if (user) {
+      setDoc(doc(db, 'users', user.uid), { userAnswers: {} }, { merge: true }).catch((err) =>
+        console.warn('Erro ao limpar respostas no Firestore:', err)
+      );
     }
   };
 
@@ -402,6 +430,7 @@ function MainApp() {
               questions={firestoreQuestions}
               userAnswers={userAnswers}
               onResetStats={handleResetSessionStats}
+              onRefreshAnswers={(newAnswers) => setUserAnswers(newAnswers)}
             />
 
             {/* Filtro Hierárquico: Módulo > Capítulo > Subtópico > Tema */}
