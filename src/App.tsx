@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
-import { Question, FilterOptions } from './types/question';
+import { Question, FilterOptions, StoredAnswer } from './types/question';
 import { Navbar } from './components/Navbar';
 import { HierarchyFilter } from './components/HierarchyFilter';
 import { QuestionCard } from './components/QuestionCard';
@@ -70,10 +70,8 @@ function MainApp() {
     statusFiltro: 'todas',
   });
 
-  // Respostas do usuário salvas na sessão/localStorage
-  const [userAnswers, setUserAnswers] = useState<
-    Record<string, { selected: string; isCorrect: boolean; modulo?: string }>
-  >(() => {
+  // Respostas do usuário salvas na sessão/localStorage com suporte temporal completo
+  const [userAnswers, setUserAnswers] = useState<Record<string, StoredAnswer>>(() => {
     try {
       const saved = localStorage.getItem('simulado_user_answers');
       return saved ? JSON.parse(saved) : {};
@@ -146,18 +144,27 @@ function MainApp() {
     }
   }, [isMatriculaVerified]);
 
-  // Persistir respostas no localStorage com a disciplina (módulo) associada
-  const handleAnswerQuestion = (questionId: string, isCorrect: boolean) => {
+  // Persistir respostas no localStorage com a disciplina (módulo), alternativa e timestamp temporal
+  const handleAnswerQuestion = (questionId: string, isCorrect: boolean, selectedChoice?: string) => {
     const targetQ = firestoreQuestions.find((q) => q.id === questionId);
     const modulo = targetQ?.modulo || 'Geral';
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
 
     setUserAnswers((prev) => {
-      const updated = {
+      const existing = prev[questionId];
+      const updated: Record<string, StoredAnswer> = {
         ...prev,
         [questionId]: {
-          selected: prev[questionId]?.selected || '',
+          selected: selectedChoice !== undefined ? selectedChoice : existing?.selected || '',
           isCorrect,
           modulo,
+          timestamp: Date.now(),
+          date: dateStr,
+          answeredAt: now.toISOString(),
         },
       };
       try {
@@ -568,7 +575,7 @@ function MainApp() {
                       question={q}
                       index={idx}
                       savedAnswer={userAnswers[qId]}
-                      onAnswer={(id, isCorrect) => handleAnswerQuestion(id, isCorrect)}
+                      onAnswer={(id, isCorrect, selected) => handleAnswerQuestion(id, isCorrect, selected)}
                     />
                   );
                 })}

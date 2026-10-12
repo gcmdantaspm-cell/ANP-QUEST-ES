@@ -56,3 +56,12 @@ export interface UserStats {
   totalAcertos: number;
   totalErros: number;
 }
+
+export interface StoredAnswer {
+  selected: string;
+  isCorrect: boolean;
+  modulo?: string;
+  timestamp?: number; // Timestamp epoch ms
+  date?: string; // Formato 'YYYY-MM-DD'
+  answeredAt?: string; // ISO string
+}

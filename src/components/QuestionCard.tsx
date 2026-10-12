@@ -22,7 +22,7 @@ import {
 interface QuestionCardProps {
   question: Question;
   index: number;
-  onAnswer?: (questionId: string, isCorrect: boolean) => void;
+  onAnswer?: (questionId: string, isCorrect: boolean, selectedChoice?: string) => void;
   savedAnswer?: { selected: string; isCorrect: boolean };
 }
 
@@ -106,7 +106,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     setIsCorrect(isRight);
 
     if (onAnswer && question.id) {
-      onAnswer(question.id, isRight);
+      onAnswer(question.id, isRight, selectedTemp);
     }
   };
 

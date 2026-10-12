@@ -31,12 +31,37 @@ export async function classifyQuestionsWithAI(
   const resultMap = new Map<string, Official5LevelHierarchy>();
   if (!questions || questions.length === 0) return resultMap;
 
-  // Lotes para envio ao backend (com reporte de progresso granular)
-  const batchSize = 10;
-  let processedCount = 0;
+  // 1. Imediatamente mapeia e protege questões que já possuem carimbo ou módulo e capítulo definidos
+  const questionsNeedingAI: QuestionToClassify[] = [];
+  for (const q of questions) {
+    if (q.carimbado || (q.modulo && q.capitulo)) {
+      resultMap.set(q.id, {
+        materia: q.materia || OFFICIAL_MATERIA,
+        modulo: q.modulo || 'Módulo I',
+        capitulo: q.capitulo || '',
+        subtopico: q.subtopico || '',
+        tema: q.tema || q.tema_subtopico || '',
+      });
+    } else {
+      questionsNeedingAI.push(q);
+    }
+  }
 
-  for (let i = 0; i < questions.length; i += batchSize) {
-    const chunk = questions.slice(i, i + batchSize);
+  // Se todas as questões já possuem módulo e capítulo definidos, não faz chamadas de rede desnecessárias
+  if (questionsNeedingAI.length === 0) {
+    if (onProgress) onProgress(questions.length, questions.length);
+    return resultMap;
+  }
+
+  // 2. Lotes de tamanho 25 para minimizar o número de requisições e respeitar a cota do Free Tier (5 RPM)
+  const batchSize = 25;
+  let processedCount = questions.length - questionsNeedingAI.length;
+  if (onProgress) {
+    onProgress(processedCount, questions.length);
+  }
+
+  for (let i = 0; i < questionsNeedingAI.length; i += batchSize) {
+    const chunk = questionsNeedingAI.slice(i, i + batchSize);
 
     try {
       const response = await fetch('/api/ai/classify-questions', {
@@ -66,32 +91,16 @@ export async function classifyQuestionsWithAI(
         }
       }
 
-      // Garante que questões com carimbo ou módulo/capítulo mantenham 100% sua hierarquia original
+      // Preenche fallback heurístico para qualquer questão faltante no chunk
       for (const q of chunk) {
-        if (q.carimbado || (q.modulo && q.capitulo)) {
-          resultMap.set(q.id, {
-            materia: q.materia || OFFICIAL_MATERIA,
-            modulo: q.modulo || 'Módulo I',
-            capitulo: q.capitulo || '',
-            subtopico: q.subtopico || '',
-            tema: q.tema || q.tema_subtopico || '',
-          });
-        } else if (!resultMap.has(q.id)) {
+        if (!resultMap.has(q.id)) {
           resultMap.set(q.id, mapQuestionToOfficialHierarchy(q));
         }
       }
-    } catch (err) {
-      console.warn('Classificação via servidor falhou, aplicando mapeador heurístico local:', err);
+    } catch {
+      // Fallback transparente para o mapeador heurístico dos 5 níveis oficiais
       for (const q of chunk) {
-        if (q.carimbado || (q.modulo && q.capitulo)) {
-          resultMap.set(q.id, {
-            materia: q.materia || OFFICIAL_MATERIA,
-            modulo: q.modulo || 'Módulo I',
-            capitulo: q.capitulo || '',
-            subtopico: q.subtopico || '',
-            tema: q.tema || q.tema_subtopico || '',
-          });
-        } else if (!resultMap.has(q.id)) {
+        if (!resultMap.has(q.id)) {
           resultMap.set(q.id, mapQuestionToOfficialHierarchy(q));
         }
       }

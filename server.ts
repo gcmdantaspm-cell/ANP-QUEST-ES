@@ -46,6 +46,9 @@ function getHierarchyTreePromptSummary(): string {
   return lines.join('\n');
 }
 
+// Cooldown timestamp to prevent 429 quota spamming
+let geminiRateLimitCooldown = 0;
+
 // API endpoint to classify questions using Gemini 3.8 Flash
 app.post('/api/ai/classify-questions', async (req, res) => {
   try {
@@ -55,10 +58,15 @@ app.post('/api/ai/classify-questions', async (req, res) => {
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
+    const isUnderRateLimit = Date.now() < geminiRateLimitCooldown;
 
-    // If no API key configured on server, use official heuristic mapper preserving carimbos
-    if (!apiKey) {
-      console.warn('Server: GEMINI_API_KEY not set. Using official heuristic hierarchy mapper.');
+    // If no API key configured on server or in 429 cooldown, use official heuristic mapper preserving carimbos
+    if (!apiKey || isUnderRateLimit) {
+      if (isUnderRateLimit) {
+        console.log('Gemini API em cooldown de cota (429). Aplicando mapeador heurístico oficial.');
+      } else {
+        console.warn('Server: GEMINI_API_KEY not set. Using official heuristic hierarchy mapper.');
+      }
       const fallbackResults = questions.map((q) => {
         if (q.carimbado || (q.modulo && q.capitulo)) {
           return {
@@ -89,13 +97,53 @@ app.post('/api/ai/classify-questions', async (req, res) => {
     const treeSummary = getHierarchyTreePromptSummary();
     const results: Array<Official5LevelHierarchy & { id: string }> = [];
 
-    // Process questions in small chunks to ensure accuracy and avoid token overflow
-    const chunkSize = 10;
+    // Process questions in batches of 25 to reduce API call count and stay within 5 RPM quota
+    const chunkSize = 25;
+    let switchedToHeuristic = false;
+
     for (let i = 0; i < questions.length; i += chunkSize) {
       const chunk = questions.slice(i, i + chunkSize);
 
+      // If previous chunk hit quota limit, directly map this chunk using official heuristic
+      if (switchedToHeuristic) {
+        for (const q of chunk) {
+          if (q.carimbado || (q.modulo && q.capitulo)) {
+            results.push({
+              id: q.id,
+              materia: q.materia || OFFICIAL_MATERIA,
+              modulo: q.modulo || 'Módulo I',
+              capitulo: q.capitulo || '',
+              subtopico: q.subtopico || '',
+              tema: q.tema || q.tema_subtopico || '',
+            });
+          } else {
+            const mapped = mapQuestionToOfficialHierarchy(q);
+            results.push({ id: q.id, ...mapped });
+          }
+        }
+        continue;
+      }
+
+      // Filter only questions that truly need AI classification (not yet carimbadas or categorized)
+      const needAi = chunk.filter((q) => !(q.carimbado || (q.modulo && q.capitulo)));
+
+      if (needAi.length === 0) {
+        // All questions in this chunk already have module/chapter defined
+        for (const q of chunk) {
+          results.push({
+            id: q.id,
+            materia: q.materia || OFFICIAL_MATERIA,
+            modulo: q.modulo || 'Módulo I',
+            capitulo: q.capitulo || '',
+            subtopico: q.subtopico || '',
+            tema: q.tema || q.tema_subtopico || '',
+          });
+        }
+        continue;
+      }
+
       try {
-        const questionsPrompt = chunk.map((q, idx) => ({
+        const questionsPrompt = needAi.map((q, idx) => ({
           index: idx,
           id: q.id,
           enunciado: (q.enunciado || '').slice(0, 450),
@@ -104,21 +152,19 @@ app.post('/api/ai/classify-questions', async (req, res) => {
           capitulo_atual: q.capitulo || '',
           subtopico_atual: q.subtopico || '',
           tema_atual: q.tema || q.tema_subtopico || '',
-          carimbado: Boolean(q.carimbado),
           gabarito: (q.gabarito_comentado || '').slice(0, 300),
         }));
 
         const prompt = `Você é um perito examinador da Polícia Federal e professor especializado.
-Sua tarefa é analisar cada questão e associar à sua hierarquia correspondente.
+Sua tarefa é analisar cada questão e associar à sua hierarquia correspondente na árvore oficial de Investigação Policial II.
 
 REGRAS OBRIGATÓRIAS:
-0. REGRA SUPREMA DE CARIMBO: Se a questão já tiver carimbo fixado ou já possuir módulo e capítulo definidos (carimbado: true ou modulo_atual e capitulo_atual preenchidos), MANTENHA RIGOROSAMENTE a matéria, módulo, capítulo, subtópico e tema existentes para evitar que as questões sejam deslocadas ou sumam dos filtros onde foram cadastradas!
-1. Para questões sem hierarquia definida, classifique com base na árvore oficial.
-2. materia: Se já preenchida em materia_atual, preserve. Caso contráro, use "${OFFICIAL_MATERIA}".
-3. modulo: Se já preenchido em modulo_atual, preserve. Caso contrário, atribua um dos módulos válidos.
-4. capitulo: Se já preenchido em capitulo_atual, preserve. Caso contrário, atribua o capítulo correspondente.
-5. subtopico: Se já preenchido em subtopico_atual, preserve.
-6. tema: Se já preenchido em tema_atual, preserve.
+1. Para cada questão, classifique com base na árvore oficial.
+2. materia: "${OFFICIAL_MATERIA}".
+3. modulo: Atribua um dos módulos válidos da árvore oficial (ex: "Módulo I", "Módulo II", etc.).
+4. capitulo: Atribua o capítulo correspondente.
+5. subtopico: Se aplicável, atribua o subtópico correspondente ou vazio "".
+6. tema: Atribua o tema específico correspondente ou vazio "".
 
 ÁRVORE OFICIAL:
 ${treeSummary}
@@ -165,49 +211,49 @@ ${JSON.stringify(questionsPrompt, null, 2)}
         for (const item of parsed) {
           if (item && item.id) {
             returnedIds.add(item.id);
-            const orig = chunk.find((c) => c.id === item.id);
-            if (orig && (orig.carimbado || (orig.modulo && orig.capitulo))) {
-              results.push({
-                id: item.id,
-                materia: orig.materia || OFFICIAL_MATERIA,
-                modulo: orig.modulo || 'Módulo I',
-                capitulo: orig.capitulo || '',
-                subtopico: orig.subtopico || '',
-                tema: orig.tema || orig.tema_subtopico || '',
-              });
-            } else {
-              results.push({
-                id: item.id,
-                materia: item.materia || OFFICIAL_MATERIA,
-                modulo: item.modulo || 'Módulo I',
-                capitulo: item.capitulo || '',
-                subtopico: item.subtopico || '',
-                tema: item.tema || '',
-              });
-            }
+            results.push({
+              id: item.id,
+              materia: item.materia || OFFICIAL_MATERIA,
+              modulo: item.modulo || 'Módulo I',
+              capitulo: item.capitulo || '',
+              subtopico: item.subtopico || '',
+              tema: item.tema || '',
+            });
           }
         }
 
-        // Fallback for any missing items in chunk
+        // For questions in chunk: either carimbadas, returned from AI, or heuristic fallback
         for (const q of chunk) {
-          if (!returnedIds.has(q.id)) {
-            if (q.carimbado || (q.modulo && q.capitulo)) {
-              results.push({
-                id: q.id,
-                materia: q.materia || OFFICIAL_MATERIA,
-                modulo: q.modulo || 'Módulo I',
-                capitulo: q.capitulo || '',
-                subtopico: q.subtopico || '',
-                tema: q.tema || q.tema_subtopico || '',
-              });
-            } else {
-              const mapped = mapQuestionToOfficialHierarchy(q);
-              results.push({ id: q.id, ...mapped });
-            }
+          if (q.carimbado || (q.modulo && q.capitulo)) {
+            results.push({
+              id: q.id,
+              materia: q.materia || OFFICIAL_MATERIA,
+              modulo: q.modulo || 'Módulo I',
+              capitulo: q.capitulo || '',
+              subtopico: q.subtopico || '',
+              tema: q.tema || q.tema_subtopico || '',
+            });
+          } else if (!returnedIds.has(q.id)) {
+            const mapped = mapQuestionToOfficialHierarchy(q);
+            results.push({ id: q.id, ...mapped });
           }
         }
-      } catch (chunkErr) {
-        console.warn('Erro ao processar chunk com Gemini, aplicando mapeador heurístico:', chunkErr);
+      } catch (chunkErr: any) {
+        const errMsg = String(chunkErr?.message || chunkErr || '');
+        const isQuota429 =
+          chunkErr?.status === 429 ||
+          errMsg.includes('429') ||
+          errMsg.includes('RESOURCE_EXHAUSTED') ||
+          errMsg.includes('Quota exceeded');
+
+        if (isQuota429) {
+          geminiRateLimitCooldown = Date.now() + 45000;
+          switchedToHeuristic = true;
+          console.warn('Cota de requisições do Gemini atingida (429/RESOURCE_EXHAUSTED). Aplicando mapeador heurístico oficial com cooldown de 45s.');
+        } else {
+          console.warn('Classificação via Gemini gerou aviso. Aplicando mapeador heurístico oficial:', errMsg.slice(0, 160));
+        }
+
         for (const q of chunk) {
           if (q.carimbado || (q.modulo && q.capitulo)) {
             results.push({
@@ -226,7 +272,7 @@ ${JSON.stringify(questionsPrompt, null, 2)}
       }
     }
 
-    return res.json({ success: true, usingAI: true, results });
+    return res.json({ success: true, usingAI: !switchedToHeuristic, results });
   } catch (error: any) {
     console.error('Erro na rota /api/ai/classify-questions:', error);
     const questions = req.body?.questions || [];
