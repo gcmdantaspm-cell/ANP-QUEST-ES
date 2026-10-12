@@ -1,20 +1,6 @@
 import React, { useMemo } from 'react';
-import { FilterOptions, Question, StoredAnswer } from '../types/question';
-import {
-  Filter,
-  Search,
-  X,
-  CheckCircle2,
-  XCircle,
-  HelpCircle,
-  Layers,
-  BookOpen,
-  AlertTriangle,
-  ShieldAlert,
-  Flame,
-  Calendar,
-  Clock,
-} from 'lucide-react';
+import { FilterOptions, Question } from '../types/question';
+import { Filter, Search, X, CheckCircle2, XCircle, HelpCircle, Layers, BookOpen, AlertTriangle, ShieldAlert } from 'lucide-react';
 import {
   getQuestionMateria,
   getQuestionModulo,
@@ -36,7 +22,6 @@ import {
   OFFICIAL_MATERIA,
   HierarchyTreeItem,
 } from '../types/hierarchyTree';
-import { isAnswerInTimeFilter, getDateBoundaries } from '../utils/dateFilters';
 
 interface HierarchyFilterProps {
   questions: Question[];
@@ -46,7 +31,6 @@ interface HierarchyFilterProps {
   totalCount: number;
   newlyAnsweredCount?: number;
   onApplyUnresolvedFilter?: () => void;
-  userAnswers?: Record<string, StoredAnswer>;
 }
 
 export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
@@ -57,22 +41,7 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
   totalCount,
   newlyAnsweredCount = 0,
   onApplyUnresolvedFilter,
-  userAnswers,
 }) => {
-  // Contagens temporais de respostas gravadas
-  const temporalCounts = useMemo(() => {
-    let hoje = 0;
-    let semana = 0;
-    let ontem = 0;
-    if (!userAnswers) return { hoje: 0, semana: 0, ontem: 0 };
-    const b = getDateBoundaries();
-    Object.values(userAnswers).forEach((ans) => {
-      if (isAnswerInTimeFilter(ans, 'hoje', undefined, b)) hoje += 1;
-      if (isAnswerInTimeFilter(ans, 'semana', undefined, b)) semana += 1;
-      if (isAnswerInTimeFilter(ans, 'ontem', undefined, b)) ontem += 1;
-    });
-    return { hoje, semana, ontem };
-  }, [userAnswers]);
   // Contagem de questões sem assunto definido e fora do escopo (ex: Cooperação Internacional)
   const semAssuntoCount = useMemo(() => {
     return questions.filter((q) => isQuestionSemAssunto(q)).length;
@@ -788,57 +757,6 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
           >
             Todas ({totalCount})
           </button>
-
-          {/* HOJE (Questões resolvidas hoje) */}
-          <button
-            id="filter-status-hoje"
-            type="button"
-            onClick={() => handleStatusChange(filters.statusFiltro === 'hoje' ? 'todas' : 'hoje')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
-              filters.statusFiltro === 'hoje'
-                ? 'bg-emerald-600 text-white font-extrabold shadow-sm ring-2 ring-emerald-400'
-                : 'bg-zinc-950 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/10'
-            }`}
-            title="Filtrar registros de questões respondidas hoje"
-          >
-            <Flame className="w-3.5 h-3.5 text-amber-300" />
-            <span>Hoje</span>
-            <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                filters.statusFiltro === 'hoje'
-                  ? 'bg-emerald-900 text-emerald-100'
-                  : 'bg-emerald-500/20 text-emerald-300'
-              }`}
-            >
-              {temporalCounts.hoje}
-            </span>
-          </button>
-
-          {/* SEMANA (Questões resolvidas esta semana) */}
-          <button
-            id="filter-status-semana"
-            type="button"
-            onClick={() => handleStatusChange(filters.statusFiltro === 'semana' ? 'todas' : 'semana')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
-              filters.statusFiltro === 'semana'
-                ? 'bg-sky-600 text-white font-extrabold shadow-sm ring-2 ring-sky-400'
-                : 'bg-zinc-950 text-sky-400 border border-sky-500/30 hover:bg-sky-500/10'
-            }`}
-            title="Filtrar registros de questões respondidas nesta semana (últimos 7 dias)"
-          >
-            <Calendar className="w-3.5 h-3.5 text-sky-300" />
-            <span>Semana</span>
-            <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                filters.statusFiltro === 'semana'
-                  ? 'bg-sky-900 text-sky-100'
-                  : 'bg-sky-500/20 text-sky-300'
-              }`}
-            >
-              {temporalCounts.semana}
-            </span>
-          </button>
-
           <button
             id="filter-status-acertos"
             type="button"

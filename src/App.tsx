@@ -42,18 +42,7 @@ import {
   LogIn,
   Filter,
   CheckCircle2,
-  Flame,
-  Calendar,
-  Clock,
-  X,
-  Target,
 } from 'lucide-react';
-import {
-  getLocalDateString,
-  getDateBoundaries,
-  isAnswerInTimeFilter,
-  DateBoundaries,
-} from './utils/dateFilters';
 
 function MainApp() {
   const { user, isAdmin, isMatriculaVerified, checkingMatricula, loginWithGoogle } = useAuth();
@@ -155,17 +144,15 @@ function MainApp() {
     }
   }, [isMatriculaVerified]);
 
-  // Fronteiras temporais para filtros em fuso horário local
-  const dateBoundaries: DateBoundaries = useMemo(() => {
-    return getDateBoundaries(new Date());
-  }, []);
-
   // Persistir respostas no localStorage com a disciplina (módulo), alternativa e timestamp temporal
   const handleAnswerQuestion = (questionId: string, isCorrect: boolean, selectedChoice?: string) => {
     const targetQ = firestoreQuestions.find((q) => q.id === questionId);
     const modulo = targetQ?.modulo || 'Geral';
     const now = new Date();
-    const dateStr = getLocalDateString(now);
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
 
     setUserAnswers((prev) => {
       const existing = prev[questionId];
@@ -215,25 +202,6 @@ function MainApp() {
         return false;
       }
       if (filters.statusFiltro === 'erros' && (!answerState || answerState.isCorrect)) {
-        return false;
-      }
-      // Filtros temporais nos registros das questões (Hoje, Semana, Ontem, etc.)
-      if (filters.statusFiltro === 'hoje' && (!answerState || !isAnswerInTimeFilter(answerState, 'hoje', undefined, dateBoundaries))) {
-        return false;
-      }
-      if (filters.statusFiltro === 'semana' && (!answerState || !isAnswerInTimeFilter(answerState, 'semana', undefined, dateBoundaries))) {
-        return false;
-      }
-      if (filters.statusFiltro === 'ontem' && (!answerState || !isAnswerInTimeFilter(answerState, 'ontem', undefined, dateBoundaries))) {
-        return false;
-      }
-      if (filters.statusFiltro === 'anteontem' && (!answerState || !isAnswerInTimeFilter(answerState, 'anteontem', undefined, dateBoundaries))) {
-        return false;
-      }
-      if (filters.statusFiltro === 'mes' && (!answerState || !isAnswerInTimeFilter(answerState, 'mes', undefined, dateBoundaries))) {
-        return false;
-      }
-      if (filters.dataEspecifica && (!answerState || !isAnswerInTimeFilter(answerState, 'data_especifica', filters.dataEspecifica, dateBoundaries))) {
         return false;
       }
       if (filters.statusFiltro === 'sem_assunto' && !isQuestionSemAssunto(q)) {
@@ -300,7 +268,7 @@ function MainApp() {
       if (numA !== numB) return numA - numB;
       return (a.createdAt || '').localeCompare(b.createdAt || '');
     });
-  }, [firestoreQuestions, filters, userAnswers, unresolvedExcludedIds, dateBoundaries]);
+  }, [firestoreQuestions, filters, userAnswers, unresolvedExcludedIds]);
 
   // Quantidade de questões resolvidas nesta sessão que ainda estão visíveis na tela
   const newlyAnsweredInUnresolved = useMemo(() => {
@@ -434,16 +402,6 @@ function MainApp() {
               questions={firestoreQuestions}
               userAnswers={userAnswers}
               onResetStats={handleResetSessionStats}
-              onFilterCaderno={(status, date) => {
-                setFilters((prev) => ({
-                  ...prev,
-                  statusFiltro: status,
-                  dataEspecifica: date,
-                }));
-                const el = document.getElementById('caderno-de-questoes');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }}
-              currentCadernoStatus={filters.statusFiltro}
             />
 
             {/* Filtro Hierárquico: Módulo > Capítulo > Subtópico > Tema */}
@@ -455,7 +413,6 @@ function MainApp() {
               totalCount={firestoreQuestions.length}
               newlyAnsweredCount={newlyAnsweredInUnresolved}
               onApplyUnresolvedFilter={handleApplyUnresolvedFilter}
-              userAnswers={userAnswers}
             />
 
             {/* Banner de Controle do Filtro Não Resolvidas: questões respondidas permanecem visíveis até clicar em Filtrar */}
@@ -551,66 +508,7 @@ function MainApp() {
               </div>
             )}
 
-            {/* Banner Informativo quando o filtro 'Hoje', 'Semana' ou Data estiver ativo nos registros */}
-            {(filters.statusFiltro === 'hoje' || filters.statusFiltro === 'semana' || filters.statusFiltro === 'ontem' || filters.statusFiltro === 'anteontem' || filters.statusFiltro === 'mes' || filters.dataEspecifica) && (
-              <div
-                id="banner-tempo-ativo"
-                className={`rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg mb-6 border ${
-                  filters.statusFiltro === 'hoje'
-                    ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-100'
-                    : 'bg-sky-950/60 border-sky-500/50 text-sky-100'
-                }`}
-              >
-                <div className="flex items-start sm:items-center gap-3">
-                  <div
-                    className={`p-2.5 rounded-xl border shrink-0 ${
-                      filters.statusFiltro === 'hoje'
-                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                        : 'bg-sky-500/20 text-sky-300 border-sky-500/40'
-                    }`}
-                  >
-                    {filters.statusFiltro === 'hoje' ? (
-                      <Flame className="w-5 h-5 text-amber-300" />
-                    ) : (
-                      <Calendar className="w-5 h-5 text-sky-300" />
-                    )}
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-black flex items-center gap-2 flex-wrap">
-                      <span>
-                        {filters.statusFiltro === 'hoje'
-                          ? `Filtrando Questões Respondidas HOJE (${filteredQuestions.length})`
-                          : filters.statusFiltro === 'semana'
-                          ? `Filtrando Questões Respondidas NESTA SEMANA (${filteredQuestions.length})`
-                          : filters.statusFiltro === 'ontem'
-                          ? `Filtrando Questões Respondidas ONTEM (${filteredQuestions.length})`
-                          : filters.statusFiltro === 'anteontem'
-                          ? `Filtrando Questões Respondidas ANTEONTEM (${filteredQuestions.length})`
-                          : filters.statusFiltro === 'mes'
-                          ? `Filtrando Questões Respondidas no MÊS (${filteredQuestions.length})`
-                          : `Filtrando Questões da Data ${filters.dataEspecifica} (${filteredQuestions.length})`}
-                      </span>
-                    </h4>
-                    <p className="text-xs opacity-90 mt-1">
-                      {filters.statusFiltro === 'hoje'
-                        ? 'Exibindo exclusivamente as questões que foram resolvidas no dia de hoje com seus respectivos acertos/erros.'
-                        : 'Exibindo exclusivamente as questões resolvidas durante esta semana / últimos 7 dias.'}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleFilterChange({ ...filters, statusFiltro: 'todas', dataEspecifica: undefined })}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-white text-zinc-950 font-black text-xs rounded-xl shadow-md hover:bg-zinc-100 transition-all cursor-pointer whitespace-nowrap"
-                >
-                  <X className="w-4 h-4 text-zinc-700" />
-                  <span>Limpar Filtro Temporal (Ver Todas)</span>
-                </button>
-              </div>
-            )}
-
             {/* Lista de Questões */}
-            <div id="caderno-de-questoes">
             {loadingQuestions ? (
               <div className="py-16 text-center text-slate-400">
                 <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
@@ -683,7 +581,6 @@ function MainApp() {
                 })}
               </div>
             )}
-            </div>
           </div>
         )}
       </main>

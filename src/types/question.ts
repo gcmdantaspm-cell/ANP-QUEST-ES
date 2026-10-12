@@ -39,19 +39,6 @@ export interface CommentItem {
   timestamp: string;
 }
 
-export type QuestionStatusFilter =
-  | 'todas'
-  | 'nao_resolvidas'
-  | 'acertos'
-  | 'erros'
-  | 'sem_assunto'
-  | 'fora_escopo'
-  | 'hoje'
-  | 'semana'
-  | 'ontem'
-  | 'anteontem'
-  | 'mes';
-
 export interface FilterOptions {
   materia: string;
   modulo: string;
@@ -60,9 +47,7 @@ export interface FilterOptions {
   tema?: string;
   tema_subtopico: string;
   busca: string;
-  statusFiltro: QuestionStatusFilter;
-  filtroTemporal?: 'todos' | 'hoje' | 'ontem' | 'anteontem' | 'semana' | 'mes' | string;
-  dataEspecifica?: string;
+  statusFiltro: 'todas' | 'nao_resolvidas' | 'acertos' | 'erros' | 'sem_assunto' | 'fora_escopo';
   apenasSemAssunto?: boolean;
 }
 
