@@ -5,6 +5,7 @@ import {
   smartFormatEnunciado,
   smartFormatComentario,
   getHierarchySegments,
+  getQuestionAssuntoStatus,
 } from '../utils/parser';
 import {
   Flag,
@@ -15,6 +16,7 @@ import {
   MessageSquare,
   RotateCcw,
   Send,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface QuestionCardProps {
@@ -221,6 +223,26 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                   </span>
                 )}
 
+                {(() => {
+                  const aStatus = getQuestionAssuntoStatus(question);
+                  if (aStatus.isSemAssunto) {
+                    return (
+                      <span
+                        className={`inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full font-black border shadow-xs ${
+                          aStatus.isOutOfScope
+                            ? 'bg-rose-100 text-rose-800 border-rose-300 ring-1 ring-rose-300'
+                            : 'bg-amber-100 text-amber-900 border-amber-300 ring-1 ring-amber-300'
+                        }`}
+                        title={aStatus.description}
+                      >
+                        <AlertTriangle className={`w-3.5 h-3.5 ${aStatus.isOutOfScope ? 'text-rose-600' : 'text-amber-600'}`} />
+                        <span>{aStatus.label}</span>
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
+
                 {segments.length > 0 && (
                   <>
                     <span className="font-bold text-slate-400 text-sm sm:text-base">
@@ -265,6 +287,42 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                     </div>
                   </>
                 )}
+              </div>
+            );
+          })()}
+
+          {/* Banner de Aviso quando a questão estiver sem assunto definido ou fora do escopo */}
+          {(() => {
+            const aStatus = getQuestionAssuntoStatus(question);
+            if (!aStatus.isSemAssunto) return null;
+            return (
+              <div
+                className={`mb-4 p-3 rounded-xl border text-xs flex items-center justify-between gap-3 shadow-2xs ${
+                  aStatus.isOutOfScope
+                    ? 'bg-rose-50 border-rose-300 text-rose-900'
+                    : 'bg-amber-50 border-amber-300 text-amber-950'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <AlertTriangle
+                    className={`w-4 h-4 shrink-0 ${
+                      aStatus.isOutOfScope ? 'text-rose-600' : 'text-amber-600'
+                    }`}
+                  />
+                  <div className="leading-snug">
+                    <span className="font-black">{aStatus.label}: </span>
+                    <span className="opacity-90">{aStatus.description}</span>
+                  </div>
+                </div>
+                <span
+                  className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-md shrink-0 border ${
+                    aStatus.isOutOfScope
+                      ? 'bg-rose-100 text-rose-800 border-rose-200'
+                      : 'bg-amber-100 text-amber-900 border-amber-200'
+                  }`}
+                >
+                  {aStatus.shortLabel}
+                </span>
               </div>
             );
           })()}

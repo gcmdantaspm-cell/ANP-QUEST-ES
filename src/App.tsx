@@ -25,6 +25,8 @@ import {
   areSubtopicosEquivalent,
   areTemasEquivalent,
   isMateriaMatch,
+  isQuestionSemAssunto,
+  isQuestionCooperacaoInternacional,
 } from './utils/parser';
 import {
   BookOpen,
@@ -195,6 +197,15 @@ function MainApp() {
       if (filters.statusFiltro === 'erros' && (!answerState || answerState.isCorrect)) {
         return false;
       }
+      if (filters.statusFiltro === 'sem_assunto' && !isQuestionSemAssunto(q)) {
+        return false;
+      }
+      if (filters.statusFiltro === 'fora_escopo' && !isQuestionCooperacaoInternacional(q)) {
+        return false;
+      }
+      if (filters.apenasSemAssunto && !isQuestionSemAssunto(q)) {
+        return false;
+      }
 
       // Filtro de Matéria
       if (filters.materia && !isMateriaMatch(q, filters.materia)) {
@@ -202,9 +213,13 @@ function MainApp() {
       }
 
       // Filtro de Módulo (Módulos I, II, V, VI, VII, VIII, IX...)
-      const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
-      if (filters.modulo && !areModulosEquivalent(qMod, filters.modulo)) {
-        return false;
+      if (filters.modulo === '__SEM_ASSUNTO__') {
+        if (!isQuestionSemAssunto(q)) return false;
+      } else if (filters.modulo) {
+        const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
+        if (!areModulosEquivalent(qMod, filters.modulo)) {
+          return false;
+        }
       }
 
       // Filtro de Capítulo (Subtópicos 3.X pertencem ao Capítulo 3)
@@ -397,7 +412,7 @@ function MainApp() {
             {filters.statusFiltro === 'nao_resolvidas' && newlyAnsweredInUnresolved > 0 && (
               <div
                 id="banner-filtrar-unresolved"
-                className="bg-zinc-900 border-2 border-amber-500/50 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl relative overflow-hidden"
+                className="bg-zinc-900 border-2 border-amber-500/50 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl relative overflow-hidden mb-6"
               >
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-sky-400 to-amber-500" />
                 <div className="flex items-start sm:items-center gap-3">
@@ -425,6 +440,64 @@ function MainApp() {
                   <Filter className="w-4 h-4 stroke-[2.5]" />
                   <span>Filtrar Não Resolvidas ({newlyAnsweredInUnresolved})</span>
                 </button>
+              </div>
+            )}
+
+            {/* Banner Informativo quando o filtro 'Sem Assuntos Definidos' ou 'Fora do Escopo' estiver ativo */}
+            {(filters.statusFiltro === 'sem_assunto' || filters.statusFiltro === 'fora_escopo') && (
+              <div
+                id="banner-sem-assunto-ativo"
+                className={`rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg mb-6 border ${
+                  filters.statusFiltro === 'fora_escopo'
+                    ? 'bg-rose-950/60 border-rose-500/50 text-rose-100'
+                    : 'bg-amber-950/60 border-amber-500/50 text-amber-100'
+                }`}
+              >
+                <div className="flex items-start sm:items-center gap-3">
+                  <div
+                    className={`p-2.5 rounded-xl border shrink-0 ${
+                      filters.statusFiltro === 'fora_escopo'
+                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                        : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    }`}
+                  >
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black flex items-center gap-2 flex-wrap">
+                      <span>
+                        {filters.statusFiltro === 'fora_escopo'
+                          ? `Filtrando Questões Fora do Escopo (${filteredQuestions.length})`
+                          : `Filtrando Questões Sem Assuntos Definidos (${filteredQuestions.length})`}
+                      </span>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-black uppercase ${
+                          filters.statusFiltro === 'fora_escopo'
+                            ? 'bg-rose-500/30 text-rose-200 border border-rose-400/40'
+                            : 'bg-amber-500/30 text-amber-200 border border-amber-400/40'
+                        }`}
+                      >
+                        {filters.statusFiltro === 'fora_escopo' ? 'Cooperação Internacional' : 'Sem Módulo / Assunto'}
+                      </span>
+                    </h4>
+                    <p className="text-xs opacity-90 mt-1">
+                      {filters.statusFiltro === 'fora_escopo'
+                        ? 'Questões que abordam Cooperação Internacional e não fazem parte do conteúdo de Investigação Policial II.'
+                        : 'Questões sem módulo, sem capítulo ou marcadas fora do syllabus oficial. No Painel Admin você pode retirá-las ou reclassificá-las com 1 clique.'}
+                    </p>
+                  </div>
+                </div>
+                {isAdmin && (
+                  <button
+                    id="btn-admin-retirar-banner"
+                    type="button"
+                    onClick={() => setIsAdminOpen(true)}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-zinc-950 font-black text-xs rounded-xl shadow-md hover:bg-zinc-100 transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    <Layers className="w-4 h-4 text-sky-600" />
+                    <span>Gerenciar no Painel Admin</span>
+                  </button>
+                )}
               </div>
             )}
 

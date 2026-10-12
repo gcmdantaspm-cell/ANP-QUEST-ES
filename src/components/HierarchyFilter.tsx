@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { FilterOptions, Question } from '../types/question';
-import { Filter, Search, X, CheckCircle2, XCircle, HelpCircle, Layers, BookOpen } from 'lucide-react';
+import { Filter, Search, X, CheckCircle2, XCircle, HelpCircle, Layers, BookOpen, AlertTriangle, ShieldAlert } from 'lucide-react';
 import {
   getQuestionMateria,
   getQuestionModulo,
@@ -14,6 +14,8 @@ import {
   areTemasEquivalent,
   compareModulosRoman,
   STANDARD_MODULOS,
+  isQuestionSemAssunto,
+  isQuestionCooperacaoInternacional,
 } from '../utils/parser';
 import {
   OFFICIAL_HIERARCHY_TREE,
@@ -40,6 +42,15 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
   newlyAnsweredCount = 0,
   onApplyUnresolvedFilter,
 }) => {
+  // Contagem de questões sem assunto definido e fora do escopo (ex: Cooperação Internacional)
+  const semAssuntoCount = useMemo(() => {
+    return questions.filter((q) => isQuestionSemAssunto(q)).length;
+  }, [questions]);
+
+  const coopInternacionalCount = useMemo(() => {
+    return questions.filter((q) => isQuestionCooperacaoInternacional(q)).length;
+  }, [questions]);
+
   // 1. Matérias: oficial IPO II + matérias das questões
   const materias = useMemo(() => {
     const set = new Set<string>();
@@ -293,12 +304,25 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
   };
 
   const handleModuloChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (val === '__SEM_ASSUNTO__') {
+      onChangeFilters({
+        ...filters,
+        modulo: '',
+        capitulo: '',
+        subtopico: '',
+        tema_subtopico: '',
+        statusFiltro: 'sem_assunto',
+      });
+      return;
+    }
     onChangeFilters({
       ...filters,
-      modulo: e.target.value,
+      modulo: val,
       capitulo: '',
       subtopico: '',
       tema_subtopico: '',
+      statusFiltro: filters.statusFiltro === 'sem_assunto' ? 'todas' : filters.statusFiltro,
     });
   };
 
@@ -434,9 +458,15 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
-            onClick={() => handleModuloSelect('')}
+            onClick={() => {
+              if (filters.statusFiltro === 'sem_assunto' || filters.statusFiltro === 'fora_escopo') {
+                onChangeFilters({ ...filters, statusFiltro: 'todas', modulo: '' });
+              } else {
+                handleModuloSelect('');
+              }
+            }}
             className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              !filters.modulo
+              !filters.modulo && filters.statusFiltro !== 'sem_assunto' && filters.statusFiltro !== 'fora_escopo'
                 ? 'bg-sky-600 text-white shadow-xs ring-1 ring-sky-400'
                 : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800 hover:bg-zinc-800'
             }`}
@@ -444,7 +474,7 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             Todos os Módulos
           </button>
           {modulos.map((m) => {
-            const isSelected = areModulosEquivalent(filters.modulo, m.id);
+            const isSelected = areModulosEquivalent(filters.modulo, m.id) && filters.statusFiltro !== 'sem_assunto';
             const count = getModuloQuestionCount(m.id);
             return (
               <button
@@ -469,6 +499,84 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
               </button>
             );
           })}
+
+          {/* Pill Destacado: Questões Sem Assunto Definido */}
+          <button
+            id="pill-filter-sem-assunto"
+            type="button"
+            onClick={() => {
+              if (filters.statusFiltro === 'sem_assunto') {
+                onChangeFilters({ ...filters, statusFiltro: 'todas' });
+              } else {
+                onChangeFilters({
+                  ...filters,
+                  modulo: '',
+                  capitulo: '',
+                  subtopico: '',
+                  tema_subtopico: '',
+                  statusFiltro: 'sem_assunto',
+                });
+              }
+            }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+              filters.statusFiltro === 'sem_assunto'
+                ? 'bg-amber-600 text-white shadow-md ring-2 ring-amber-300 font-extrabold'
+                : 'bg-zinc-950 text-amber-400 hover:text-white border border-amber-500/40 hover:bg-amber-500/10'
+            }`}
+            title="Filtrar questões sem assunto oficial ou sem módulo definido"
+          >
+            <AlertTriangle className="w-3 h-3 text-amber-400" />
+            <span>Sem Assuntos Definidos</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                filters.statusFiltro === 'sem_assunto'
+                  ? 'bg-amber-900 text-amber-100'
+                  : 'bg-amber-500/20 text-amber-300'
+              }`}
+            >
+              {semAssuntoCount}
+            </span>
+          </button>
+
+          {/* Pill Destacado: Fora do Escopo (ex: Cooperação Internacional) */}
+          {coopInternacionalCount > 0 && (
+            <button
+              id="pill-filter-fora-escopo"
+              type="button"
+              onClick={() => {
+                if (filters.statusFiltro === 'fora_escopo') {
+                  onChangeFilters({ ...filters, statusFiltro: 'todas' });
+                } else {
+                  onChangeFilters({
+                    ...filters,
+                    modulo: '',
+                    capitulo: '',
+                    subtopico: '',
+                    tema_subtopico: '',
+                    statusFiltro: 'fora_escopo',
+                  });
+                }
+              }}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                filters.statusFiltro === 'fora_escopo'
+                  ? 'bg-rose-600 text-white shadow-md ring-2 ring-rose-300 font-extrabold'
+                  : 'bg-zinc-950 text-rose-400 hover:text-white border border-rose-500/40 hover:bg-rose-500/10'
+              }`}
+              title="Filtrar questões fora do escopo do concurso (ex: Cooperação Internacional)"
+            >
+              <ShieldAlert className="w-3 h-3 text-rose-400" />
+              <span>Fora do Escopo</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                  filters.statusFiltro === 'fora_escopo'
+                    ? 'bg-rose-950 text-rose-100'
+                    : 'bg-rose-500/20 text-rose-300'
+                }`}
+              >
+                {coopInternacionalCount}
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -507,11 +615,14 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
           </label>
           <select
             id="filter-modulo"
-            value={filters.modulo}
+            value={filters.statusFiltro === 'sem_assunto' ? '__SEM_ASSUNTO__' : filters.modulo}
             onChange={handleModuloChange}
             className="w-full text-xs sm:text-sm p-2.5 bg-zinc-950 border border-zinc-700 focus:border-sky-500 rounded-xl focus:ring-2 focus:ring-sky-500/20 text-zinc-100 font-medium transition-colors"
           >
             <option value="">(Todos os Módulos)</option>
+            <option value="__SEM_ASSUNTO__" className="text-amber-400 font-bold">
+              ⚠️ Questões Sem Assuntos Definidos ({semAssuntoCount})
+            </option>
             {modulos.map((m) => {
               const count = getModuloQuestionCount(m.id);
               return (
@@ -685,6 +796,49 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
             <HelpCircle className="w-3.5 h-3.5" />
             Não Resolvidas
           </button>
+
+          {/* Opção no Filtro: Questões Sem Assuntos Definidos */}
+          <button
+            id="filter-status-sem_assunto"
+            type="button"
+            onClick={() => handleStatusChange(filters.statusFiltro === 'sem_assunto' ? 'todas' : 'sem_assunto')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+              filters.statusFiltro === 'sem_assunto'
+                ? 'bg-amber-600 text-white font-extrabold shadow-sm ring-2 ring-amber-400'
+                : 'bg-zinc-950 text-amber-400 border border-amber-500/30 hover:bg-amber-500/10'
+            }`}
+            title="Filtrar exclusivamente questões que não se enquadram em nenhum assunto definido ou sem módulo atribuído"
+          >
+            <AlertTriangle className="w-3.5 h-3.5" />
+            <span>Sem Assuntos Definidos</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                filters.statusFiltro === 'sem_assunto'
+                  ? 'bg-amber-900 text-amber-100'
+                  : 'bg-amber-500/20 text-amber-300'
+              }`}
+            >
+              {semAssuntoCount}
+            </span>
+          </button>
+
+          {/* Opção no Filtro: Fora do Escopo (ex: Cooperação Internacional) */}
+          {coopInternacionalCount > 0 && (
+            <button
+              id="filter-status-fora_escopo"
+              type="button"
+              onClick={() => handleStatusChange(filters.statusFiltro === 'fora_escopo' ? 'todas' : 'fora_escopo')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+                filters.statusFiltro === 'fora_escopo'
+                  ? 'bg-rose-600 text-white font-extrabold shadow-sm ring-2 ring-rose-400'
+                  : 'bg-zinc-950 text-rose-400 border border-rose-500/30 hover:bg-rose-500/10'
+              }`}
+              title="Filtrar questões que tratam de Cooperação Internacional (fora do conteúdo programático de IPO II)"
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>Fora do Escopo ({coopInternacionalCount})</span>
+            </button>
+          )}
 
           {/* Botão de Filtrar solicitado pelo usuário: toda vez que clicar nele, atualiza as questões não resolvidas */}
           {filters.statusFiltro === 'nao_resolvidas' && onApplyUnresolvedFilter && (

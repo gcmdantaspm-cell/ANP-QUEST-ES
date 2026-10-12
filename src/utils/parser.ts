@@ -3099,3 +3099,166 @@ Gabarito: B
 Comentário: Na alternativa B, o verbo "responder" rege a preposição "a" (responder a algo) que se funde com o artigo feminino plural "as" que antecede o substantivo "questões" (a + as = às), justificando a crase obrigatória. Nas demais: A) diante de pronome indefinido "qualquer" não há crase; C) diante de verbo no infinitivo "prestar" é proibida a crase; D) após preposições como "perante" não ocorre crase; E) entre palavras repetidas "passo a passo" a crase é terminantemente proibida.
 Dica: Mnemônico dos Casos Proibidos de Crase: "P.V.P.R" -> Nunca craseie antes de Pronome indefinido, Verbo no infinitivo, Palavras repetidas ou preposições duplas!`,
 ];
+
+/**
+ * Detecta se uma questão trata de Cooperação Internacional (Cooperação Policial Internacional,
+ * Cooperação Jurídica Internacional, Extradição, Cartas Rogatórias, Interpol, Auxílio Direto)
+ * que NÃO se enquadra no conteúdo programático de Investigação Policial II.
+ */
+export function isQuestionCooperacaoInternacional(q: {
+  materia?: string;
+  modulo?: string;
+  capitulo?: string;
+  subtopico?: string;
+  tema?: string;
+  tema_subtopico?: string;
+  enunciado?: string;
+  carimbo?: string;
+}): boolean {
+  const fullMeta = `${q.materia || ''} ${q.modulo || ''} ${q.capitulo || ''} ${q.subtopico || ''} ${q.tema || ''} ${q.tema_subtopico || ''} ${q.carimbo || ''}`.toLowerCase();
+  
+  if (/\b(?:coopera[çc][ãa]o\s+(?:internacional|policial|jur[íi]dica|penal)|cooperacao\s+internacional|interpol|europol|extradi[çc][ãa]o|cartas?\s+rogat[óo]rias?|aux[íi]lio\s+direto|mla\b|mlat\b|difus[ãa]o\s+(?:vermelha|azul|amarela)|acordo\s+de\s+coopera[çc][ãa]o)\b/i.test(fullMeta)) {
+    return true;
+  }
+
+  // Se o enunciado focar exclusivamente em tratados internacionais, cartas rogatórias, extradição ou cooperação
+  const enun = (q.enunciado || '').toLowerCase();
+  if (/\b(?:coopera[çc][ãa]o\s+jur[íi]dica\s+internacional|coopera[çc][ãa]o\s+policial\s+internacional|cartas?\s+rogat[óo]rias?|aux[íi]lio\s+direto\s+em\s+mat[ée]ria\s+penal|difus[ãa]o\s+vermelha\s+da\s+interpol|tratado\s+de\s+extradi[çc][ãa]o|extradi[çc][ãa]o\s+(?:ativa|passiva|execut[óo]ria))\b/i.test(enun)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Identifica se a questão está sem assunto definido ou fora do escopo do concurso.
+ * Inclui:
+ * 1. Assuntos que não se enquadram no syllabus (ex: Cooperação Internacional);
+ * 2. Questões sem módulo ou sem capítulo definidos (ou marcadas como "Geral" / "Sem Módulo" / "Em Branco");
+ * 3. Questões com hierarquia vazia ou indeterminada.
+ */
+export function isQuestionSemAssunto(q: {
+  materia?: string;
+  modulo?: string;
+  capitulo?: string;
+  subtopico?: string;
+  tema?: string;
+  tema_subtopico?: string;
+  enunciado?: string;
+  carimbo?: string;
+}): boolean {
+  if (isQuestionCooperacaoInternacional(q)) return true;
+
+  const mod = (q.modulo || '').trim();
+  const cap = (q.capitulo || '').trim();
+  const sub = (q.subtopico || '').trim();
+  const tm = (q.tema || q.tema_subtopico || '').trim();
+
+  // Sem módulo e sem capítulo
+  const isModEmptyOrGeneral = !mod || /^\(?(?:sem\s+m[óo]dulo|geral|sem\s+assunto|em\s+branco|indefinido|n[ãa]o\s+definido|outros?)\)?$/i.test(mod);
+  const isCapEmptyOrGeneral = !cap || /^\(?(?:sem\s+cap[íi]tulo|geral|em\s+branco|sem\s+assunto|indefinido|n[ãa]o\s+definido|outros?)\)?$/i.test(cap);
+
+  if (isModEmptyOrGeneral && isCapEmptyOrGeneral) return true;
+
+  // Se o módulo for genérico/vazio e não tiver subtópico nem tema
+  if (isModEmptyOrGeneral && !sub && !tm) return true;
+
+  // Se o capítulo for genérico/vazio e não tiver subtópico nem tema
+  if (isCapEmptyOrGeneral && !sub && !tm) return true;
+
+  // Se contém etiquetas explícitas de "sem assunto" ou "fora do escopo"
+  const meta = `${mod} ${cap} ${sub} ${tm}`.toLowerCase();
+  if (/\b(?:sem\s+assunto|fora\s+do\s+(?:escopo|edital)|indefinido|n[ãa]o\s+se\s+enquadra|n[ãa]o\s+classificad[ao]|assunto\s+indefinido)\b/i.test(meta)) {
+    return true;
+  }
+
+  return false;
+}
+
+export interface QuestionAssuntoStatus {
+  isSemAssunto: boolean;
+  isOutOfScope: boolean;
+  reason: 'cooperacao_internacional' | 'sem_modulo' | 'sem_capitulo' | 'sem_hierarquia' | 'ok';
+  label: string;
+  shortLabel: string;
+  badgeClass: string;
+  description: string;
+}
+
+/**
+ * Retorna o status detalhado de classificação do assunto de uma questão
+ */
+export function getQuestionAssuntoStatus(q: {
+  materia?: string;
+  modulo?: string;
+  capitulo?: string;
+  subtopico?: string;
+  tema?: string;
+  tema_subtopico?: string;
+  enunciado?: string;
+  carimbo?: string;
+}): QuestionAssuntoStatus {
+  if (isQuestionCooperacaoInternacional(q)) {
+    return {
+      isSemAssunto: true,
+      isOutOfScope: true,
+      reason: 'cooperacao_internacional',
+      label: 'Fora do Escopo: Cooperação Internacional',
+      shortLabel: 'Cooperação Internacional',
+      badgeClass: 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/70 dark:text-rose-200 dark:border-rose-700',
+      description: 'Esta questão trata de Cooperação Internacional e não se enquadra na disciplina oficial.',
+    };
+  }
+
+  const mod = (q.modulo || '').trim();
+  const cap = (q.capitulo || '').trim();
+  const isModEmpty = !mod || /^\(?(?:sem\s+m[óo]dulo|geral|sem\s+assunto|em\s+branco|indefinido|n[ãa]o\s+definido|outros?)\)?$/i.test(mod);
+  const isCapEmpty = !cap || /^\(?(?:sem\s+cap[íi]tulo|geral|em\s+branco|sem\s+assunto|indefinido|n[ãa]o\s+definido|outros?)\)?$/i.test(cap);
+
+  if (isModEmpty && isCapEmpty) {
+    return {
+      isSemAssunto: true,
+      isOutOfScope: false,
+      reason: 'sem_hierarquia',
+      label: 'Sem Módulo e Sem Capítulo',
+      shortLabel: 'Sem Assunto',
+      badgeClass: 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/70 dark:text-amber-200 dark:border-amber-700',
+      description: 'A questão não possui nem módulo nem capítulo definidos.',
+    };
+  }
+
+  if (isModEmpty) {
+    return {
+      isSemAssunto: true,
+      isOutOfScope: false,
+      reason: 'sem_modulo',
+      label: 'Sem Módulo Definido',
+      shortLabel: 'Sem Módulo',
+      badgeClass: 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/70 dark:text-amber-200 dark:border-amber-700',
+      description: 'A questão não possui módulo atribuído na grade de conteúdo.',
+    };
+  }
+
+  if (isCapEmpty) {
+    return {
+      isSemAssunto: true,
+      isOutOfScope: false,
+      reason: 'sem_capitulo',
+      label: 'Sem Capítulo Definido',
+      shortLabel: 'Sem Capítulo',
+      badgeClass: 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/70 dark:text-amber-200 dark:border-amber-700',
+      description: 'A questão não possui capítulo atribuído.',
+    };
+  }
+
+  return {
+    isSemAssunto: false,
+    isOutOfScope: false,
+    reason: 'ok',
+    label: 'Assunto Definido',
+    shortLabel: 'Enquadrada',
+    badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-700',
+    description: 'Questão devidamente classificada na árvore temática oficial.',
+  };
+}
+

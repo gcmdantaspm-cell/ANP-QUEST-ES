@@ -47,7 +47,8 @@ export interface FilterOptions {
   tema?: string;
   tema_subtopico: string;
   busca: string;
-  statusFiltro: 'todas' | 'nao_resolvidas' | 'acertos' | 'erros';
+  statusFiltro: 'todas' | 'nao_resolvidas' | 'acertos' | 'erros' | 'sem_assunto' | 'fora_escopo';
+  apenasSemAssunto?: boolean;
 }
 
 export interface UserStats {

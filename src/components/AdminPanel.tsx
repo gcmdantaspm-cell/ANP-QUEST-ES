@@ -19,6 +19,9 @@ import {
   areSubtopicosEquivalent,
   compareModulosRoman,
   STANDARD_MODULOS,
+  isQuestionSemAssunto,
+  isQuestionCooperacaoInternacional,
+  getQuestionAssuntoStatus,
 } from '../utils/parser';
 import {
   OFFICIAL_HIERARCHY_TREE,
@@ -296,7 +299,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [manageFilterModulo, setManageFilterModulo] = useState<string>('');
   const [manageFilterCapitulo, setManageFilterCapitulo] = useState<string>('');
   const [manageFilterSubtopico, setManageFilterSubtopico] = useState<string>('');
+  const [manageFilterEscopo, setManageFilterEscopo] = useState<'todos' | 'sem_assunto' | 'fora_escopo' | 'com_assunto'>('todos');
   const [manageSearchText, setManageSearchText] = useState<string>('');
+  const [retirarSemAssuntoModal, setRetirarSemAssuntoModal] = useState<boolean>(false);
+  const [selectedRetirarIds, setSelectedRetirarIds] = useState<Set<string>>(new Set());
+
+  // Contagem de questões sem assunto definido ou fora do escopo gravadas no Firestore
+  const semAssuntoExistingQuestions = useMemo(() => {
+    return existingQuestions.filter((q) => isQuestionSemAssunto(q));
+  }, [existingQuestions]);
+
+  const coopInternacionalExistingQuestions = useMemo(() => {
+    return existingQuestions.filter((q) => isQuestionCooperacaoInternacional(q));
+  }, [existingQuestions]);
+
+  // Contagem de questões sem assunto no lote em edição/importação
+  const semAssuntoExtractedQuestions = useMemo(() => {
+    return extractedQuestions.filter((q) => isQuestionSemAssunto(q));
+  }, [extractedQuestions]);
 
   // Capítulos disponíveis para o filtro de gestão de questões
   const manageAvailableCapitulos = useMemo(() => {
@@ -349,6 +369,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const filteredManageQuestions = useMemo(() => {
     return existingQuestions.filter((q) => {
+      // Filtro por escopo/assunto
+      if (manageFilterEscopo === 'sem_assunto' && !isQuestionSemAssunto(q)) return false;
+      if (manageFilterEscopo === 'fora_escopo' && !isQuestionCooperacaoInternacional(q)) return false;
+      if (manageFilterEscopo === 'com_assunto' && isQuestionSemAssunto(q)) return false;
+
       if (manageFilterModulo) {
         const qMod = getCanonicalModuloForQuestion(q) || getQuestionModulo(q);
         if (!areModulosEquivalent(qMod, manageFilterModulo)) return false;
@@ -367,7 +392,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       }
       return true;
     });
-  }, [existingQuestions, manageFilterModulo, manageFilterCapitulo, manageFilterSubtopico, manageSearchText]);
+  }, [existingQuestions, manageFilterModulo, manageFilterCapitulo, manageFilterSubtopico, manageFilterEscopo, manageSearchText]);
 
   // Restaurar backup do último lote importado caso precise recuperar
   const handleRestoreBackup = () => {
@@ -2372,6 +2397,87 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
+  // Abrir modal de retirada de questões fora do escopo ou sem assunto
+  const handleOpenRetirarSemAssuntoModal = () => {
+    const allIds = semAssuntoExistingQuestions.map((q) => q.id).filter(Boolean) as string[];
+    setSelectedRetirarIds(new Set(allIds));
+    setRetirarSemAssuntoModal(true);
+  };
+
+  // Retirar questões fora do escopo ou sem assunto gravadas no Firestore e renumerar as restantes
+  const handleRetirarSemAssuntoDoBanco = async (specificIds?: string[]) => {
+    const idsToDelete = specificIds && specificIds.length > 0
+      ? specificIds
+      : (semAssuntoExistingQuestions.map((q) => q.id).filter(Boolean) as string[]);
+
+    if (idsToDelete.length === 0) {
+      setSaveSuccessMsg('Nenhuma questão fora do escopo ou sem assunto foi encontrada para retirar.');
+      setTimeout(() => setSaveSuccessMsg(null), 3000);
+      return;
+    }
+
+    if (!user || !isUserAdminEmail(user.email)) return;
+
+    setSaving(true);
+    setErrorMessage(null);
+    setSaveSuccessMsg(null);
+
+    try {
+      const idSet = new Set(idsToDelete);
+
+      // 1. Deletar do Firestore
+      for (const id of idsToDelete) {
+        await deleteDoc(doc(db, 'questions', id));
+      }
+
+      // 2. Renumerar as questões restantes em ordem ordinal contínua (1, 2, 3...)
+      const keptQuestions = existingQuestions
+        .filter((q) => q.id && !idSet.has(q.id))
+        .sort((a, b) => {
+          const numA = typeof a.numero_questao === 'number' && a.numero_questao > 0 ? a.numero_questao : 999999;
+          const numB = typeof b.numero_questao === 'number' && b.numero_questao > 0 ? b.numero_questao : 999999;
+          if (numA !== numB) return numA - numB;
+          return (a.createdAt || '').localeCompare(b.createdAt || '');
+        });
+
+      const batchSize = 400;
+      for (let i = 0; i < keptQuestions.length; i += batchSize) {
+        const chunk = keptQuestions.slice(i, i + batchSize);
+        const batch = writeBatch(db);
+        chunk.forEach((q, chunkIdx) => {
+          if (q.id) {
+            const docRef = doc(db, 'questions', q.id);
+            const ordinalNum = i + chunkIdx + 1;
+            batch.update(docRef, { numero_questao: ordinalNum });
+          }
+        });
+        await batch.commit();
+      }
+
+      setSaveSuccessMsg(
+        `${idsToDelete.length} questão(ões) fora do escopo/sem assunto foram retiradas com sucesso do Banco de Dados! As ${keptQuestions.length} questões restantes foram renumeradas ordinalmente (1, 2, 3...).`
+      );
+      setRetirarSemAssuntoModal(false);
+      setSelectedRetirarIds(new Set());
+      onQuestionAdded();
+      setTimeout(() => setSaveSuccessMsg(null), 6000);
+    } catch (err: unknown) {
+      console.error('Erro ao retirar questões sem assunto:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMessage(`Erro ao retirar questões: ${msg}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Retirar questões fora do escopo ou sem assunto do lote de importação antes de salvar
+  const handleRetirarSemAssuntoDoLote = () => {
+    const count = semAssuntoExtractedQuestions.length;
+    setExtractedQuestions((prev) => prev.filter((q) => !isQuestionSemAssunto(q)));
+    setSaveSuccessMsg(`${count} questão(ões) fora do escopo/sem assunto foram retiradas do lote de importação.`);
+    setTimeout(() => setSaveSuccessMsg(null), 4000);
+  };
+
   // Remover uma questão específica da lista extraída antes de salvar
   const handleRemoveExtracted = (index: number) => {
     setExtractedQuestions((prev) => prev.filter((_, i) => i !== index));
@@ -3644,7 +3750,20 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                   </span>
                 </label>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {semAssuntoExtractedQuestions.length > 0 && (
+                    <button
+                      id="btn-retirar-sem-assunto-extracted"
+                      type="button"
+                      onClick={handleRetirarSemAssuntoDoLote}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
+                      title="Retirar do lote as questões que não se enquadram em nenhum assunto (tipo Cooperação Internacional) ou sem módulo definido"
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-200" />
+                      Retirar Fora do Escopo ({semAssuntoExtractedQuestions.length})
+                    </button>
+                  )}
+
                   {selectedExtractedIndices.size > 0 && (
                     <button
                       id="btn-delete-selected-extracted"
@@ -3669,6 +3788,28 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                   </button>
                 </div>
               </div>
+
+              {/* Aviso quando houver questões fora do escopo ou sem assunto no lote */}
+              {semAssuntoExtractedQuestions.length > 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-amber-950 text-xs shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <div>
+                      <span className="font-bold">Atenção ao Conteúdo: </span>
+                      <span>
+                        Foram detectadas <strong>{semAssuntoExtractedQuestions.length} questão(ões)</strong> fora do escopo (ex: Cooperação Internacional) ou sem módulo/assunto definido no lote.
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRetirarSemAssuntoDoLote}
+                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg cursor-pointer shrink-0 shadow-xs"
+                  >
+                    Retirar {semAssuntoExtractedQuestions.length} Questões Fora do Escopo
+                  </button>
+                </div>
+              )}
 
               {/* Painel de Resumo e Lista de Quantidades da Hierarquia */}
               <div className="p-4 sm:p-5 bg-gradient-to-br from-indigo-50/70 via-sky-50/60 to-purple-50/70 border-2 border-indigo-200 rounded-2xl shadow-xs space-y-4">
@@ -4545,6 +4686,25 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                 Desunir Módulos
               </button>
 
+              {/* Botão de Retirar Questões Sem Assunto / Fora do Escopo (solicitado pelo usuário) */}
+              <button
+                id="btn-retirar-questoes-fora-escopo"
+                type="button"
+                onClick={handleOpenRetirarSemAssuntoModal}
+                disabled={saving || existingQuestions.length === 0}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg shadow-xs transition-all cursor-pointer ${
+                  semAssuntoExistingQuestions.length > 0
+                    ? 'bg-gradient-to-r from-rose-600 via-rose-700 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-extrabold ring-2 ring-rose-400/80 shadow-md'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-semibold'
+                }`}
+                title="Identificar e retirar do banco de dados questões que não se enquadram em nenhum assunto (tipo Cooperação Internacional) ou que não possuem módulo/capítulo atribuídos"
+              >
+                <AlertTriangle className={`w-3.5 h-3.5 ${semAssuntoExistingQuestions.length > 0 ? 'text-amber-200' : 'text-slate-500'}`} />
+                <span>
+                  Retirar Questões Sem Assunto / Fora do Escopo ({semAssuntoExistingQuestions.length})
+                </span>
+              </button>
+
               {/* Botão de Remover Duplicadas */}
               {existingQuestions.length > 0 && (
                 <button
@@ -4619,13 +4779,14 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                   <span className="text-xs font-semibold text-slate-500">
                     Exibindo {filteredManageQuestions.length} de {existingQuestions.length} questões
                   </span>
-                  {(manageFilterModulo || manageFilterCapitulo || manageFilterSubtopico || manageSearchText) && (
+                  {(manageFilterModulo || manageFilterCapitulo || manageFilterSubtopico || manageFilterEscopo !== 'todos' || manageSearchText) && (
                     <button
                       type="button"
                       onClick={() => {
                         setManageFilterModulo('');
                         setManageFilterCapitulo('');
                         setManageFilterSubtopico('');
+                        setManageFilterEscopo('todos');
                         setManageSearchText('');
                       }}
                       className="text-xs font-semibold text-blue-600 hover:text-blue-800 underline cursor-pointer"
@@ -4636,7 +4797,7 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5">
                 {/* 1. Módulo */}
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 mb-1">
@@ -4704,10 +4865,40 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                   </select>
                 </div>
 
-                {/* 4. Busca por texto */}
+                {/* 4. Enquadramento / Assunto */}
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    4. Busca no Enunciado / Gabarito
+                    4. Assunto / Enquadramento
+                  </label>
+                  <select
+                    id="manage-filter-escopo"
+                    value={manageFilterEscopo}
+                    onChange={(e) => setManageFilterEscopo(e.target.value as any)}
+                    className={`w-full text-xs font-bold border rounded-lg p-2 cursor-pointer transition-colors ${
+                      manageFilterEscopo === 'sem_assunto'
+                        ? 'border-amber-400 bg-amber-50 text-amber-900'
+                        : manageFilterEscopo === 'fora_escopo'
+                        ? 'border-rose-400 bg-rose-50 text-rose-900'
+                        : 'border-slate-300 bg-slate-50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-blue-500 text-slate-800'
+                    }`}
+                  >
+                    <option value="todos">(Todos os Status)</option>
+                    <option value="sem_assunto">
+                      ⚠️ Sem Assuntos Definidos ({semAssuntoExistingQuestions.length})
+                    </option>
+                    <option value="fora_escopo">
+                      🚫 Fora do Escopo: Cooperação Int. ({coopInternacionalExistingQuestions.length})
+                    </option>
+                    <option value="com_assunto">
+                      ✅ Assunto Definido ({existingQuestions.length - semAssuntoExistingQuestions.length})
+                    </option>
+                  </select>
+                </div>
+
+                {/* 5. Busca por texto */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    5. Busca no Enunciado / Gabarito
                   </label>
                   <div className="relative">
                     <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -4775,12 +4966,19 @@ Comentário: Apenas a alternativa B atende ao comando...`}
             <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-white">
               {filteredManageQuestions.map((q, idx) => {
                 const isSelected = q.id ? selectedQuestionIds.has(q.id) : false;
+                const aStatus = getQuestionAssuntoStatus(q);
 
                 return (
                   <div
                     key={`${q.id || 'q'}-${idx}`}
                     className={`p-3 sm:p-4 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                      isSelected ? 'bg-blue-50/40' : 'hover:bg-slate-50/80'
+                      isSelected
+                        ? 'bg-blue-50/50 border-l-4 border-l-blue-600'
+                        : aStatus.isOutOfScope
+                        ? 'bg-rose-50/40 border-l-4 border-l-rose-500 hover:bg-rose-50/70'
+                        : aStatus.isSemAssunto
+                        ? 'bg-amber-50/40 border-l-4 border-l-amber-500 hover:bg-amber-50/70'
+                        : 'hover:bg-slate-50/80'
                     }`}
                   >
                     {/* Checkbox de seleção */}
@@ -4809,8 +5007,24 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                               🛡️ Carimbada
                             </span>
                           )}
+
+                          {/* Marcação clara do Status de Assunto / Escopo */}
+                          {aStatus.isSemAssunto && (
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-black inline-flex items-center gap-1 border shadow-2xs ${
+                                aStatus.isOutOfScope
+                                  ? 'bg-rose-100 text-rose-800 border-rose-300 ring-1 ring-rose-300'
+                                  : 'bg-amber-100 text-amber-900 border-amber-300 ring-1 ring-amber-300'
+                              }`}
+                              title={aStatus.description}
+                            >
+                              <AlertTriangle className={`w-3 h-3 ${aStatus.isOutOfScope ? 'text-rose-600' : 'text-amber-600'}`} />
+                              {aStatus.label}
+                            </span>
+                          )}
+
                           <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[11px] font-semibold">
-                            {q.modulo}
+                            {q.modulo || '(Sem Módulo)'}
                           </span>
                           {q.capitulo && (
                             <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px]">
@@ -4841,16 +5055,30 @@ Comentário: Apenas a alternativa B atende ao comando...`}
                     </div>
 
                     {q.id && (
-                      <button
-                        id={`btn-delete-q-${q.id}`}
-                        type="button"
-                        onClick={() => handleDeleteExistingQuestion(q.id!)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs text-rose-700 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors cursor-pointer self-end sm:self-auto shrink-0"
-                        title="Excluir questão do banco"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Excluir
-                      </button>
+                      <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+                        {aStatus.isSemAssunto && (
+                          <button
+                            id={`btn-retirar-individual-q-${q.id}`}
+                            type="button"
+                            onClick={() => handleRetirarSemAssuntoDoBanco([q.id!])}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors cursor-pointer shadow-2xs font-bold"
+                            title="Retirar esta questão fora do escopo do banco de dados e renumerar as restantes"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Retirar
+                          </button>
+                        )}
+                        <button
+                          id={`btn-delete-q-${q.id}`}
+                          type="button"
+                          onClick={() => handleDeleteExistingQuestion(q.id!)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs text-rose-700 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                          title="Excluir questão do banco"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Excluir
+                        </button>
+                      </div>
                     )}
                   </div>
                 );
@@ -4862,6 +5090,251 @@ Comentário: Apenas a alternativa B atende ao comando...`}
 
       {/* Aba 3: Gestão de Matrículas Autorizadas */}
       {activeTab === 'matriculas' && <MatriculaManager />}
+
+      {/* Modal Dedicado de Retirar Questões Fora do Escopo / Sem Assunto Definido */}
+      {retirarSemAssuntoModal && (
+        <div
+          id="retirar-sem-assunto-modal-overlay"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+        >
+          <div
+            id="retirar-sem-assunto-modal-card"
+            className="bg-white rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 animate-in zoom-in-95 max-h-[92vh] flex flex-col"
+          >
+            {/* Cabeçalho */}
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-amber-500 text-white flex items-center justify-center shrink-0 shadow-md">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    Retirar Questões Sem Assunto / Fora do Escopo
+                    <span className="text-xs font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
+                      {semAssuntoExistingQuestions.length} questão(ões)
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Localize e retire questões que não se enquadram no conteúdo programático de Investigação Policial II (como Cooperação Internacional) ou que não possuem módulo/capítulo atribuídos.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => !saving && setRetirarSemAssuntoModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                disabled={saving}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Painel de Métricas / Resumo */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 shrink-0">
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
+                <span className="block text-[11px] font-bold text-amber-800 uppercase tracking-wide">
+                  Total Sem Assunto
+                </span>
+                <span className="text-xl font-black text-amber-950">
+                  {semAssuntoExistingQuestions.length}
+                </span>
+                <span className="block text-[10px] text-amber-700 mt-0.5">
+                  Não enquadradas na grade
+                </span>
+              </div>
+
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200">
+                <span className="block text-[11px] font-bold text-rose-800 uppercase tracking-wide">
+                  Cooperação Internacional
+                </span>
+                <span className="text-xl font-black text-rose-950">
+                  {coopInternacionalExistingQuestions.length}
+                </span>
+                <span className="block text-[10px] text-rose-700 mt-0.5">
+                  Fora do escopo de IPO II
+                </span>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                  Sem Módulo / Sem Capítulo
+                </span>
+                <span className="text-xl font-black text-slate-900">
+                  {semAssuntoExistingQuestions.length - coopInternacionalExistingQuestions.length}
+                </span>
+                <span className="block text-[10px] text-slate-600 mt-0.5">
+                  Sem hierarquia válida
+                </span>
+              </div>
+            </div>
+
+            {/* Barra de Seleção Rápida */}
+            {semAssuntoExistingQuestions.length > 0 && (
+              <div className="flex items-center justify-between text-xs text-slate-600 border-b border-slate-100 pb-2 shrink-0">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={
+                      semAssuntoExistingQuestions.length > 0 &&
+                      semAssuntoExistingQuestions.every((q) => q.id && selectedRetirarIds.has(q.id))
+                    }
+                    onChange={() => {
+                      if (selectedRetirarIds.size === semAssuntoExistingQuestions.length) {
+                        setSelectedRetirarIds(new Set());
+                      } else {
+                        setSelectedRetirarIds(
+                          new Set(semAssuntoExistingQuestions.map((q) => q.id).filter(Boolean) as string[])
+                        );
+                      }
+                    }}
+                    className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                  />
+                  <span className="font-semibold text-slate-800">
+                    {selectedRetirarIds.size === semAssuntoExistingQuestions.length
+                      ? 'Desmarcar todas'
+                      : 'Selecionar todas'}
+                  </span>
+                </label>
+
+                <span className="text-slate-500">
+                  {selectedRetirarIds.size} de {semAssuntoExistingQuestions.length} selecionada(s)
+                </span>
+              </div>
+            )}
+
+            {/* Lista Rolável de Questões */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[160px] max-h-[360px]">
+              {semAssuntoExistingQuestions.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200 space-y-1">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-1.5" />
+                  <p className="font-bold text-slate-700">Tudo limpo!</p>
+                  <p>Nenhuma questão fora do escopo ou sem assunto foi encontrada no banco de dados.</p>
+                </div>
+              ) : (
+                semAssuntoExistingQuestions.map((q, idx) => {
+                  const qId = q.id || `q_${idx}`;
+                  const isChecked = selectedRetirarIds.has(qId);
+                  const aStatus = getQuestionAssuntoStatus(q);
+
+                  return (
+                    <div
+                      key={`retirar-item-${qId}`}
+                      className={`p-3 rounded-xl border transition-colors flex items-start gap-3 ${
+                        isChecked
+                          ? 'bg-rose-50/70 border-rose-300'
+                          : 'bg-white border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {
+                          setSelectedRetirarIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(qId)) next.delete(qId);
+                            else next.add(qId);
+                            return next;
+                          });
+                        }}
+                        className="w-4 h-4 mt-0.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer shrink-0"
+                      />
+
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-xs font-bold text-slate-900">
+                            #{q.numero_questao || idx + 1}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-black inline-flex items-center gap-1 border ${
+                              aStatus.isOutOfScope
+                                ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                : 'bg-amber-100 text-amber-900 border-amber-300'
+                            }`}
+                          >
+                            <AlertTriangle className="w-3 h-3" />
+                            {aStatus.label}
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            {q.modulo || '(Sem Módulo)'} {q.capitulo ? `> ${q.capitulo}` : ''}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-700 line-clamp-2 leading-relaxed">
+                          {q.enunciado}
+                        </p>
+                      </div>
+
+                      {q.id && (
+                        <button
+                          type="button"
+                          onClick={() => handleRetirarSemAssuntoDoBanco([q.id!])}
+                          disabled={saving}
+                          className="px-2.5 py-1 text-xs text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer shrink-0 font-bold inline-flex items-center gap-1"
+                          title="Excluir apenas esta questão agora"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Retirar
+                        </button>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Rodapé com Ações em Lote */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-3 border-t border-slate-100 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setRetirarSemAssuntoModal(false);
+                  setManageFilterEscopo('sem_assunto');
+                }}
+                className="w-full sm:w-auto px-3.5 py-2 text-xs font-bold text-sky-700 hover:bg-sky-50 rounded-xl transition-colors cursor-pointer border border-sky-200 inline-flex items-center justify-center gap-1.5"
+              >
+                <Filter className="w-3.5 h-3.5" />
+                Filtrar na Tabela de Gestão
+              </button>
+
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => setRetirarSemAssuntoModal(false)}
+                  disabled={saving}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Fechar
+                </button>
+
+                {selectedRetirarIds.size > 0 && selectedRetirarIds.size < semAssuntoExistingQuestions.length && (
+                  <button
+                    type="button"
+                    onClick={() => handleRetirarSemAssuntoDoBanco(Array.from(selectedRetirarIds))}
+                    disabled={saving}
+                    className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {saving ? 'Excluindo...' : `Excluir Selecionadas (${selectedRetirarIds.size})`}
+                  </button>
+                )}
+
+                {semAssuntoExistingQuestions.length > 0 && (
+                  <button
+                    id="btn-confirm-retirar-todas-sem-assunto"
+                    type="button"
+                    onClick={() => handleRetirarSemAssuntoDoBanco()}
+                    disabled={saving}
+                    className="px-4 py-2 text-xs font-black text-white bg-gradient-to-r from-rose-600 via-rose-700 to-amber-600 hover:from-rose-500 hover:to-amber-500 rounded-xl shadow-md transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {saving ? 'Processando...' : `Excluir Todas Fora do Escopo (${semAssuntoExistingQuestions.length})`}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Confirmação Interno (Totalmente funcional em iframes) */}
       {confirmModal && (
