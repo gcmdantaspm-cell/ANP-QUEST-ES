@@ -2,9 +2,10 @@ import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
 import { User } from 'firebase/auth';
 import { db } from '../firebase/config';
 import { StoredAnswer } from '../types/question';
-import { SimuladoAttempt } from '../types/simulado';
+import { Simulado, SimuladoAttempt } from '../types/simulado';
 
 const LOCAL_ATTEMPTS_KEY = 'lda2_simulado_attempts_list';
+const LOCAL_SIMULADOS_KEY = 'lda2_simulados_list';
 const LOCAL_ANSWERS_KEY = 'simulado_user_answers';
 
 function formatDateToLocalKey(d: Date): string {
@@ -27,7 +28,27 @@ export async function syncAndRecoverUserAnswers(
   const recovered: Record<string, StoredAnswer> = { ...currentAnswers };
   let hasChanges = false;
 
-  // 1. Tenta buscar tentativas gravadas em Firestore (simulado_attempts)
+  // 1. Tenta carregar os simulados (para mapear matérias e gabaritos de questões de simulados)
+  let allSimulados: Simulado[] = [];
+  try {
+    const simSnap = await getDocs(collection(db, 'simulados'));
+    if (!simSnap.empty) {
+      allSimulados = simSnap.docs.map((d) => d.data() as Simulado);
+    }
+  } catch (err) {
+    console.warn('Simulados do Firestore inacessíveis:', err);
+  }
+  try {
+    const rawLocalSims = localStorage.getItem(LOCAL_SIMULADOS_KEY);
+    if (rawLocalSims) {
+      const localSims = JSON.parse(rawLocalSims) as Simulado[];
+      allSimulados = [...allSimulados, ...localSims];
+    }
+  } catch (err) {
+    console.error('Erro ao ler simulados locais:', err);
+  }
+
+  // 2. Tenta buscar tentativas gravadas em Firestore (simulado_attempts)
   let firestoreAttempts: SimuladoAttempt[] = [];
   try {
     const attSnap = await getDocs(collection(db, 'simulado_attempts'));
@@ -38,7 +59,7 @@ export async function syncAndRecoverUserAnswers(
     console.warn('Busca de tentativas no Firestore restrita ou offline:', err);
   }
 
-  // 2. Busca também tentativas salvas no localStorage (lda2_simulado_attempts_list)
+  // 3. Busca também tentativas salvas no localStorage (lda2_simulado_attempts_list)
   let localAttempts: SimuladoAttempt[] = [];
   try {
     const rawLocal = localStorage.getItem(LOCAL_ATTEMPTS_KEY);
@@ -51,14 +72,14 @@ export async function syncAndRecoverUserAnswers(
 
   const allAttempts = [...firestoreAttempts, ...localAttempts];
 
-  // Ordena tentativas da mais antiga para a mais recente para associar a data correta
+  // Ordena tentativas da mais antiga para a mais recente
   allAttempts.sort((a, b) => {
     const timeA = new Date(a.finishedAt || a.startedAt || 0).getTime();
     const timeB = new Date(b.finishedAt || b.startedAt || 0).getTime();
     return timeA - timeB;
   });
 
-  // Mapeia datas comprovadas de cada questão a partir das tentativas registradas
+  // Mapeia datas comprovadas de cada questão a partir das tentativas registradas no banco
   for (const att of allAttempts) {
     const rawDateStr = att.finishedAt || att.startedAt;
     if (!rawDateStr) continue;
@@ -83,15 +104,35 @@ export async function syncAndRecoverUserAnswers(
               timestamp,
               date: dateKey,
               answeredAt: rawDateStr,
+              source: existing.source || 'simulado',
             };
             hasChanges = true;
           }
+        } else {
+          // Se a questão foi respondida no simulado e ainda não estava em recovered, ADICIONA!
+          const sim = allSimulados.find((s) => s.id === att.simuladoId);
+          const simQ = sim?.questoes?.find((q) => q.id === qId);
+          const isCorrect = simQ
+            ? simQ.alternativa_correta?.toUpperCase() === selectedLetter?.toUpperCase()
+            : false;
+          const modulo = simQ?.materia || simQ?.modulo || 'Simulado';
+
+          recovered[qId] = {
+            selected: selectedLetter,
+            isCorrect,
+            modulo,
+            timestamp,
+            date: dateKey,
+            answeredAt: rawDateStr,
+            source: 'simulado',
+          };
+          hasChanges = true;
         }
       }
     }
   }
 
-  // 3. Se o usuário estiver autenticado, procura histórico persistido no documento users/{uid}
+  // 4. Se o usuário estiver autenticado, procura histórico persistido no documento users/{uid}
   if (user) {
     try {
       const userDocRef = doc(db, 'users', user.uid);
@@ -115,6 +156,7 @@ export async function syncAndRecoverUserAnswers(
                 timestamp: firestoreAns.timestamp,
                 date: firestoreAns.date,
                 answeredAt: firestoreAns.answeredAt,
+                source: existing.source || firestoreAns.source,
               };
               hasChanges = true;
             }
@@ -126,7 +168,28 @@ export async function syncAndRecoverUserAnswers(
     }
   }
 
-  // 4. Salva no localStorage se houve atualização de datas
+  // 5. Normaliza qualquer resposta que tenha answeredAt ou timestamp mas sem data preenchida
+  for (const [, ans] of Object.entries(recovered)) {
+    if (!ans) continue;
+    if (!ans.date) {
+      if (ans.answeredAt) {
+        const d = new Date(ans.answeredAt);
+        if (!isNaN(d.getTime())) {
+          ans.date = formatDateToLocalKey(d);
+          ans.timestamp = ans.timestamp || d.getTime();
+          hasChanges = true;
+        }
+      } else if (ans.timestamp && typeof ans.timestamp === 'number') {
+        const d = new Date(ans.timestamp);
+        if (!isNaN(d.getTime())) {
+          ans.date = formatDateToLocalKey(d);
+          hasChanges = true;
+        }
+      }
+    }
+  }
+
+  // 6. Salva no localStorage se houve atualização de dados
   if (hasChanges) {
     try {
       localStorage.setItem(LOCAL_ANSWERS_KEY, JSON.stringify(recovered));
@@ -135,7 +198,7 @@ export async function syncAndRecoverUserAnswers(
     }
   }
 
-  // 5. Se o usuário estiver autenticado, sincroniza a base de respostas no documento users/{uid}
+  // 7. Se o usuário estiver autenticado, sincroniza a base de respostas no documento users/{uid}
   if (user && Object.keys(recovered).length > 0) {
     try {
       const userDocRef = doc(db, 'users', user.uid);

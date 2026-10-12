@@ -197,6 +197,40 @@ export const SimuladosDashboard: React.FC<SimuladosDashboardProps> = ({ existing
       console.warn('Tentativa salva localmente:', e);
     }
 
+    // Sincroniza cada questão resolvida no simulado com o banco geral de respostas para as estatísticas
+    try {
+      const savedRaw = localStorage.getItem('simulado_user_answers');
+      const currentAnswers = savedRaw ? JSON.parse(savedRaw) : {};
+      const now = new Date();
+      const dateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const nowMs = now.getTime();
+      const nowIso = now.toISOString();
+
+      if (currentExam && attempt.respostas) {
+        for (const [qId, letter] of Object.entries(attempt.respostas)) {
+          const simQ = currentExam.questoes.find((q) => q.id === qId);
+          const isCorrect = simQ
+            ? simQ.alternativa_correta.toUpperCase() === letter.toUpperCase()
+            : false;
+          currentAnswers[qId] = {
+            selected: letter,
+            isCorrect,
+            modulo: simQ?.materia || simQ?.modulo || 'Simulado',
+            timestamp: nowMs,
+            date: dateKey,
+            answeredAt: attempt.finishedAt || nowIso,
+            source: 'simulado',
+          };
+        }
+        localStorage.setItem('simulado_user_answers', JSON.stringify(currentAnswers));
+        if (user) {
+          setDoc(doc(db, 'users', user.uid), { userAnswers: currentAnswers }, { merge: true }).catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao propagar respostas do simulado para estatísticas:', e);
+    }
+
     if (currentExam) {
       setLastFinishedAttempt({
         attempt,

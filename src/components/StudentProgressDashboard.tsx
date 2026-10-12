@@ -86,8 +86,21 @@ function formatKeyToDisplayDate(key: string): string {
 
 // Retorna a chave de data legítima ou null se for do histórico acumulado anterior
 function getAnswerDateKey(ans: StoredAnswer): string | null {
+  if (!ans) return null;
   if (ans.date && ans.date !== 'historico' && ans.date !== 'anterior') {
-    return ans.date;
+    if (ans.date.includes('-')) return ans.date.trim();
+    if (ans.date.includes('/')) {
+      const parts = ans.date.split('/');
+      if (parts.length === 3) {
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+    }
+  }
+  if (ans.answeredAt) {
+    const d = new Date(ans.answeredAt);
+    if (!isNaN(d.getTime())) {
+      return formatDateToLocalKey(d);
+    }
   }
   if (ans.timestamp && typeof ans.timestamp === 'number' && ans.timestamp > 0) {
     const d = new Date(ans.timestamp);
@@ -230,10 +243,10 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
     Object.values(userAnswers).forEach((ans) => {
       total += 1;
       const ansDate = getAnswerDateKey(ans);
-      const ansMs = ans.timestamp;
+      const ansMs = ans.timestamp || (ans.answeredAt ? new Date(ans.answeredAt).getTime() : null);
 
-      // Se a questão não tem data/timestamp comprovado, pertence ao histórico acumulado de todo o período
-      if (!ansDate || !ansMs) {
+      // Se a questão não tem data comprovada, pertence ao histórico acumulado de todo o período
+      if (!ansDate) {
         historico += 1;
         return;
       }
@@ -242,8 +255,19 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
       if (ansDate === dateKeys.ontemStr) ontem += 1;
       if (ansDate === dateKeys.anteontemStr) anteontem += 1;
 
-      if (ansMs >= dateKeys.seteDiasAtrasMs) semana += 1;
-      if (ansMs >= dateKeys.trintaDiasAtrasMs) mes += 1;
+      const isRecentWeek =
+        (ansMs && ansMs >= dateKeys.seteDiasAtrasMs) ||
+        ansDate === dateKeys.hojeStr ||
+        ansDate === dateKeys.ontemStr ||
+        ansDate === dateKeys.anteontemStr;
+      if (isRecentWeek) semana += 1;
+
+      const isRecentMonth =
+        (ansMs && ansMs >= dateKeys.trintaDiasAtrasMs) ||
+        ansDate === dateKeys.hojeStr ||
+        ansDate === dateKeys.ontemStr ||
+        ansDate === dateKeys.anteontemStr;
+      if (isRecentMonth) mes += 1;
     });
 
     return { total, hoje, ontem, anteontem, semana, mes, historico };
@@ -255,7 +279,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
 
     Object.entries(userAnswers).forEach(([qId, ans]) => {
       const ansDate = getAnswerDateKey(ans);
-      const ansMs = ans.timestamp;
+      const ansMs = ans.timestamp || (ans.answeredAt ? new Date(ans.answeredAt).getTime() : null);
 
       let matches = false;
 
@@ -264,22 +288,32 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
           matches = true;
           break;
         case 'hoje':
-          matches = ansDate === dateKeys.hojeStr && Boolean(ansMs);
+          matches = ansDate === dateKeys.hojeStr;
           break;
         case 'ontem':
-          matches = ansDate === dateKeys.ontemStr && Boolean(ansMs);
+          matches = ansDate === dateKeys.ontemStr;
           break;
         case 'anteontem':
-          matches = ansDate === dateKeys.anteontemStr && Boolean(ansMs);
+          matches = ansDate === dateKeys.anteontemStr;
           break;
         case 'semana':
-          matches = Boolean(ansMs && ansMs >= dateKeys.seteDiasAtrasMs);
+          matches = Boolean(
+            (ansMs && ansMs >= dateKeys.seteDiasAtrasMs) ||
+            ansDate === dateKeys.hojeStr ||
+            ansDate === dateKeys.ontemStr ||
+            ansDate === dateKeys.anteontemStr
+          );
           break;
         case 'mes':
-          matches = Boolean(ansMs && ansMs >= dateKeys.trintaDiasAtrasMs);
+          matches = Boolean(
+            (ansMs && ansMs >= dateKeys.trintaDiasAtrasMs) ||
+            ansDate === dateKeys.hojeStr ||
+            ansDate === dateKeys.ontemStr ||
+            ansDate === dateKeys.anteontemStr
+          );
           break;
         case 'historico':
-          matches = !ansDate || !ansMs;
+          matches = !ansDate;
           break;
         case 'data_especifica':
           matches = ansDate === selectedCustomDate;
