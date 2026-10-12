@@ -36,19 +36,26 @@ import {
   Target,
 } from 'lucide-react';
 
-export type TimeFilterPeriod =
-  | 'total'
-  | 'hoje'
-  | 'ontem'
-  | 'anteontem'
-  | 'semana'
-  | 'mes'
-  | 'data_especifica';
+import {
+  TimeFilterPeriod,
+  getLocalDateString,
+  formatDisplayDate,
+  getAnswerTimestamp,
+  getAnswerDateKey,
+  getDateBoundaries,
+  isAnswerInTimeFilter,
+  DateBoundaries,
+} from '../utils/dateFilters';
+import { QuestionStatusFilter } from '../types/question';
+
+export type { TimeFilterPeriod };
 
 interface StudentProgressDashboardProps {
   questions: Question[];
   userAnswers: Record<string, StoredAnswer>;
   onResetStats: () => void;
+  onFilterCaderno?: (status: QuestionStatusFilter, date?: string) => void;
+  currentCadernoStatus?: string;
 }
 
 interface DisciplinaStats {
@@ -60,37 +67,27 @@ interface DisciplinaStats {
   taxaErros: number;
 }
 
-// Formata objeto Date para string YYYY-MM-DD considerando o fuso horário local
-function formatDateToLocalKey(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-// Formata string YYYY-MM-DD para DD/MM/AAAA amigável em PT-BR
-function formatKeyToDisplayDate(key: string): string {
-  if (!key) return '';
-  const parts = key.split('-');
-  if (parts.length === 3) {
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  }
-  return key;
-}
-
 export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> = ({
   questions,
   userAnswers,
   onResetStats,
+  onFilterCaderno,
+  currentCadernoStatus,
 }) => {
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'graficos' | 'disciplinas' | 'historico'>('graficos');
   const [timeFilter, setTimeFilter] = useState<TimeFilterPeriod>('total');
   const [selectedCustomDate, setSelectedCustomDate] = useState<string>(() =>
-    formatDateToLocalKey(new Date())
+    getLocalDateString(new Date())
   );
   const [selectedDisciplina, setSelectedDisciplina] = useState<string>('todas');
+  const [historicoStatusFilter, setHistoricoStatusFilter] = useState<'todos' | 'acertos' | 'erros'>('todos');
   const [showConfirmReset, setShowConfirmReset] = useState<boolean>(false);
+
+  // Fronteiras temporais calculadas em fuso horário local
+  const boundaries: DateBoundaries = useMemo(() => {
+    return getDateBoundaries(new Date());
+  }, []);
 
   // Mapear perguntas para lookup rápido
   const questionMap = useMemo(() => {
@@ -101,46 +98,12 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
     return map;
   }, [questions]);
 
-  // Datas de referência computadas no momento da renderização
-  const dateKeys = useMemo(() => {
-    const now = new Date();
-    const hojeStr = formatDateToLocalKey(now);
-
-    const ontem = new Date(now);
-    ontem.setDate(ontem.getDate() - 1);
-    const ontemStr = formatDateToLocalKey(ontem);
-
-    const anteontem = new Date(now);
-    anteontem.setDate(anteontem.getDate() - 2);
-    const anteontemStr = formatDateToLocalKey(anteontem);
-
-    // Limite dos últimos 7 dias (início do dia 6 dias atrás)
-    const seteDiasAtras = new Date(now);
-    seteDiasAtras.setDate(seteDiasAtras.getDate() - 6);
-    seteDiasAtras.setHours(0, 0, 0, 0);
-
-    // Limite dos últimos 30 dias (início do dia 29 dias atrás)
-    const trintaDiasAtras = new Date(now);
-    trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 29);
-    trintaDiasAtras.setHours(0, 0, 0, 0);
-
-    return {
-      hojeStr,
-      ontemStr,
-      anteontemStr,
-      seteDiasAtrasMs: seteDiasAtras.getTime(),
-      trintaDiasAtrasMs: trintaDiasAtras.getTime(),
-    };
-  }, []);
-
   // Lista com todas as datas em que o aluno respondeu pelo menos 1 questão (ordenada da mais recente para a mais antiga)
   const availableAnswerDates = useMemo(() => {
     const countsByDate = new Map<string, { total: number; acertos: number; erros: number }>();
-    const hoje = dateKeys.hojeStr;
 
     Object.values(userAnswers).forEach((ans) => {
-      // Se não houver data explícita, usa hoje como fallback para respostas de sessão recente
-      const dKey = ans.date || (ans.timestamp ? formatDateToLocalKey(new Date(ans.timestamp)) : hoje);
+      const dKey = getAnswerDateKey(ans) || boundaries.hojeStr;
       const current = countsByDate.get(dKey) || { total: 0, acertos: 0, erros: 0 };
       current.total += 1;
       if (ans.isCorrect) current.acertos += 1;
@@ -155,7 +118,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
         taxaAcertos: stats.total > 0 ? Math.round((stats.acertos / stats.total) * 100) : 0,
       }))
       .sort((a, b) => b.dateKey.localeCompare(a.dateKey));
-  }, [userAnswers, dateKeys]);
+  }, [userAnswers, boundaries]);
 
   // Contagem de respostas por cada período de filtro para exibir nos botões/pills
   const periodCounts = useMemo(() => {
@@ -165,68 +128,40 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
     let anteontem = 0;
     let semana = 0;
     let mes = 0;
-    const now = Date.now();
 
     Object.values(userAnswers).forEach((ans) => {
       total += 1;
-      const ansDate = ans.date || (ans.timestamp ? formatDateToLocalKey(new Date(ans.timestamp)) : dateKeys.hojeStr);
-      const ansMs = ans.timestamp || now;
-
-      if (ansDate === dateKeys.hojeStr) hoje += 1;
-      if (ansDate === dateKeys.ontemStr) ontem += 1;
-      if (ansDate === dateKeys.anteontemStr) anteontem += 1;
-
-      if (ansMs >= dateKeys.seteDiasAtrasMs) semana += 1;
-      if (ansMs >= dateKeys.trintaDiasAtrasMs) mes += 1;
+      if (isAnswerInTimeFilter(ans, 'hoje', undefined, boundaries)) hoje += 1;
+      if (isAnswerInTimeFilter(ans, 'ontem', undefined, boundaries)) ontem += 1;
+      if (isAnswerInTimeFilter(ans, 'anteontem', undefined, boundaries)) anteontem += 1;
+      if (isAnswerInTimeFilter(ans, 'semana', undefined, boundaries)) semana += 1;
+      if (isAnswerInTimeFilter(ans, 'mes', undefined, boundaries)) mes += 1;
     });
 
     return { total, hoje, ontem, anteontem, semana, mes };
-  }, [userAnswers, dateKeys]);
+  }, [userAnswers, boundaries]);
 
   // Respostas filtradas de acordo com o período selecionado
   const filteredUserAnswers = useMemo(() => {
     const result: Array<{ questionId: string; answer: StoredAnswer }> = [];
-    const now = Date.now();
 
     Object.entries(userAnswers).forEach(([qId, ans]) => {
-      const ansDate = ans.date || (ans.timestamp ? formatDateToLocalKey(new Date(ans.timestamp)) : dateKeys.hojeStr);
-      const ansMs = ans.timestamp || now;
-
-      let matches = false;
-
-      switch (timeFilter) {
-        case 'total':
-          matches = true;
-          break;
-        case 'hoje':
-          matches = ansDate === dateKeys.hojeStr;
-          break;
-        case 'ontem':
-          matches = ansDate === dateKeys.ontemStr;
-          break;
-        case 'anteontem':
-          matches = ansDate === dateKeys.anteontemStr;
-          break;
-        case 'semana':
-          matches = ansMs >= dateKeys.seteDiasAtrasMs;
-          break;
-        case 'mes':
-          matches = ansMs >= dateKeys.trintaDiasAtrasMs;
-          break;
-        case 'data_especifica':
-          matches = ansDate === selectedCustomDate;
-          break;
-        default:
-          matches = true;
-      }
-
-      if (matches) {
+      if (isAnswerInTimeFilter(ans, timeFilter, selectedCustomDate, boundaries)) {
         result.push({ questionId: qId, answer: ans });
       }
     });
 
     return result;
-  }, [userAnswers, timeFilter, selectedCustomDate, dateKeys]);
+  }, [userAnswers, timeFilter, selectedCustomDate, boundaries]);
+
+  // Respostas filtradas do histórico (considerando filtro interno de acertos/erros)
+  const historicoAnswers = useMemo(() => {
+    if (historicoStatusFilter === 'todos') return filteredUserAnswers;
+    if (historicoStatusFilter === 'acertos') {
+      return filteredUserAnswers.filter(({ answer }) => answer.isCorrect);
+    }
+    return filteredUserAnswers.filter(({ answer }) => !answer.isCorrect);
+  }, [filteredUserAnswers, historicoStatusFilter]);
 
   // Estatísticas consolidadas do período filtrado
   const statsResumo = useMemo(() => {
@@ -374,11 +309,9 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
     const map = new Map<string, { data: string; Acertos: number; Erros: number; Total: number }>();
 
     filteredUserAnswers.forEach(({ answer }) => {
-      const dKey =
-        answer.date ||
-        (answer.timestamp ? formatDateToLocalKey(new Date(answer.timestamp)) : dateKeys.hojeStr);
+      const dKey = getAnswerDateKey(answer) || boundaries.hojeStr;
       const current = map.get(dKey) || {
-        data: formatKeyToDisplayDate(dKey),
+        data: formatDisplayDate(dKey),
         Acertos: 0,
         Erros: 0,
         Total: 0,
@@ -396,7 +329,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([, val]) => val);
-  }, [filteredUserAnswers, dateKeys]);
+  }, [filteredUserAnswers, boundaries]);
 
   // Rótulo textual do período ativo para exibição no cabeçalho
   const activePeriodLabel = useMemo(() => {
@@ -404,21 +337,21 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
       case 'total':
         return 'Total Geral Acumulado';
       case 'hoje':
-        return `Hoje (${formatKeyToDisplayDate(dateKeys.hojeStr)})`;
+        return `Hoje (${formatDisplayDate(boundaries.hojeStr)})`;
       case 'ontem':
-        return `Ontem (${formatKeyToDisplayDate(dateKeys.ontemStr)})`;
+        return `Ontem (${formatDisplayDate(boundaries.ontemStr)})`;
       case 'anteontem':
-        return `Anteontem (${formatKeyToDisplayDate(dateKeys.anteontemStr)})`;
+        return `Anteontem (${formatDisplayDate(boundaries.anteontemStr)})`;
       case 'semana':
-        return 'Últimos 7 Dias (Semana)';
+        return 'Esta Semana / Últimos 7 Dias';
       case 'mes':
         return 'Últimos 30 Dias (Mês)';
       case 'data_especifica':
-        return `Data Específica: ${formatKeyToDisplayDate(selectedCustomDate)}`;
+        return `Data Específica: ${formatDisplayDate(selectedCustomDate)}`;
       default:
         return 'Período Selecionado';
     }
-  }, [timeFilter, selectedCustomDate, dateKeys]);
+  }, [timeFilter, selectedCustomDate, boundaries]);
 
   // Tooltip customizado para o gráfico de Rosca
   const CustomPieTooltip = ({ active, payload }: any) => {
@@ -531,10 +464,32 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                   Filtro Temporal de Desempenho
                 </span>
               </div>
-              <span className="text-xs text-sky-300 font-semibold">
-                {activePeriodLabel} &bull;{' '}
-                <strong className="text-white">{statsResumo.total}</strong> resolvida(s)
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-sky-300 font-semibold">
+                  {activePeriodLabel} &bull;{' '}
+                  <strong className="text-white">{statsResumo.total}</strong> resolvida(s)
+                </span>
+                {onFilterCaderno && statsResumo.total > 0 && (
+                  <button
+                    id="btn-sync-caderno-periodo"
+                    type="button"
+                    onClick={() => {
+                      if (timeFilter === 'data_especifica') {
+                        onFilterCaderno('todas', selectedCustomDate);
+                      } else if (timeFilter === 'total') {
+                        onFilterCaderno('todas');
+                      } else {
+                        onFilterCaderno(timeFilter as any);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-400/40 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs"
+                    title="Filtrar o Caderno de Questões com este mesmo período selecionado"
+                  >
+                    <Target className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Ver no Caderno ({statsResumo.total})</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Botões Pills de Filtro de Tempo */}
@@ -711,7 +666,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                       id="input-custom-date"
                       type="date"
                       value={selectedCustomDate}
-                      max={dateKeys.hojeStr}
+                      max={boundaries.hojeStr}
                       onChange={(e) => setSelectedCustomDate(e.target.value)}
                       className="text-xs font-bold text-white bg-zinc-950 border border-indigo-500/40 rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                     />
@@ -739,7 +694,7 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                             : 'bg-zinc-950 text-zinc-300 hover:bg-zinc-800 border border-zinc-800'
                         }`}
                       >
-                        <span>{formatKeyToDisplayDate(d.dateKey)}</span>
+                        <span>{formatDisplayDate(d.dateKey)}</span>
                         <span className="text-[10px] text-indigo-300 font-bold">
                           ({d.total} q &bull; {d.taxaAcertos}%)
                         </span>
@@ -1187,30 +1142,72 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
           {/* 8. CONTEÚDO DA SUB-ABA 3: HISTÓRICO DE QUESTÕES RESPONDIDAS */}
           {activeTab === 'historico' && (
             <div className="space-y-3 animate-in fade-in duration-200">
-              <div className="flex items-center justify-between text-xs text-zinc-400">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-zinc-400 border-b border-zinc-800 pb-2">
                 <span>
-                  Exibindo <strong>{filteredUserAnswers.length}</strong> questão(ões) respondida(s) em{' '}
+                  Exibindo <strong>{historicoAnswers.length}</strong> de <strong>{filteredUserAnswers.length}</strong> questão(ões) em{' '}
                   <strong className="text-white">{activePeriodLabel}</strong>
                 </span>
+
+                {/* Subfiltros do Histórico: Todos / Acertos / Erros */}
+                <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setHistoricoStatusFilter('todos')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      historicoStatusFilter === 'todos'
+                        ? 'bg-sky-600 text-white font-black shadow-xs'
+                        : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
+                    }`}
+                  >
+                    Todas ({filteredUserAnswers.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHistoricoStatusFilter('acertos')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1 ${
+                      historicoStatusFilter === 'acertos'
+                        ? 'bg-emerald-600 text-white font-black shadow-xs'
+                        : 'bg-zinc-950 text-emerald-400 hover:bg-emerald-950/40 border border-emerald-500/30'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3 h-3" />
+                    Acertos ({statsResumo.acertos})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHistoricoStatusFilter('erros')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1 ${
+                      historicoStatusFilter === 'erros'
+                        ? 'bg-rose-600 text-white font-black shadow-xs'
+                        : 'bg-zinc-950 text-rose-400 hover:bg-rose-950/40 border border-rose-500/30'
+                    }`}
+                  >
+                    <XCircle className="w-3 h-3" />
+                    Erros ({statsResumo.erros})
+                  </button>
+                </div>
               </div>
 
-              {filteredUserAnswers.length === 0 ? (
+              {historicoAnswers.length === 0 ? (
                 <div className="text-center py-12 text-zinc-500 bg-zinc-900 rounded-2xl border border-zinc-800">
                   <ListOrdered className="w-10 h-10 mx-auto mb-2 text-zinc-600" />
                   <p className="text-sm font-semibold text-zinc-300">
-                    Nenhuma resposta gravada neste período ({activePeriodLabel})
+                    Nenhuma resposta {historicoStatusFilter !== 'todos' ? `(${historicoStatusFilter})` : ''} neste período ({activePeriodLabel})
                   </p>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-                  {filteredUserAnswers.map(({ questionId, answer }, idx) => {
+                  {historicoAnswers.map(({ questionId, answer }, idx) => {
                     const q = questionMap.get(questionId);
                     const qNum = q?.numero_questao || idx + 1;
-                    const dateFormatted = answer.date
-                      ? formatKeyToDisplayDate(answer.date)
-                      : answer.timestamp
-                      ? formatKeyToDisplayDate(formatDateToLocalKey(new Date(answer.timestamp)))
-                      : 'Data não informada';
+                    const dateKey = getAnswerDateKey(answer);
+                    const ts = getAnswerTimestamp(answer);
+                    let dateFormatted = dateKey ? formatDisplayDate(dateKey) : 'Data não informada';
+                    if (ts) {
+                      const dt = new Date(ts);
+                      const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+                      dateFormatted = `${dateFormatted} às ${timeStr}`;
+                    }
 
                     return (
                       <div
@@ -1262,6 +1259,21 @@ export const StudentProgressDashboard: React.FC<StudentProgressDashboardProps> =
                             <span className="text-[10px] text-zinc-500 ml-auto">
                               {dateFormatted}
                             </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const cardEl = document.getElementById(`question-card-${questionId}`);
+                                if (cardEl) {
+                                  cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                  cardEl.classList.add('ring-2', 'ring-sky-400');
+                                  setTimeout(() => cardEl.classList.remove('ring-2', 'ring-sky-400'), 2000);
+                                }
+                              }}
+                              className="text-[10px] text-sky-400 hover:text-sky-300 hover:underline font-bold cursor-pointer"
+                              title="Localizar e visualizar esta questão no Caderno"
+                            >
+                              Ver no Caderno &rarr;
+                            </button>
                           </div>
 
                           {q?.enunciado && (
