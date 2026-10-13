@@ -24,6 +24,7 @@ interface QuestionCardProps {
   index: number;
   onAnswer?: (questionId: string, isCorrect: boolean, selectedChoice?: string) => void;
   savedAnswer?: { selected: string; isCorrect: boolean };
+  isRandomOrder?: boolean;
 }
 
 export const QuestionCard: React.FC<QuestionCardProps> = ({
@@ -31,6 +32,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   index,
   onAnswer,
   savedAnswer,
+  isRandomOrder,
 }) => {
   // Letra temporariamente selecionada (antes de clicar em "Responder")
   const [selectedTemp, setSelectedTemp] = useState<string>(
@@ -129,9 +131,18 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         id={`question-sidebar-${question.id || index}`}
         className="w-full sm:w-36 shrink-0 bg-[#d4e4e6] rounded-2xl border border-[#bed3d6] p-3.5 text-xs shadow-xs space-y-2.5 text-slate-800"
       >
-        <div className="font-extrabold text-slate-900 text-sm sm:text-base tracking-tight flex items-center justify-between">
+        <div className="font-extrabold text-slate-900 text-sm sm:text-base tracking-tight flex items-center justify-between gap-1 flex-wrap">
           <span>Questão {question.numero_questao || index + 1}</span>
-          <span className="w-2 h-2 rounded-full bg-sky-600" />
+          {isRandomOrder ? (
+            <span
+              className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-purple-200/80 text-purple-900 border border-purple-400"
+              title="Posição nesta rodada de sorteio aleatório"
+            >
+              🎲 #{index + 1}
+            </span>
+          ) : (
+            <span className="w-2 h-2 rounded-full bg-sky-600" />
+          )}
         </div>
 
         <div className="text-[11px] font-bold">

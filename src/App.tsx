@@ -15,6 +15,8 @@ import { EagleShieldLogo } from './components/EagleShieldLogo';
 import { db } from './firebase/config';
 import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { syncAndRecoverUserAnswers } from './services/userProgressSync';
+import { shuffleArrayWithSeed } from './utils/shuffle';
+import { isAnswerInTimeFilter } from './utils/dateFilters';
 import {
   getQuestionMateria,
   getQuestionModulo,
@@ -43,6 +45,8 @@ import {
   LogIn,
   Filter,
   CheckCircle2,
+  Dices,
+  Shuffle,
 } from 'lucide-react';
 
 function MainApp() {
@@ -69,6 +73,8 @@ function MainApp() {
     tema_subtopico: '',
     busca: '',
     statusFiltro: 'todas',
+    ordemAleatoria: false,
+    shuffleSeed: 1,
   });
 
   // Respostas do usuário salvas na sessão/localStorage com suporte temporal completo
@@ -232,6 +238,12 @@ function MainApp() {
       if (filters.statusFiltro === 'erros' && (!answerState || answerState.isCorrect)) {
         return false;
       }
+      if (filters.statusFiltro === 'hoje' && (!answerState || !isAnswerInTimeFilter(answerState, 'hoje'))) {
+        return false;
+      }
+      if (filters.statusFiltro === 'semana' && (!answerState || !isAnswerInTimeFilter(answerState, 'semana'))) {
+        return false;
+      }
       if (filters.statusFiltro === 'sem_assunto' && !isQuestionSemAssunto(q)) {
         return false;
       }
@@ -289,7 +301,14 @@ function MainApp() {
       return true;
     });
 
-    // Ordenação estritamente ordinal crescente (1, 2, 3, 4, 5, 6...)
+    // Se a ordem aleatória estiver ativada, embaralha deterministicamente pelo seed
+    const isAleatoria = Boolean(filters.ordemAleatoria || filters.statusFiltro === 'aleatoria');
+
+    if (isAleatoria) {
+      return shuffleArrayWithSeed(list, filters.shuffleSeed || 1);
+    }
+
+    // Ordenação estritamente ordinal crescente padrão (1, 2, 3, 4, 5, 6...)
     return list.sort((a, b) => {
       const numA = typeof a.numero_questao === 'number' && a.numero_questao > 0 ? a.numero_questao : 999999;
       const numB = typeof b.numero_questao === 'number' && b.numero_questao > 0 ? b.numero_questao : 999999;
@@ -297,6 +316,25 @@ function MainApp() {
       return (a.createdAt || '').localeCompare(b.createdAt || '');
     });
   }, [firestoreQuestions, filters, userAnswers, unresolvedExcludedIds]);
+
+  const handleReshuffleQuestions = () => {
+    setFilters((prev) => ({
+      ...prev,
+      ordemAleatoria: true,
+      shuffleSeed: Date.now(),
+    }));
+  };
+
+  const handleToggleRandomOrder = (enabled?: boolean) => {
+    setFilters((prev) => {
+      const nextVal = enabled !== undefined ? enabled : !prev.ordemAleatoria;
+      return {
+        ...prev,
+        ordemAleatoria: nextVal,
+        shuffleSeed: nextVal ? Date.now() : prev.shuffleSeed,
+      };
+    });
+  };
 
   // Quantidade de questões resolvidas nesta sessão que ainda estão visíveis na tela
   const newlyAnsweredInUnresolved = useMemo(() => {
@@ -537,6 +575,55 @@ function MainApp() {
               </div>
             )}
 
+            {/* Banner Informativo quando o Modo Aleatório estiver ativo */}
+            {(filters.ordemAleatoria || filters.statusFiltro === 'aleatoria') && (
+              <div
+                id="banner-modo-aleatorio"
+                className="bg-gradient-to-r from-purple-950/80 via-indigo-950/70 to-zinc-900 border-2 border-purple-500/50 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl relative overflow-hidden mb-6 text-white"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-fuchsia-400 to-indigo-500" />
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="p-2.5 bg-purple-500/20 text-purple-300 rounded-xl border border-purple-500/40 shrink-0">
+                    <Dices className="w-5 h-5 text-purple-300 animate-pulse" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-white flex items-center gap-2 flex-wrap">
+                      <span>Modo de Resolução Aleatória Ativo</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/30 text-purple-200 font-extrabold border border-purple-400/40 uppercase">
+                        {filteredQuestions.length} questões sorteadas
+                      </span>
+                    </h4>
+                    <p className="text-xs text-purple-200/90 mt-1">
+                      As questões estão embaralhadas aleatoriamente para simular a imprevisibilidade de provas de concurso público. A ordem permanece fixa enquanto você resolve as questões.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    id="btn-reembaralhar-banner"
+                    type="button"
+                    onClick={handleReshuffleQuestions}
+                    className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer whitespace-nowrap border border-purple-400/40"
+                    title="Embaralhar as questões novamente em uma nova ordem aleatória"
+                  >
+                    <Shuffle className="w-4 h-4" />
+                    <span>Embaralhar Novamente</span>
+                  </button>
+
+                  <button
+                    id="btn-desativar-aleatorio-banner"
+                    type="button"
+                    onClick={() => handleToggleRandomOrder(false)}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white font-bold text-xs rounded-xl transition-all cursor-pointer whitespace-nowrap border border-zinc-700"
+                    title="Voltar para a ordem ordinal padrão (1, 2, 3...)"
+                  >
+                    <span>Ordem Padrão (1, 2, 3...)</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Lista de Questões */}
             {loadingQuestions ? (
               <div className="py-16 text-center text-slate-400">
@@ -587,6 +674,8 @@ function MainApp() {
                       tema_subtopico: '',
                       busca: '',
                       statusFiltro: 'todas',
+                      ordemAleatoria: false,
+                      shuffleSeed: 1,
                     })
                   }
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
@@ -604,6 +693,7 @@ function MainApp() {
                       question={q}
                       index={idx}
                       savedAnswer={userAnswers[qId]}
+                      isRandomOrder={Boolean(filters.ordemAleatoria || filters.statusFiltro === 'aleatoria')}
                       onAnswer={(id, isCorrect, selected) => handleAnswerQuestion(id, isCorrect, selected)}
                     />
                   );

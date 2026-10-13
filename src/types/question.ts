@@ -47,8 +47,10 @@ export interface FilterOptions {
   tema?: string;
   tema_subtopico: string;
   busca: string;
-  statusFiltro: 'todas' | 'nao_resolvidas' | 'acertos' | 'erros' | 'sem_assunto' | 'fora_escopo';
+  statusFiltro: 'todas' | 'nao_resolvidas' | 'acertos' | 'erros' | 'sem_assunto' | 'fora_escopo' | 'aleatoria' | 'hoje' | 'semana';
   apenasSemAssunto?: boolean;
+  ordemAleatoria?: boolean; // Se true, apresenta as questões em ordem aleatória (embaralhada)
+  shuffleSeed?: number; // Semente para reembaralhar sob demanda mantendo estabilidade ao responder
 }
 
 export interface UserStats {

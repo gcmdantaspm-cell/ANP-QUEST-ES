@@ -14,6 +14,8 @@ import {
   Flame,
   Calendar,
   Clock,
+  Dices,
+  Shuffle,
 } from 'lucide-react';
 import {
   getQuestionMateria,
@@ -407,6 +409,8 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
       tema_subtopico: '',
       busca: '',
       statusFiltro: 'todas',
+      ordemAleatoria: false,
+      shuffleSeed: 1,
     });
   };
 
@@ -417,7 +421,8 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
       filters.subtopico ||
       filters.tema_subtopico ||
       filters.busca ||
-      filters.statusFiltro !== 'todas'
+      filters.statusFiltro !== 'todas' ||
+      filters.ordemAleatoria
   );
 
   return (
@@ -921,6 +926,55 @@ export const HierarchyFilter: React.FC<HierarchyFilterProps> = ({
               <span>Fora do Escopo ({coopInternacionalCount})</span>
             </button>
           )}
+
+          {/* MODO DE RESOLUÇÃO ALEATÓRIA SOLICITADO PELO USUÁRIO */}
+          <div className="inline-flex items-center gap-1">
+            <button
+              id="filter-status-ordem-aleatoria"
+              type="button"
+              onClick={() => {
+                const nextRandom = !filters.ordemAleatoria;
+                onChangeFilters({
+                  ...filters,
+                  ordemAleatoria: nextRandom,
+                  shuffleSeed: nextRandom ? Date.now() : filters.shuffleSeed,
+                });
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                filters.ordemAleatoria
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-black shadow-md ring-2 ring-purple-400'
+                  : 'bg-zinc-950 text-purple-400 border border-purple-500/40 hover:bg-purple-500/10 hover:text-purple-300'
+              }`}
+              title="Realizar as questões em ordem totalmente aleatória (embaralhada)"
+            >
+              <Dices className="w-3.5 h-3.5 text-purple-300" />
+              <span>Ordem Aleatória</span>
+              {filters.ordemAleatoria && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-purple-900 text-purple-200 font-extrabold uppercase tracking-wider">
+                  Ativo
+                </span>
+              )}
+            </button>
+
+            {filters.ordemAleatoria && (
+              <button
+                id="btn-filter-reembaralhar"
+                type="button"
+                onClick={() => {
+                  onChangeFilters({
+                    ...filters,
+                    ordemAleatoria: true,
+                    shuffleSeed: Date.now(),
+                  });
+                }}
+                className="px-2 py-1.5 rounded-lg text-xs font-bold bg-purple-950/80 hover:bg-purple-900 text-purple-300 border border-purple-500/40 transition-colors cursor-pointer inline-flex items-center gap-1 shadow-xs"
+                title="Sortear nova sequência de questões aleatórias agora"
+              >
+                <Shuffle className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Sortear</span>
+              </button>
+            )}
+          </div>
 
           {/* Botão de Filtrar solicitado pelo usuário: toda vez que clicar nele, atualiza as questões não resolvidas */}
           {filters.statusFiltro === 'nao_resolvidas' && onApplyUnresolvedFilter && (
