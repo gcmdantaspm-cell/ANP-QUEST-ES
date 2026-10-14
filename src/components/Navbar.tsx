@@ -11,6 +11,7 @@ import {
   FileCheck2,
   BookOpen,
   Sparkles,
+  BarChart3,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -18,8 +19,8 @@ interface NavbarProps {
   onToggleAdmin: () => void;
   onOpenOffline: () => void;
   offlineCount: number;
-  activeNavSection: 'questoes' | 'simulados';
-  onSelectNavSection: (section: 'questoes' | 'simulados') => void;
+  activeNavSection: 'questoes' | 'estatisticas' | 'simulados';
+  onSelectNavSection: (section: 'questoes' | 'estatisticas' | 'simulados') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -61,10 +62,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             </div>
 
-            {/* Abas Principais de Navegação: Questões e Simulados (Apenas para usuários com matrícula verificada) */}
+            {/* Abas Principais de Navegação: Questões, Estatísticas e Simulados (Apenas para usuários com matrícula verificada) */}
             {isMatriculaVerified && (
               <nav className="hidden md:flex items-center gap-2 border-l border-zinc-800 pl-6">
                 <button
+                  id="nav-btn-questoes"
                   type="button"
                   onClick={() => onSelectNavSection('questoes')}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-2 ${
@@ -78,6 +80,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
 
                 <button
+                  id="nav-btn-estatisticas"
+                  type="button"
+                  onClick={() => onSelectNavSection('estatisticas')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-2 ${
+                    activeNavSection === 'estatisticas'
+                      ? 'bg-sky-600 hover:bg-sky-500 text-white shadow-md font-extrabold ring-1 ring-sky-400/40'
+                      : 'text-zinc-400 hover:text-sky-300 hover:bg-zinc-900'
+                  }`}
+                >
+                  <BarChart3 className="w-4 h-4 text-sky-400" />
+                  <span>Estatísticas</span>
+                </button>
+
+                <button
+                  id="nav-btn-simulados"
                   type="button"
                   onClick={() => onSelectNavSection('simulados')}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-2 ${
@@ -183,10 +200,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Navegação Mobile em abas: Questões e Simulados (Apenas se matrícula autorizada) */}
+        {/* Navegação Mobile em abas: Questões, Estatísticas e Simulados (Apenas se matrícula autorizada) */}
         {isMatriculaVerified && (
-          <div className="flex md:hidden border-t border-zinc-900 py-2 gap-2">
+          <div className="flex md:hidden border-t border-zinc-900 py-2 gap-1.5">
             <button
+              id="mobile-nav-btn-questoes"
               type="button"
               onClick={() => onSelectNavSection('questoes')}
               className={`flex-1 py-2 rounded-lg text-xs font-bold text-center transition-colors ${
@@ -198,6 +216,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               Questões
             </button>
             <button
+              id="mobile-nav-btn-estatisticas"
+              type="button"
+              onClick={() => onSelectNavSection('estatisticas')}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold text-center transition-colors ${
+                activeNavSection === 'estatisticas'
+                  ? 'bg-sky-600 text-white font-extrabold'
+                  : 'bg-zinc-900 text-zinc-300'
+              }`}
+            >
+              Estatísticas
+            </button>
+            <button
+              id="mobile-nav-btn-simulados"
               type="button"
               onClick={() => onSelectNavSection('simulados')}
               className={`flex-1 py-2 rounded-lg text-xs font-bold text-center transition-colors flex items-center justify-center gap-1 ${
@@ -206,7 +237,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : 'bg-zinc-900 text-zinc-300'
               }`}
             >
-              SIMULADOS PAPA FOX TREINO
+              Simulados
             </button>
           </div>
         )}

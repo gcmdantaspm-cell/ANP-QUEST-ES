@@ -47,14 +47,15 @@ import {
   CheckCircle2,
   Dices,
   Shuffle,
+  BarChart3,
 } from 'lucide-react';
 
 function MainApp() {
   const { user, isAdmin, isMatriculaVerified, checkingMatricula, loginWithGoogle } = useAuth();
   const { theme, setIsThemeSelectorOpen } = useTheme();
 
-  // Navegação principal entre Caderno de Questões e Simulados
-  const [activeNavSection, setActiveNavSection] = useState<'questoes' | 'simulados'>('questoes');
+  // Navegação principal: Caderno de Questões, Estatísticas e Simulados
+  const [activeNavSection, setActiveNavSection] = useState<'questoes' | 'estatisticas' | 'simulados'>('questoes');
 
   // Estado das questões (salvas no banco de dados)
   const [firestoreQuestions, setFirestoreQuestions] = useState<Question[]>([]);
@@ -437,6 +438,44 @@ function MainApp() {
           </div>
         ) : activeNavSection === 'simulados' ? (
           <SimuladosDashboard existingQuestions={firestoreQuestions} />
+        ) : activeNavSection === 'estatisticas' ? (
+          <div className="space-y-6">
+            {/* Cabeçalho do Menu de Estatísticas */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-zinc-900/60 border border-sky-500/20 rounded-2xl p-4 sm:p-5 shadow-lg">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
+                    <BarChart3 className="w-6 h-6 text-sky-400" />
+                    <span>Estatísticas &amp; Desempenho do Aluno</span>
+                  </h1>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 font-bold border border-sky-400/30">
+                    {Object.keys(userAnswers).length} resolvidas
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-zinc-400">
+                  Acompanhe sua taxa de acertos, evolução diária, semanal e histórico completo de resolução de questões
+                </p>
+              </div>
+
+              <button
+                id="btn-voltar-questoes-das-estatisticas"
+                type="button"
+                onClick={() => setActiveNavSection('questoes')}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md transition-all cursor-pointer whitespace-nowrap self-start sm:self-auto"
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>Ir para Caderno de Questões</span>
+              </button>
+            </div>
+
+            {/* Dashboard de Progresso com Gráficos */}
+            <StudentProgressDashboard
+              questions={firestoreQuestions}
+              userAnswers={userAnswers}
+              onResetStats={handleResetSessionStats}
+              onRefreshAnswers={(newAnswers) => setUserAnswers(newAnswers)}
+            />
+          </div>
         ) : (
           <div className="space-y-6">
             {/* Barra de Ações Rápidas do Topo */}
@@ -451,25 +490,29 @@ function MainApp() {
                   </span>
                 </div>
                 <p className="text-xs sm:text-sm text-zinc-400">
-                  Pratique com resolução comentada, etiquetas em destaque e macetes didáticos
+                  Pratique com resolução comentada, modo aleatório, gabarito detalhado e macetes didáticos
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Botão de Atalho Rápido para o Menu de Estatísticas */}
+                <button
+                  id="btn-atalho-estatisticas"
+                  type="button"
+                  onClick={() => setActiveNavSection('estatisticas')}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-zinc-900 hover:bg-zinc-850 text-sky-300 hover:text-white border border-sky-500/30 rounded-xl font-bold text-xs shadow-xs transition-all cursor-pointer"
+                  title="Abrir o Painel Completo de Estatísticas e Progresso"
+                >
+                  <BarChart3 className="w-4 h-4 text-sky-400" />
+                  <span>Ver Estatísticas ({Object.keys(userAnswers).length} feitas)</span>
+                </button>
+
                 <OfflineExporter
                   questions={filteredQuestions}
                   currentFilterLabel={currentFilterLabel}
                 />
               </div>
             </div>
-
-            {/* Dashboard de Progresso com Gráficos */}
-            <StudentProgressDashboard
-              questions={firestoreQuestions}
-              userAnswers={userAnswers}
-              onResetStats={handleResetSessionStats}
-              onRefreshAnswers={(newAnswers) => setUserAnswers(newAnswers)}
-            />
 
             {/* Filtro Hierárquico: Módulo > Capítulo > Subtópico > Tema */}
             <HierarchyFilter
